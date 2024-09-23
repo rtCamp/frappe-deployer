@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "frappe-deployer"
+version = "0.0.0"
+description = ""
+authors = ["Alok Singh <alokmilenium@gmail.com>"]
+license = "MIT"
+readme = "readme.org"
+
+[tool.poetry.dependencies]
+python = "3.11.9"
+frappe-manager = "^0.16.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
