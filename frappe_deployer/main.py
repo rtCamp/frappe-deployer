@@ -1,6 +1,38 @@
-from frappe_manager.utils import docker
-import re
+import atexit
+
+from frappe_manager.display_manager.DisplayManager import richprint
+from frappe_manager.logger import log
+from frappe_manager.utils.docker import process_opened
+from frappe_manager.utils.helpers import (
+    capture_and_format_exception,
+    remove_zombie_subprocess_process,
+)
+
+import frappe_deployer
+from frappe_deployer.consts import LOG_FILE_NAME
 
 
-commit_pattern = re.compile(r'0-9a-f{40}$', re.IGNORECASE)
-is_commit = commit_pattern.match('xd')
+def cli_entrypoint():
+    try:
+        frappe_deployer.cli()
+    except Exception as e:
+        logger = log.get_logger()
+
+        richprint.stop()
+
+        richprint.error(f'[red]Error Occured[/red]  {str(e).strip()}',emoji_code="\n:x:")
+        richprint.error(f"More info about error is logged in {LOG_FILE_NAME}.log", emoji_code=':mag:')
+
+        exception_traceback: str = capture_and_format_exception()
+        logger.error(f"Exception Occured:  : \n{exception_traceback}")
+
+    finally:
+        atexit.register(exit_cleanup)
+
+
+def exit_cleanup():
+    """
+    This function is used to perform cleanup at the exit.
+    """
+    remove_zombie_subprocess_process(process_opened)
+    #richprint.stop()

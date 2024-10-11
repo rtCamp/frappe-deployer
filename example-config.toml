@@ -1,4 +1,4 @@
-site_name = 'MySite'
+site_name = 'site.localhost'
 mode = 'host'  # Can be 'host' or 'fm'
 
 [[apps]]
@@ -10,7 +10,4 @@ repo = 'frappe/erpnext'
 ref = 'main'
 
 [host]
-bench_path = '/path/to/bench'
-
-[fm]
-# Add fm-specific configurations here
+bench_path = '/home/frappe/frappe/sites/cicd.localhost/workspace'
