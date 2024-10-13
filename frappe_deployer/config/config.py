@@ -1,10 +1,11 @@
+from frappe_manager.utils.site import richprint
 import toml
 from pathlib import Path
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Literal, Optional
+import asyncio
 from frappe_manager import CLI_BENCHES_DIRECTORY
-
-from frappe_manager.display_manager.DisplayManager import richprint
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from frappe_deployer.config.app import AppConfig
 from frappe_deployer.config.host import HostConfig
@@ -14,6 +15,8 @@ class Config(BaseModel):
     site_name: str
     apps: List[AppConfig]
     maintenance_mode: bool = Field(True)
+    verbose: bool = Field(False)
+    uv: bool = Field(True)
     mode: Literal['host', 'fm'] = Field(...)
     host: Optional[HostConfig] = None
     fm: Optional[FMConfig] = None
@@ -32,6 +35,12 @@ class Config(BaseModel):
     def bench_name(self) -> str:
         return self.bench_path.name
 
+    @field_validator('apps',mode='before')
+    def initialize_apps(cls, values):
+        apps = []
+        for app in values:
+            apps.append(AppConfig.from_dict(app))
+        return apps
 
     @property
     def deploy_dir_path(self) -> Path:
@@ -43,14 +52,12 @@ class Config(BaseModel):
             raise ValueError('mode must be either "host" or "fm"')
         return v
 
-    @field_validator('apps')
+    @field_validator('apps', mode='after')
     def validate_apps(cls, v):
         apps_exists = True
 
         for app in v:
-            if app.exists:
-                richprint.print(f"Repo: [green]{app.repo}[/green] with ref '{app.ref}' is accessible. App url [blue]{app.repo_url}[/blue]")
-            else:
+            if not app.exists:
                 apps_exists = False
                 richprint.error(app.repo_url)
 

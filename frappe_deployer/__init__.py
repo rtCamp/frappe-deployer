@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Annotated
+from frappe_manager.logger.log import richprint
 import typer
 
 from frappe_deployer.config.config import Config
@@ -30,7 +31,7 @@ def configure(
     #benchpath: Annotated[str, typer.Argument(help="bench path")],
     config_path: Annotated[str, typer.Option(help='TOML config path',callback=validate_cofig_path)]
 ):
-
+    richprint.start('working')
     config: Config = Config.from_toml(config_path)
     DeploymentManager.configure(config)
 
@@ -39,7 +40,7 @@ def pull(
     ctx: typer.Context,
     config_path: Annotated[str, typer.Option(help='TOML config path',callback=validate_cofig_path)]
 ):
-
+    richprint.start('working')
     config: Config = Config.from_toml(config_path)
     manager = DeploymentManager(config)
     manager.create_new_release()
@@ -51,7 +52,7 @@ def test(
     ctx: typer.Context,
     config_path: Annotated[str, typer.Option(help='TOML config path',callback=validate_cofig_path)]
 ):
-
+    richprint.start('working')
     config: Config = Config.from_toml(config_path)
     manager = DeploymentManager(config)
     manager.bench_symlink_and_restart(manager.current)

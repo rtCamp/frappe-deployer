@@ -1,9 +1,9 @@
 import shutil
 import time
 from typing import Iterable, Optional, Tuple, Union, Literal
+from frappe_manager.logger.log import richprint
 from frappe_manager.utils.helpers import json
 from pathlib import Path
-from frappe_manager.display_manager import DisplayManager
 
 from frappe_deployer.config.app import AppConfig
 from frappe_deployer.config.config import Config
@@ -18,16 +18,18 @@ from frappe_manager.compose_project.compose_project import ComposeProject
 class DeploymentManager:
     apps: list[AppConfig]
     path: Path
+    verbose: bool = False
     mode: Literal['fm','host'] = 'host'
 
-    def __init__(self, config:Config) -> None:
+    def __init__(self, config: Config) -> None:
         self.config = config
+        self.verbose = config.verbose
         self.site_name = config.site_name
         self.bench_path = config.bench_path
         self.apps = config.apps
         self.mode = config.mode
         self.path = config.deploy_dir_path
-        self.printer = DisplayManager.DisplayManager()
+        self.printer = richprint
 
         self.current = BenchDirectory(config.bench_path)
         self.site_installed_apps = self.get_site_installed_apps(self.current)
@@ -122,6 +124,7 @@ class DeploymentManager:
             release.printer.change_head(f'Moving bench directory, creating initial release')
             shutil.move(str(release.current.path.absolute()), str(release.new.path.absolute()))
 
+            release.configure_uv(release.new)
             release.bench_setup_requiments(release.new)
             release.bench_symlink_and_restart(release.new)
 
@@ -174,10 +177,6 @@ class DeploymentManager:
         self.bench_setup_requiments(self.new)
         self.bench_build(self.new)
 
-
-
-        print(self.config)
-
         if self.config.maintenance_mode:
             start_time = time.time()
 
@@ -188,7 +187,6 @@ class DeploymentManager:
         self.bench_install_and_migrate(self.current)
 
         self.current.maintenance_mode(self.site_name,False)
-
 
         if self.config.maintenance_mode:
             self.printer.print("Disabled maintenance mode",)
@@ -201,7 +199,7 @@ class DeploymentManager:
             self.printer.change_head(f"Cloning repo {app.repo_url}")
             bench_directory.clone_app(app)
             app_name = bench_directory.get_app_python_module_name(bench_directory.apps / app.dir_name)
-            self.printer.print(f"Repo: {app.repo_url} cloned, Module: '{app_name}'")
+            self.printer.print(f"Cloned Repo: {app.repo_url}, Module Name: '{app_name}'")
 
     def bench_install_and_migrate(self, bench_directory: BenchDirectory, app_name_from_apps_directory: bool = False):
         apps: list[Union[AppConfig,Path]] =  self.apps
@@ -211,31 +209,44 @@ class DeploymentManager:
 
         app: Union[AppConfig,Path]
 
-        for app in apps:
-            app_name = app.name if app_name_from_apps_directory else app.dir_name
-            app_path = bench_directory.apps / app_name
-            print(app_path)
-            app_python_module_name = bench_directory.get_app_python_module_name(app_path)
-
-            #if self.is_app_installed_in_site(site_name=self.site_name,app_name=app_python_module_name):
-            #    continue
-
-            install_command = ['bench','--site',self.site_name, 'install-app', app_python_module_name]
-            self.printer.change_head(f"Installing app {app_name} in {self.site_name}")
-            self.host_run(install_command, bench_directory, stream=True,container= self.mode == 'fm', capture_output=False)
-            self.printer.print(f"Installed app {app_name} in {self.site_name}")
-
         self.printer.change_head("Running bench migrate")
         bench_migrate = ['bench','migrate']
         self.host_run(bench_migrate, bench_directory, stream=True,container= self.mode == 'fm', capture_output=False)
         self.printer.print(f"Bench migrate done")
 
+        for app in apps:
+            app_name = app.name if app_name_from_apps_directory else app.dir_name
+            app_path = bench_directory.apps / app_name
+            app_python_module_name = bench_directory.get_app_python_module_name(app_path)
+
+            if self.is_app_installed_in_site(site_name=self.site_name,app_name=app_python_module_name):
+                self.printer.print(f"App {app_python_module_name} is already installed.")
+                continue
+
+            install_command = ['bench','--site',self.site_name, 'install-app', app_python_module_name]
+            self.printer.change_head(f"Installing app {app_python_module_name} in {self.site_name}")
+            output = self.host_run(install_command, bench_directory, stream=False,container= self.mode == 'fm', capture_output=True)
+
+            if f'App {app_python_module_name} already installed' in output.combined:
+                self.printer.print(f"App {app_python_module_name} is already installed.")
+
+            self.printer.print(f"Installed app {app_python_module_name} in {self.site_name}")
+
+
     def host_run(self, command: list[str], bench_directory: BenchDirectory, container: bool = False, container_service: str ='frappe', container_user: str = 'frappe', stream: bool =False, capture_output: bool = True) -> Union[Iterable[Tuple[str, bytes]], SubprocessOutput]:
+
+        if self.verbose: start_time = time.time()
+
         if not container:
             output = run_command_with_exit_code(
                 command, stream=stream, capture_output=capture_output, cwd = str(bench_directory.path.absolute())
             )
-            return output
+
+            if self.verbose:
+                end_time = time.time()
+                elapsed_time = end_time - start_time
+                self.printer.print(f"Time Taken: {elapsed_time:.2f} sec, Command: '{' '.join(command)}'",emoji_code=':robot_face:')
+                return output
 
         docker_command = " ".join(command)
 
@@ -248,33 +259,84 @@ class DeploymentManager:
             output: SubprocessOutput = compose_project.docker.compose.exec(
                 service=container_service, command=docker_command, user=container_user, workdir=workdir, stream=not capture_output
             )
-            return output
+
+            if self.verbose:
+                end_time = time.time()
+                elapsed_time = end_time - start_time
+                self.printer.print(f"Time Taken: {elapsed_time:.2f} sec, Command: '{' '.join(command)}'",emoji_code=':robot_face:')
+                return output
         else:
             output: Iterable[Tuple[str, bytes]] = compose_project.docker.compose.exec(
                 service=container_service, command=docker_command, user=container_user, workdir=workdir, stream=not capture_output
             )
-            self.printer.live_lines(output)
+            if self.verbose:
+                self.printer.live_lines(output)
+                end_time = time.time()
+                elapsed_time = end_time - start_time
+                self.printer.print(f"Time Taken: {elapsed_time:.2f} sec, Command: '{' '.join(command)}'",emoji_code=':robot_face:')
+
+
+    def configure_uv(self,bench_directory: BenchDirectory):
+        if self.config.uv:
+            try:
+                output = self.host_run(['pip','install','uv'], bench_directory ,stream=False,container= self.mode == 'fm', capture_output=True)
+            except DockerException:
+                shutil.rmtree(bench_directory.env)
+                self.python_env_create(bench_directory)
 
     def python_env_create(self, bench_directory: BenchDirectory, python_version: Optional[str] = None ):
         python_version = python_version if python_version else ''
+
         venv_create_command = [f'python{python_version}','-m', 'venv','env']
 
-        self.printer.change_head('Creating python venv')
+        self.printer.change_head(f"Creating python venv {'using uv' if self.config.uv else ''}")
+
+        if self.config.uv:
+            # install uv
+            output = self.host_run(['pip','install','uv'], bench_directory ,stream=False,container= self.mode == 'fm', capture_output=True)
+            venv_create_command = [f'uv','venv', '--python',f'python{python_version}','env']
+
         output = self.host_run(venv_create_command, bench_directory ,stream=False,container= self.mode == 'fm', capture_output=True)
-        output = self.host_run(['env/bin/python','-m','pip','install','wheel'], bench_directory ,stream=False,container= self.mode == 'fm', capture_output=True)
+
+        pkg_install = ['env/bin/python','-m','pip','install','wheel']
+
+        if self.config.uv:
+            pkg_install = ['uv','pip','install','--python', 'env/bin/python','-U', 'pip']
+
+        output = self.host_run(pkg_install, bench_directory ,stream=False,container= self.mode == 'fm', capture_output=True)
         output = self.host_run(['env/bin/python','--version'], bench_directory ,stream=False,container= self.mode == 'fm', capture_output=True)
-        self.printer.print(f"Created {output.combined[-1]} env")
+        self.printer.print(f"Created {output.combined[-1]} env {'using uv' if self.config.uv else ''}")
+
+    def bench_install_all_apps_in_python_env(self, bench_directory: BenchDirectory):
+        self.printer.change_head(f"Installing all apps in python env {'using uv' if self.config.uv else ''}")
+
+        install_cmd = ['bench','setup','requirements','--python']
+
+        if self.config.uv:
+            install_cmd = ['uv','pip','install','--python', 'env/bin/python', '-U','-e']
+            apps  = [ d for d in bench_directory.apps.iterdir() if d.is_dir()]
+            for app in apps:
+                self.host_run(install_cmd + [f'apps/{app.name}'], bench_directory ,stream=False,container= self.mode == 'fm', capture_output=False)
+        else:
+            self.host_run(install_cmd, bench_directory ,stream=False,container= self.mode == 'fm', capture_output=False)
+
+        self.printer.print("Installed apps in python env")
+
 
     def bench_setup_requiments(self, bench_directory: BenchDirectory):
-        python_cmd = ['bench','setup','requirements','--python']
         node_cmd = ['bench','setup','requirements','--node']
+
         self.printer.change_head("Installing all apps node packages")
         self.host_run(node_cmd, bench_directory ,stream=False,container= self.mode == 'fm', capture_output=False)
         self.printer.print("Installed all apps node packages")
 
-        self.printer.change_head("Installing all apps in python env")
-        self.host_run(python_cmd, bench_directory ,stream=False,container= self.mode == 'fm', capture_output=False)
-        self.printer.print("Installed apps in python env")
+
+        start_time = time.time()
+        self.bench_install_all_apps_in_python_env(bench_directory)
+
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        self.printer.print(f"Apps python env install time: {elapsed_time:.2f} seconds")
 
         self.printer.change_head("Configuring apps.txt")
         # Get all directory names in bench_directory.apps

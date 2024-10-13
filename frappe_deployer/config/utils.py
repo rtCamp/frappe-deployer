@@ -1,13 +1,14 @@
+from frappe_manager.logger.log import richprint
 import git
 from git.exc import GitCommandError
 from typing import Optional
 
-def is_ref_commit(ref: Optional[str]):
+def is_ref_commit(ref: Optional[str]) -> bool:
     if ref is None:
         return False
     return len(ref) == 40 and all(c in '0123456789abcdef' for c in ref.lower())
 
-def __check_ref_exists_for_url__(repo_url: str, ref: Optional[str]) -> bool:
+def __check_ref_exists_for_url__(repo_url: str, ref: Optional[str] = None) -> bool:
     """
     Check if a ref (branch, tag, or commit) exists in the Git repository.
 
@@ -32,7 +33,7 @@ def __check_ref_exists_for_url__(repo_url: str, ref: Optional[str]) -> bool:
     except GitCommandError:
         return False
 
-def get_repo_url(repo:str, ref:str, token: Optional[str] = None) -> str:
+def get_repo_url(repo:str, ref: Optional[str] = None, token: Optional[str] = None) -> str:
     repo_urls = []
     if token:
         repo_urls += [f"https://{token}:x-oauth-basic@github.com/{repo}"]
@@ -45,6 +46,13 @@ def get_repo_url(repo:str, ref:str, token: Optional[str] = None) -> str:
         if not __check_ref_exists_for_url__(repo_url, ref):
             not_accessible_urls.append(repo_url)
             continue
+
+
+        print_string = f"Repo: [green]{repo}[/green]"
+        print_string += f" with ref '{ref}'" if ref else ''
+        print_string += f" is accessible. App url [blue]{repo_url}[/blue]"
+
+        richprint.print(print_string)
 
         return repo_url
 

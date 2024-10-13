@@ -6,6 +6,9 @@ name = "pypi"
 [packages]
 frappe-manager = "*"
 gitpython = "*"
+typer = {extras = ["all"], version = "*"}
+toml = "*"
+asyncio = "*"
 
 [dev-packages]
 
