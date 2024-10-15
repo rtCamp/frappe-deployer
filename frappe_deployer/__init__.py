@@ -46,13 +46,17 @@ def pull(
     manager.create_new_release()
 
 
-
-@cli.command(no_args_is_help=True)
-def test(
-    ctx: typer.Context,
-    config_path: Annotated[str, typer.Option(help='TOML config path',callback=validate_cofig_path)]
-):
-    richprint.start('working')
-    config: Config = Config.from_toml(config_path)
-    manager = DeploymentManager(config)
-    manager.bench_symlink_and_restart(manager.current)
+#@cli.command(no_args_is_help=True)
+#def test(
+#    ctx: typer.Context,
+#    config_path: Annotated[str, typer.Option(help='TOML config path',callback=validate_cofig_path)]
+#):
+#    richprint.start('working')
+#    config: Config = Config.from_toml(config_path)
+#    print(config.common_site_config)
+#    print(config.site_config)
+    #manager = DeploymentManager(config)
+    #manager.cleanup_releases()
+    #gz_path = manager.bench_backup('cd.localhost')
+    #print(gz_path)
+    #manager.bench_restore(gz_path)

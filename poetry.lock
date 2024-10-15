@@ -36,19 +36,6 @@ files = [
 ]
 
 [[package]]
-name = "asyncio"
-version = "3.4.3"
-description = "reference implementation of PEP 3156"
-optional = false
-python-versions = "*"
-files = [
-    {file = "asyncio-3.4.3-cp33-none-win32.whl", hash = "sha256:b62c9157d36187eca799c378e572c969f0da87cd5fc42ca372d92cdb06e7e1de"},
-    {file = "asyncio-3.4.3-cp33-none-win_amd64.whl", hash = "sha256:c46a87b48213d7464f22d9a497b9eef8c1928b68320a2fa94240f969f6fec08c"},
-    {file = "asyncio-3.4.3-py3-none-any.whl", hash = "sha256:c4d18b22701821de07bd6aea8b53d21449ec0ec5680645e5317062ea21817d2d"},
-    {file = "asyncio-3.4.3.tar.gz", hash = "sha256:83360ff8bc97980e4ff25c964c7bd3923d333d177aa4f7fb736b019f26c7cb41"},
-]
-
-[[package]]
 name = "attrs"
 version = "24.2.0"
 description = "Classes Without Boilerplate"
@@ -476,26 +463,30 @@ idna = ">=2.0.0"
 
 [[package]]
 name = "frappe-manager"
-version = "0.16.0"
+version = "0.17.0"
 description = "A CLI tool based on Docker Compose to easily manage Frappe based projects. As of now, only suitable for development in local machines running on Mac and Linux based OS."
 optional = false
-python-versions = "<4.0,>=3.10"
-files = [
-    {file = "frappe_manager-0.16.0-py3-none-any.whl", hash = "sha256:c3891470d93d6301184158f5f7478dd77f29300cbcaa1f8d9a5b8818641dfe0e"},
-    {file = "frappe_manager-0.16.0.tar.gz", hash = "sha256:14a09f295b88970942e462ac171fb55cb1c1a84140ecc2f0cbb6eb94eac4aa44"},
-]
+python-versions = "^3.10"
+files = []
+develop = false
 
 [package.dependencies]
-certbot = ">=2.9.0,<3.0.0"
-certbot-dns-cloudflare = ">=2.10.0,<3.0.0"
-email-validator = ">=2.1.1,<3.0.0"
-jinja2 = ">=3.1.3,<4.0.0"
-psutil = ">=5.9.6,<6.0.0"
-pydantic = ">=2.6.4,<3.0.0"
-requests = ">=2.31.0,<3.0.0"
-ruamel-yaml = ">=0.18.5,<0.19.0"
-tomlkit = ">=0.12.3,<0.13.0"
-typer = {version = ">=0.9.0,<0.10.0", extras = ["all"]}
+certbot = "^2.9.0"
+certbot-dns-cloudflare = "^2.10.0"
+email-validator = "^2.1.1"
+jinja2 = "^3.1.3"
+psutil = "^5.9.6"
+pydantic = "^2.6.4"
+requests = "^2.31.0"
+ruamel-yaml = "^0.18.5"
+tomlkit = "^0.12.3"
+typer = {version = "^0.9.0", extras = ["all"]}
+
+[package.source]
+type = "git"
+url = "https://github.com/rtcamp/frappe-manager.git"
+reference = "patch/config-file-handling"
+resolved_reference = "e3140e38ba75f68c54aafc73e168018d22356d5c"
 
 [[package]]
 name = "gitdb"
@@ -760,7 +751,10 @@ files = [
 [package.dependencies]
 annotated-types = ">=0.6.0"
 pydantic-core = "2.23.3"
-typing-extensions = {version = ">=4.6.1", markers = "python_version < \"3.13\""}
+typing-extensions = [
+    {version = ">=4.12.2", markers = "python_version >= \"3.13\""},
+    {version = ">=4.6.1", markers = "python_version < \"3.13\""},
+]
 
 [package.extras]
 email = ["email-validator (>=2.0.0)"]
@@ -1254,5 +1248,5 @@ zstd = ["zstandard (>=0.18.0)"]
 
 [metadata]
 lock-version = "2.0"
-python-versions = "3.11.9"
-content-hash = "f04d6e01da3201f5ec779b2640995539408bc978c7028e2a4a762e2f31c94bbe"
+python-versions = "^3.10"
+content-hash = "ecec952b05e779b2f2b3c2694fc467e01f7ed9ea1d4a22bfd192e345ff9ee05a"

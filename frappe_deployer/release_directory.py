@@ -97,7 +97,6 @@ class BenchDirectory:
         json_site_config['maintenance_mode'] = int(value)
         site_config.write_text(json.dumps(json_site_config, indent=4))
 
-
     def get_app_path(self, app: AppConfig) -> Path:
         return self.apps / app.dir_name
 

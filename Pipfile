@@ -9,6 +9,7 @@ gitpython = "*"
 typer = {extras = ["all"], version = "*"}
 toml = "*"
 asyncio = "*"
+ruff = "*"
 
 [dev-packages]
 

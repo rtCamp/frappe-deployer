@@ -1,6 +1,7 @@
 import datetime
+import json
 from pathlib import Path
-from typing import Generator
+from typing import Any, Generator
 import re
 import os
 import git
@@ -42,3 +43,18 @@ def is_fqdn(name: str) -> bool:
     """Validates if the given name is a fully qualified domain name (FQDN)."""
     # Simple FQDN validation: contains at least one dot and does not start or end with a dot
     return bool(re.match(r'^(?!-)[A-Za-z0-9-]{1,63}(?<!-)\.(?!-)[A-Za-z0-9-]{1,63}(?<!-)$', name))
+
+def get_json(file_path:Path) -> dict[Any,Any]:
+    data = {}
+
+    if file_path.exists():
+        data = json.loads(file_path.read_text())
+
+    return data
+
+def update_json_keys_in_file_path(file_path: Path, data_to_update: dict[Any,Any]) -> bool:
+    # Update the existing content with the new data
+    json_data = get_json(file_path)
+    json_data.update(data_to_update)
+    file_path.write_text(json.dumps(json_data, ensure_ascii=False, indent=4))
+    return True

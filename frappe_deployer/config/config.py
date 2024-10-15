@@ -1,25 +1,49 @@
-from frappe_manager.utils.site import richprint
-import toml
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator
-from typing import List, Literal, Optional
-import asyncio
+from typing import Any, List, Literal, Optional
+
 from frappe_manager import CLI_BENCHES_DIRECTORY
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from frappe_manager.utils.site import richprint
+from pydantic import BaseModel, Field, field_validator
+import toml
 
 from frappe_deployer.config.app import AppConfig
-from frappe_deployer.config.host import HostConfig
 from frappe_deployer.config.fm import FMConfig
+from frappe_deployer.config.host import HostConfig
 
 class Config(BaseModel):
     site_name: str
     apps: List[AppConfig]
+    releases_retain_limit: int
+    common_site_config: Optional[dict[str,Any]] = None
+    site_config: Optional[dict[str,Any]] = None
+    restore_db_file_path: Optional[Path] = None
+    restore_db_encryption_key: Optional[str] = None
     maintenance_mode: bool = Field(True)
     verbose: bool = Field(False)
     uv: bool = Field(True)
     mode: Literal['host', 'fm'] = Field(...)
     host: Optional[HostConfig] = None
     fm: Optional[FMConfig] = None
+
+    @field_validator('releases_retain_limit',mode='before')
+    def validate_releases_retain_limit(cls, value):
+        if not value:
+            value = 7
+        return value
+
+    @field_validator('restore_db_file_path',mode='before')
+    def validate_db_file_path(cls, value, values):
+        mode = values.data.get('mode')
+        print(mode)
+        if not mode == 'fm':
+            raise RuntimeError(f"Restore db feature not supported in 'host' mode. Please check config")
+
+        path = Path(value)
+
+        if not path.exists():
+            raise ValueError(f"{path} file doesn't exists")
+
+        return path
 
     @property
     def bench_path(self) -> Path:
