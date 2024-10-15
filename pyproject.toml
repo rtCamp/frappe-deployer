@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "frappe-deployer"
-version = "0.0.0"
+version = "0.1.0"
 description = "Automates setup and management of Frappe/Frappe-Manager environments using a config file."
 authors = ["Alok Singh <alokmilenium@gmail.com>"]
 license = "MIT"
@@ -11,7 +11,7 @@ frappe-deployer = "frappe_deployer.main:cli_entrypoint"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-frappe-manager = { git = "https://github.com/rtcamp/frappe-manager.git", branch = "patch/config-file-handling" }
+frappe-manager = { git = "https://github.com/rtcamp/frappe-manager.git", branch = "patch/16-0-1" }
 gitpython = "^3.1.43"
 typer = {version = "^0.9.0", extras = ["all"]}
 toml = "^0.10.2"
