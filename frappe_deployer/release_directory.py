@@ -3,6 +3,7 @@ import json
 import re
 import git
 from pathlib import Path
+from functools import cache
 
 from frappe_deployer.config.app import AppConfig
 from frappe_deployer.helpers import is_fqdn as fqdn
@@ -104,6 +105,7 @@ class BenchDirectory:
     def get_app_path(self, app: AppConfig) -> Path:
         return self.apps / app.dir_name
 
+    @cache
     def get_app_python_module_name(self, app_path: Path):
         if not app_path.exists():
             return app_path.name

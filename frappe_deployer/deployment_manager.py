@@ -45,6 +45,7 @@ class DeploymentManager:
         self.verbose = config.verbose
         self.site_name = config.site_name
         self.bench_path = config.bench_path
+
         self.apps = config.apps
         self.mode = config.mode
         self.path = config.deploy_dir_path
@@ -188,9 +189,7 @@ class DeploymentManager:
             release.bench_symlink_and_restart(release.new)
 
             release.bench_build(release.new)
-            release.bench_install_and_migrate(
-                release.current, app_name_from_apps_directory=True
-            )
+            release.bench_install_and_migrate(release.current)
 
         except Exception as e:
             release.printer.print(f'Rollback\n{"--"*10} ')
@@ -281,19 +280,29 @@ class DeploymentManager:
 
         self.sync_configs_with_files(self.config.site_name)
 
-        self.bench_symlink_and_restart(self.new)
+        exception = None
+        try:
+            self.bench_symlink_and_restart(self.new)
 
-        if self.config.restore_db_file_path:
-            self.bench_restore(self.config.restore_db_file_path)
+            if self.config.restore_db_file_path:
+                self.bench_restore(self.config.restore_db_file_path)
 
-            if self.config.fm:
-                if self.config.fm.db_bench_name:
-                    self.sync_db_encryption_key_from_site(self.config.fm.db_bench_name,self.config.fm.db_bench_name)
+                if self.config.fm:
+                    if self.config.fm.db_bench_name:
+                        self.sync_db_encryption_key_from_site(self.config.fm.db_bench_name,self.config.fm.db_bench_name)
 
-            self.site_installed_apps = self.get_site_installed_apps(self.current)
+                self.site_installed_apps = self.get_site_installed_apps(self.current)
 
-        self.bench_clear_cache(self.current,True)
-        self.bench_install_and_migrate(self.current)
+            self.bench_clear_cache(self.current,True)
+            self.bench_install_and_migrate(self.current)
+
+        except Exception as e:
+            exception = e
+            self.printer.error("Failed to create new release")
+            self.printer.error("Rolling back to previous release...")
+            self.bench_path.symlink_to(get_relative_path(self.bench_path, self.previous_release_dir))
+            self.printer.print("Symlinked previous deployment before new release")
+            self.bench_install_and_migrate(self.current)
 
         self.current.maintenance_mode(self.site_name, False)
 
@@ -304,6 +313,9 @@ class DeploymentManager:
             self.printer.print(f"Maintenance Mode Time: {elapsed_time:.2f} seconds")
 
         self.cleanup_releases()
+
+        if exception:
+            raise exception
 
     def cleanup_releases(self):
 
@@ -317,7 +329,11 @@ class DeploymentManager:
 
         release_dirs.sort(key=lambda d: self.extract_timestamp(d.name), reverse=True)
 
-        if self.previous_release_dir in release_dirs:
+        if self.new in release_dirs:
+            release_dirs.remove(self.previous_release_dir)
+            release_dirs.insert(0, self.previous_release_dir)
+
+        if self.previous_release_dir in release_dirs and not self.previous_release_dir == self.new.path:
             release_dirs.remove(self.previous_release_dir)
             release_dirs.insert(1, self.previous_release_dir)
 
