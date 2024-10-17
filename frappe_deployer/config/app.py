@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 from pydantic import BaseModel, Field, model_validator
 
 import os
@@ -10,44 +10,58 @@ os.environ['GIT_TERMINAL_PROMPT'] = '0'
 
 class AppConfig(BaseModel):
     repo: str
-    repo_url: str
+    repo_url: Optional[str] = None
     ref: Optional[str] = None
     shallow_clone: bool = Field(True)
     is_ref_commit: bool = Field(False)
     exists: bool = Field(False)
+    remove_remote: bool = Field(False)
 
     @property
     def dir_name(self):
         return self.repo.split('/')[-1]
 
-    @classmethod
-    def from_dict(cls, data: dict['str','str']) -> 'AppConfig':
-        repo = data.get('repo', None)
-        ref= data.get('ref', None)
-        repo_url = data.get('repo_url', None)
-        shallow_clone = data.get('shallow_clone', True)
-        is_ref_commit = data.get('shallow_clone', False)
+    def configure_app(self, token: Optional[str] = None, remove_remote: bool = False):
+        self.is_ref_commit = is_ref_commit(self.ref)
+        self.remove_remote = remove_remote
 
-        if not repo:
-            raise ValueError("repo value not provided in config")
-
-        # Perform additional initialization or validation here
-        if not repo_url:
-            exists = False
+        if not self.repo_url:
             try:
-                repo_url = get_repo_url(repo, ref)
-                exists = True
+                repo_url = get_repo_url(self.repo, self.ref, token)
+                self.exists = True
             except RuntimeError as e:
                 repo_url = str(e)
 
-        return cls(repo=repo,repo_url=repo_url,ref=ref,shallow_clone=shallow_clone, is_ref_commit=is_ref_commit,exists=exists)
+            self.repo_url = repo_url
+
+    # @classmethod
+    # def from_dict(cls, data: dict['str', Any], token: Optional[str] = None, remove_remote: bool = False) -> 'AppConfig':
+    #     repo = data.get('repo', None)
+    #     ref= data.get('ref', None)
+    #     repo_url = data.get('repo_url', None)
+    #     data['remove_remote'] = remove_remote
+    #     # shallow_clone = data.get('shallow_clone', True)
+    #     # is_ref_commit = data.get('is_ref_commit', False)
+
+    #     if not repo:
+    #         raise ValueError("App's 'repo' key not provided in config.")
+
+    #     if not repo_url:
+    #         try:
+    #             repo_url = get_repo_url(repo, ref, token)
+    #             data['exists'] = True
+    #         except RuntimeError as e:
+    #             repo_url = str(e)
+
+    #     data['repo_url'] = repo_url
+    #     return cls(**data)
 
 
-    @model_validator(mode='before')
-    def post_init(cls, values):
-        ref = values.get('ref')
+    # @model_validator(mode='before')
+    # def post_init(cls, values):
+    #     ref = values.get('ref')
 
-        if is_ref_commit(ref):
-            values['is_ref_commit'] = True
+    #     if is_ref_commit(ref):
+    #         values['is_ref_commit'] = True
 
-        return values
+    #     return values

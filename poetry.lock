@@ -463,7 +463,7 @@ idna = ">=2.0.0"
 
 [[package]]
 name = "frappe-manager"
-version = "0.17.0"
+version = "0.16.1"
 description = "A CLI tool based on Docker Compose to easily manage Frappe based projects. As of now, only suitable for development in local machines running on Mac and Linux based OS."
 optional = false
 python-versions = "^3.10"
@@ -485,8 +485,8 @@ typer = {version = "^0.9.0", extras = ["all"]}
 [package.source]
 type = "git"
 url = "https://github.com/rtcamp/frappe-manager.git"
-reference = "patch/config-file-handling"
-resolved_reference = "e3140e38ba75f68c54aafc73e168018d22356d5c"
+reference = "patch/16-0-1"
+resolved_reference = "9dc455be92af16879b939866728c1366d8924751"
 
 [[package]]
 name = "gitdb"
@@ -1249,4 +1249,4 @@ zstd = ["zstandard (>=0.18.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "ecec952b05e779b2f2b3c2694fc467e01f7ed9ea1d4a22bfd192e345ff9ee05a"
+content-hash = "96ef8bffed71ac2db9b3173ee6459e3f28ede9747744f8d8d63f5345b85a5f25"

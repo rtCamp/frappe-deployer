@@ -139,7 +139,7 @@ class DeploymentManager:
                 )
                 shutil.move(
                     str(release.current.common_site_config.absolute()),
-                    (release.data.common_site_config.absolute()),
+                    str(release.data.common_site_config.absolute()),
                 )
                 release.current.common_site_config.symlink_to(
                     get_relative_path(
@@ -194,6 +194,7 @@ class DeploymentManager:
 
         except Exception as e:
             release.printer.print(f'Rollback\n{"--"*10} ')
+
             release.printer.change_head(
                 f"Deleting the {release.current.path.name} tangled deployment"
             )
@@ -211,6 +212,7 @@ class DeploymentManager:
             release.printer.change_head(
                 f"Moving backup {release.backup.path.name} to {release.current.path}"
             )
+
             if release.backup.path.exists():
                 shutil.move(release.backup.path, release.current.path)
 
@@ -221,39 +223,24 @@ class DeploymentManager:
             release.printer.change_head(
                 f"Deleting the {release.data.path.name} tangled deployment"
             )
+
             if release.data.path.exists():
-                shutil.rmtree(release.data.path)
+               shutil.rmtree(release.data.path)
 
             release.printer.print(
                 f"Deleted the {release.data.path.name} tangled deployment"
             )
+
             raise e
 
     def bench_db_and_configs_backup(self):
         self.printer.change_head("Backing up db, common_site_config and site_config.json")
 
-        # backup_dir = str(self.backup.path.absolute())
-
-        # common_site_config
         (self.backup.sites/ self.site_name).mkdir(exist_ok=True,parents=True)
         shutil.copyfile(self.current.common_site_config, self.backup.common_site_config)
         shutil.copyfile(self.current.sites / self.site_name / 'site_config.json', self.backup.sites / self.site_name / 'site_config.json')
         self.bench_backup(self.site_name)
-
-        # self.current.common_site_config.
-        # if self.mode == "fm":
-        #     backup_dir = f"/workspace/{'/'.join(self.backup.path.parts[-2:])}"
-        # command = ["bench", "backup", "--backup-path", backup_dir]
-        # self.host_run(
-        #     command,
-        #     bench_directory,
-        #     stream=False,
-        #     container=self.mode == "fm",
-        #     capture_output=False,
-        # )
-       #
-        self.printer.start("Working")
-        self.printer.print("Backup Taken")
+        self.printer.print("Backed up db, common_site_config and site_config.json")
 
     def create_new_release(self):
         if not self.bench_path.is_symlink():
@@ -286,7 +273,7 @@ class DeploymentManager:
         self.bench_setup_requiments(self.new)
         self.bench_build(self.new)
 
-        if self.config.maintenance_mode:
+        if self.config.use_maintenance_mode:
             start_time = time.time()
 
             self.printer.print("Enabled maintenance mode")
@@ -310,10 +297,8 @@ class DeploymentManager:
 
         self.current.maintenance_mode(self.site_name, False)
 
-        if self.config.maintenance_mode:
-            self.printer.print(
-                "Disabled maintenance mode",
-            )
+        if self.config.use_maintenance_mode:
+            self.printer.print("Disabled maintenance mode")
             end_time = time.time()
             elapsed_time = end_time - start_time
             self.printer.print(f"Maintenance Mode Time: {elapsed_time:.2f} seconds")
@@ -331,6 +316,7 @@ class DeploymentManager:
         release_dirs = [d for d in self.path.iterdir() if d.is_dir() and d.name.startswith(RELEASE_DIR_NAME)]
 
         release_dirs.sort(key=lambda d: self.extract_timestamp(d.name), reverse=True)
+
         if self.previous_release_dir in release_dirs:
             release_dirs.remove(self.previous_release_dir)
             release_dirs.insert(1, self.previous_release_dir)
@@ -359,13 +345,18 @@ class DeploymentManager:
 
     def clone_apps(self, bench_directory: BenchDirectory):
         for app in self.apps:
-            self.printer.change_head(f"Cloning repo {app.repo_url}")
+            self.printer.change_head(f"Cloning repo {app.repo}")
             bench_directory.clone_app(app)
             app_name = bench_directory.get_app_python_module_name(
                 bench_directory.apps / app.dir_name
             )
+            from_dir = bench_directory.apps / app.dir_name
+            to_dir = bench_directory.apps / app_name
+
+            shutil.move(str(from_dir),str(to_dir))
+
             self.printer.print(
-                f"Cloned Repo: {app.repo_url}, Module Name: '{app_name}'"
+                f"{'Remote removed ' if app.remove_remote else ''}Cloned Repo: {app.repo}, Module Name: '{app_name}'"
             )
 
     def get_mariadb_bench_client(self):
@@ -492,35 +483,30 @@ class DeploymentManager:
     def bench_install_and_migrate(
         self,
         bench_directory: BenchDirectory,
-        app_name_from_apps_directory: bool = False,
     ):
-        apps: list[Union[AppConfig, Path]] = self.apps
-
-        if app_name_from_apps_directory:
-            apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
+        apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
 
         app: Union[AppConfig, Path]
 
-        self.printer.change_head("Running bench migrate")
-
-        bench_migrate = ["bench", "migrate"]
-        self.host_run(
-            bench_migrate,
-            bench_directory,
-            stream=True,
-            container=self.mode == "fm",
-            capture_output=False,
-        )
-
-        self.printer.print(f"Bench migrate done")
+        if self.config.run_bench_migrate:
+            self.printer.change_head("Running bench migrate")
+            bench_migrate = ["bench", "migrate"]
+            self.host_run(
+                bench_migrate,
+                bench_directory,
+                stream=True,
+                container=self.mode == "fm",
+                capture_output=False,
+            )
+            self.printer.print("Bench migrate done")
+        else:
+            self.printer.print("Skipped. Bench bench migrate")
 
         for app in apps:
-            app_name = app.name if app_name_from_apps_directory else app.dir_name
-            app_path = bench_directory.apps / app_name
+            app_path = bench_directory.apps / app.name
             app_python_module_name = bench_directory.get_app_python_module_name(
                 app_path
             )
-
             if self.is_app_installed_in_site(
                 site_name=self.site_name, app_name=app_python_module_name
             ):
@@ -787,15 +773,21 @@ class DeploymentManager:
         self.printer.print("Configured apps.txt")
 
     def bench_build(self, bench_directory: BenchDirectory):
-        self.printer.change_head("Building all apps")
-        build_cmd = ["bench", "build", "--force"]
-        self.host_run(
-            build_cmd,
-            bench_directory,
-            stream=False,
-            container=self.mode == "fm",
-            capture_output=False,
-        )
+        #apps: list[Union[AppConfig, Path]] = self.apps
+
+        apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
+
+        for app in apps:
+            self.printer.change_head(f"Building app {app.name}")
+            build_cmd = ["bench", "build","--app", app.name]
+            self.host_run(
+                build_cmd,
+                bench_directory,
+                stream=False,
+                container=self.mode == "fm",
+                capture_output=False,
+            )
+            self.printer.print(f"Builded app {app.name}")
         self.printer.print("Builded all apps")
 
     def bench_symlink_and_restart(self, bench_directory: BenchDirectory):

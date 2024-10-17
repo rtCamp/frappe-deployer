@@ -51,10 +51,11 @@ class BenchDirectory:
 
     def list_sites(self) -> list[Path]:
         """Returns a list of site names (directories) within the sites directory that are FQDNs."""
+
         if self.sites.exists() and self.sites.is_dir():
             return [
                 site for site in self.sites.iterdir()
-                if site.is_dir() and fqdn(site.name)
+                if site.is_dir() and ( site / 'site_config.json').is_file()
             ]
         return []
 
@@ -83,13 +84,16 @@ class BenchDirectory:
         # progress = CloneProgress()
 
         if not app.is_ref_commit:
-            cloned_repo = git.Repo.clone_from(app.repo_url, clone_path, depth=depth,branch=app.ref)
+            cloned_repo = git.Repo.clone_from(app.repo_url, clone_path, depth=depth, origin='upstream', branch=app.ref)
         else:
-            cloned_repo = git.Repo.clone_from(app.repo_url, clone_path, depth=depth)
+            cloned_repo = git.Repo.clone_from(app.repo_url, clone_path, depth=depth, origin='upstream')
             if app.shallow_clone:
-                cloned_repo.git.fetch('--depth', '1', 'origin', app.ref)
+                cloned_repo.git.fetch('--depth', '1', 'upstream', app.ref)
 
             cloned_repo.git.checkout(app.ref)
+
+        if app.remove_remote:
+            cloned_repo.delete_remote(cloned_repo.remote('upstream'))
 
     def maintenance_mode(self, site_name: str, value: bool = True):
         site_config = self.sites / site_name  / 'site_config.json'

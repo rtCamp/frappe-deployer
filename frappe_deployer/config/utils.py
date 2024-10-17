@@ -34,26 +34,30 @@ def __check_ref_exists_for_url__(repo_url: str, ref: Optional[str] = None) -> bo
         return False
 
 def get_repo_url(repo:str, ref: Optional[str] = None, token: Optional[str] = None) -> str:
-    repo_urls = []
-    if token:
-        repo_urls += [f"https://{token}:x-oauth-basic@github.com/{repo}"]
 
-    repo_urls += [f"https://github.com/{repo}", f"git@github.com:{repo}.git"]
+    url = f"https://github.com/{repo}"
+
+    repo_urls = [(url,"https")]
+
+    if token:
+        repo_urls += [(f"https://{token}:x-oauth-basic@github.com/{repo}","token")]
+
+    repo_urls += [(f"git@github.com:{repo}.git","ssh")]
 
     not_accessible_urls = []
 
-    for repo_url in repo_urls:
+    for repo_url, auth_method in repo_urls:
         if not __check_ref_exists_for_url__(repo_url, ref):
-            not_accessible_urls.append(repo_url)
+            not_accessible_urls.append(auth_method)
             continue
 
-
-        print_string = f"Repo: [green]{repo}[/green]"
-        print_string += f" with ref '{ref}'" if ref else ''
-        print_string += f" is accessible. App url [blue]{repo_url}[/blue]"
+        print_string = f"Repo Accessible: [green]{repo}[/green]"
+        print_string += f" Ref: '{ref}'" if ref else ''
+        print_string += f" Auth Method: '{auth_method}'"
+        print_string += f" Url: [blue]{url}[/blue]"
 
         richprint.print(print_string)
 
         return repo_url
 
-    raise RuntimeError(f"Repo: [yellow]{repo}[/yellow] with ref '{ref}' doesn't exists or not accessible. Tried urls [blue]{ ' '.join(not_accessible_urls) }[/blue]")
+    raise RuntimeError(f"Repo Inaccessible: [yellow]{repo}[/yellow] Ref: '{ref}'. Tried auth methods: [blue]{ ' '.join(auth_method for auth_method in not_accessible_urls) }[/blue]")

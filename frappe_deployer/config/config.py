@@ -3,7 +3,7 @@ from typing import Any, List, Literal, Optional
 
 from frappe_manager import CLI_BENCHES_DIRECTORY
 from frappe_manager.utils.site import richprint
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 import toml
 
 from frappe_deployer.config.app import AppConfig
@@ -11,30 +11,67 @@ from frappe_deployer.config.fm import FMConfig
 from frappe_deployer.config.host import HostConfig
 
 class Config(BaseModel):
-    site_name: str
-    apps: List[AppConfig]
-    releases_retain_limit: int
-    common_site_config: Optional[dict[str,Any]] = None
-    site_config: Optional[dict[str,Any]] = None
-    restore_db_file_path: Optional[Path] = None
-    restore_db_encryption_key: Optional[str] = None
-    maintenance_mode: bool = Field(True)
-    verbose: bool = Field(False)
-    uv: bool = Field(True)
-    mode: Literal['host', 'fm'] = Field(...)
-    host: Optional[HostConfig] = None
-    fm: Optional[FMConfig] = None
+    """
+    Configuration file model
 
-    @field_validator('releases_retain_limit',mode='before')
-    def validate_releases_retain_limit(cls, value):
-        if not value:
-            value = 7
-        return value
+    Attributes
+    ----------
+    site_name : str
+        The name of the site.
+    github_token : Optional[str]
+        The GitHub personal access token.
+    remove_remote : Optional[bool]
+        Flag to remove the remote to cloned apps.
+    apps : List[AppConfig]
+        List of application configurations.
+    run_bench_migrate : bool
+        Flag to run bench migrate.
+    use_maintenance_mode : bool
+        Flag to use maintenance mode while restart and bench migrate and bench install-app.
+    releases_retain_limit : Optional[int]
+        Number of releases to retain.
+    reset_site : bool
+        Flag to reset the site.
+    common_site_config : Optional[dict[str, Any]]
+        Common site configuration dictionary.
+    site_config : Optional[dict[str, Any]]
+        Site-specific configuration dictionary.
+    restore_db_file_path : Optional[Path]
+        Path to the database file to restore.
+    maintenance_mode : bool
+        Flag to enable maintenance mode.
+    verbose : bool
+        Flag to enable verbose output.
+    uv : bool
+        Flag to enable UV mode.
+    mode : Literal['host', 'fm']
+        Mode of operation, either 'host' or 'fm'.
+    host : Optional[HostConfig]
+        Host configuration.
+    fm : Optional[FMConfig]
+        FM configuration.
+    """
+    site_name: str = Field(..., description="The name of the site.")
+    github_token: Optional[str] = Field(None, description="The GitHub personal access token.")
+    remove_remote: Optional[bool] = Field(True, description="Flag to remove the remote to cloned apps.")
+    apps: List[AppConfig] = Field(..., description="List of application configurations.")
+    run_bench_migrate: bool = Field(True, description="Flag to run bench migrate.")
+    use_maintenance_mode: bool = Field(True, description='Flag to use maintenance mode while restart and bench migrate and bench install-app.')
+    releases_retain_limit: int = Field(7, description="Number of releases to retain.")
+    reset_site: bool = Field(False, description="Flag to reset the site.")
+    common_site_config: Optional[dict[str, Any]] = Field(None, description="Common site configuration dictionary.")
+    site_config: Optional[dict[str, Any]] = Field(None, description="Site-specific configuration dictionary.")
+    mode: Literal['host', 'fm'] = Field(..., description="Mode of operation, either 'host' or 'fm'.")
+    restore_db_file_path: Optional[Path] = Field(None, description="Path to the database file to restore.")
+    verbose: bool = Field(False, description="Flag to enable verbose output.")
+    uv: bool = Field(True, description="Flag to enable UV mode.")
+    host: Optional[HostConfig] = Field(None, description="Host configuration.")
+    fm: Optional[FMConfig] = Field(None, description="FM configuration.")
 
     @field_validator('restore_db_file_path',mode='before')
     def validate_db_file_path(cls, value, values):
-        mode = values.data.get('mode')
-        print(mode)
+        mode = values.data.get('mode', None)
+
         if not mode == 'fm':
             raise RuntimeError(f"Restore db feature not supported in 'host' mode. Please check config")
 
@@ -59,12 +96,23 @@ class Config(BaseModel):
     def bench_name(self) -> str:
         return self.bench_path.name
 
-    @field_validator('apps',mode='before')
-    def initialize_apps(cls, values):
-        apps = []
-        for app in values:
-            apps.append(AppConfig.from_dict(app))
-        return apps
+    @model_validator(mode='after')
+    def configure_config(cls, config):
+
+        app: AppConfig
+        for app in config.apps:
+            app.configure_app(token=config.github_token,remove_remote=config.remove_remote)
+
+        all_apps_exists = True
+
+        for app in config.apps:
+            if not app.exists:
+                all_apps_exists = False
+                richprint.error(app.repo_url)
+
+        if not all_apps_exists:
+            raise RuntimeError("Please ensure all apps repo's are accessible.")
+
 
     @property
     def deploy_dir_path(self) -> Path:
@@ -76,22 +124,10 @@ class Config(BaseModel):
             raise ValueError('mode must be either "host" or "fm"')
         return v
 
-    @field_validator('apps', mode='after')
-    def validate_apps(cls, v):
-        apps_exists = True
-
-        for app in v:
-            if not app.exists:
-                apps_exists = False
-                richprint.error(app.repo_url)
-
-        if not apps_exists:
-            richprint.exit("Please ensure all apps repo's are accessible.")
-
-        return v
-
     @staticmethod
     def from_toml(file_name: str) -> 'Config':
         with open(file_name, 'r') as file:
             config_data = toml.load(file)
-        return Config(**config_data)
+            config = Config(**config_data)
+            #config.configure_config()
+        return config
