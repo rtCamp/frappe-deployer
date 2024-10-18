@@ -3,10 +3,8 @@ import json
 import re
 import git
 from pathlib import Path
-from functools import cache
 
 from frappe_deployer.config.app import AppConfig
-from frappe_deployer.helpers import is_fqdn as fqdn
 
 @dataclass
 class BenchDirectory:
@@ -105,8 +103,8 @@ class BenchDirectory:
     def get_app_path(self, app: AppConfig) -> Path:
         return self.apps / app.dir_name
 
-    @cache
     def get_app_python_module_name(self, app_path: Path):
+
         if not app_path.exists():
             return app_path.name
 
@@ -114,11 +112,13 @@ class BenchDirectory:
 
         try:
             file_path = next(path for path in hooks_py_files if len(path.relative_to(app_path).parts) <= 2)
+
         except StopIteration:
             raise RuntimeError(f"Cannot file hooks.py file in {app_path} dir")
 
         # Use regex to find the app_name
         match = re.search(r'app_name\s*=\s*"(.*?)"', file_path.read_text())
+
         if not match:
             raise RuntimeError(f'Cannot determine python module name in {app_path} dir')
 

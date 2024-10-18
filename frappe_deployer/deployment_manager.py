@@ -1,10 +1,28 @@
+import gzip
+from pathlib import Path
 import shutil
 import time
-from typing import Iterable, Optional, Tuple, Union, Literal
+from typing import Iterable, Literal, Optional, Tuple, Union
+
 from frappe_manager import CLI_DIR
+from frappe_manager.compose_manager.ComposeFile import ComposeFile
+from frappe_manager.compose_project.compose_project import ComposeProject
 from frappe_manager.logger.log import richprint
+from frappe_manager.migration_manager.migration_helpers import (
+    MigrationBench,
+    MigrationServicesManager,
+)
+from frappe_manager.services_manager.database_service_manager import (
+    DatabaseServerServiceInfo,
+    MariaDBManager,
+)
+from frappe_manager.utils.docker import (
+    DockerException,
+    SubprocessOutput,
+    run_command_with_exit_code,
+)
 from frappe_manager.utils.helpers import json
-from pathlib import Path
+from rich.rule import Rule
 
 from frappe_deployer.config.app import AppConfig
 from frappe_deployer.config.config import Config
@@ -14,25 +32,12 @@ from frappe_deployer.consts import (
     RELEASE_DIR_NAME,
     RELEASE_SUFFIX,
 )
-from frappe_deployer.helpers import get_json, get_relative_path, update_json_keys_in_file_path
+from frappe_deployer.helpers import (
+    get_json,
+    get_relative_path,
+    update_json_keys_in_file_path,
+)
 from frappe_deployer.release_directory import BenchDirectory
-
-from frappe_manager.utils.docker import (
-    DockerException,
-    SubprocessOutput,
-    run_command_with_exit_code,
-)
-from frappe_manager.compose_manager.ComposeFile import ComposeFile
-from frappe_manager.compose_project.compose_project import ComposeProject
-from frappe_manager.services_manager.database_service_manager import (
-    DatabaseServerServiceInfo,
-    MariaDBManager,
-)
-from frappe_manager.migration_manager.migration_helpers import (
-    MigrationBench,
-    MigrationServicesManager,
-)
-
 
 class DeploymentManager:
     apps: list[AppConfig]
@@ -298,10 +303,15 @@ class DeploymentManager:
 
         except Exception as e:
             exception = e
-            self.printer.error("Failed to create new release")
-            self.printer.error("Rolling back to previous release...")
-            self.bench_path.symlink_to(get_relative_path(self.bench_path, self.previous_release_dir))
+            self.printer.error(f"Failed to create new release {self.new.path.name}")
+            self.printer.stdout.print(Rule(title=f"Rolling back to previous release: {self.previous_release_dir.name}"))
+
+            if self.bench_path.exists():
+                self.bench_path.unlink()
+
+            self.bench_symlink_and_restart(BenchDirectory(self.previous_release_dir))
             self.printer.print("Symlinked previous deployment before new release")
+
             self.bench_install_and_migrate(self.current)
 
         self.current.maintenance_mode(self.site_name, False)
@@ -315,6 +325,7 @@ class DeploymentManager:
         self.cleanup_releases()
 
         if exception:
+            self.printer.error(f"The following error caused the script to rollback changes from {self.previous_release_dir} -> {self.new.path.name}")
             raise exception
 
     def cleanup_releases(self):
@@ -359,13 +370,15 @@ class DeploymentManager:
         except ValueError:
             return 0
 
-    def clone_apps(self, bench_directory: BenchDirectory):
+    def clone_apps(self, bench_directory: 'BenchDirectory'):
         for app in self.apps:
             self.printer.change_head(f"Cloning repo {app.repo}")
             bench_directory.clone_app(app)
+
             app_name = bench_directory.get_app_python_module_name(
                 bench_directory.apps / app.dir_name
             )
+
             from_dir = bench_directory.apps / app.dir_name
             to_dir = bench_directory.apps / app_name
 
@@ -398,7 +411,6 @@ class DeploymentManager:
 
         return mariadb_client
 
-
     def bench_backup(self, site_name: str, file_name: Optional[str] = None ) -> Optional[Path]:
         """Return backup host path"""
 
@@ -410,16 +422,32 @@ class DeploymentManager:
             backup_bench = MigrationBench(name=site_name, path=self.path.parent)
             self.printer.change_head(f"bench backup {site_name}")
             backup_bench_db_info = backup_bench.get_db_connection_info()
+
             export_path = (
                 f"/workspace/{'/'.join(self.backup.path.parts[-2:])}/{file_name}"
             )
 
             self.backup.path.mkdir(exist_ok=True)
 
+            host_export_path = self.backup.path / file_name
+
             bench_db_name = backup_bench_db_info.get("name")
             mariadb_client = self.get_mariadb_bench_client()
             mariadb_client.db_export(bench_db_name, export_file_path=export_path)
+
             self.printer.print(f"Exported {site_name} db")
+
+            self.printer.change_head(f"Compress {site_name} db")
+
+            with open(host_export_path, 'rb') as f_in:
+                with gzip.open(self.backup.path / (file_name + '.gz'), 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+
+            if host_export_path.exists():
+                host_export_path.unlink()
+
+            self.printer.print(f"DB has been compressed.")
+
 
             return self.backup.path / file_name
 
@@ -813,7 +841,7 @@ class DeploymentManager:
             self.bench_path.unlink()
 
         self.bench_path.symlink_to(
-            get_relative_path(self.bench_path, self.new.path), True
+            get_relative_path(self.bench_path, bench_directory.path), True
         )
 
         command = ["bench", "restart"]

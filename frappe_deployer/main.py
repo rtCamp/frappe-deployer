@@ -7,6 +7,7 @@ from frappe_manager.utils.helpers import (
     capture_and_format_exception,
     remove_zombie_subprocess_process,
 )
+import typer
 
 import frappe_deployer
 from frappe_deployer.consts import LOG_FILE_NAME
@@ -25,6 +26,9 @@ def cli_entrypoint():
 
         exception_traceback: str = capture_and_format_exception()
         logger.error(f"Exception Occured:  : \n{exception_traceback}")
+
+        typer.Exit(1)
+
 
     finally:
         atexit.register(exit_cleanup)
