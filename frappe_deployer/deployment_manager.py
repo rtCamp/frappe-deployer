@@ -340,11 +340,13 @@ class DeploymentManager:
 
         release_dirs.sort(key=lambda d: self.extract_timestamp(d.name), reverse=True)
 
-        if self.new in release_dirs:
-            release_dirs.remove(self.previous_release_dir)
-            release_dirs.insert(0, self.previous_release_dir)
+        current_release_bench_path = self.bench_path.resolve()
 
-        if self.previous_release_dir in release_dirs and not self.previous_release_dir == self.new.path:
+        if current_release_bench_path in release_dirs:
+            release_dirs.remove(current_release_bench_path)
+            release_dirs.insert(0, current_release_bench_path)
+
+        if self.previous_release_dir in release_dirs and not self.previous_release_dir == current_release_bench_path:
             release_dirs.remove(self.previous_release_dir)
             release_dirs.insert(1, self.previous_release_dir)
 
