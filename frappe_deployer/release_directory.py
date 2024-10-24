@@ -80,8 +80,6 @@ class BenchDirectory:
         if not app.shallow_clone:
             depth = None
 
-        # progress = CloneProgress()
-
         if not app.is_ref_commit:
             cloned_repo = git.Repo.clone_from(app.repo_url, clone_path, depth=depth, origin='upstream', branch=app.ref)
         else:

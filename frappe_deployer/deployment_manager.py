@@ -23,6 +23,7 @@ from frappe_manager.utils.docker import (
 )
 from frappe_manager.utils.helpers import json
 from rich.rule import Rule
+import typer
 
 from frappe_deployer.config.app import AppConfig
 from frappe_deployer.config.config import Config
@@ -32,9 +33,11 @@ from frappe_deployer.consts import (
     RELEASE_DIR_NAME,
     RELEASE_SUFFIX,
 )
+from frappe_deployer.exceptions import SiteAlreadyConfigured
 from frappe_deployer.helpers import (
     get_json,
     get_relative_path,
+    human_readable_time,
     update_json_keys_in_file_path,
 )
 from frappe_deployer.release_directory import BenchDirectory
@@ -43,7 +46,7 @@ class DeploymentManager:
     apps: list[AppConfig]
     path: Path
     verbose: bool = False
-    mode: Literal["fm", "host"] = "host"
+    mode: Literal["fm", "host"] = "fm"
 
     def __init__(self, config: Config) -> None:
         self.config = config
@@ -112,74 +115,77 @@ class DeploymentManager:
         self.new.logs.symlink_to(get_relative_path(self.new.logs, self.data.logs), True)
         self.printer.print(f"Symlink [blue]{self.new.logs.name}[/blue] ")
 
+    def configure_data_dir(self):
+
+        if not self.data.path.exists():
+            self.printer.change_head(f"Creating {DATA_DIR_NAME} dir")
+            self.data.path.mkdir()
+            self.printer.print("Created release data dir")
+
+        # move all sites
+        self.printer.change_head("Moving sites into data dir")
+        for site in self.current.list_sites():
+            data_site_path = self.data.sites / site.name
+            shutil.move(str(site.absolute()), str(data_site_path.absolute()))
+            self.printer.print(f"Moved {site.name}")
+
+        # common_site_config.json
+        if self.current.common_site_config.exists():
+            self.printer.change_head(
+                "Moving common_site_config.json into data dir"
+            )
+            shutil.move(
+                str(self.current.common_site_config.absolute()),
+                str(self.data.common_site_config.absolute()),
+            )
+            self.printer.print(
+                "Moved common_site_config.json and created symlink"
+            )
+
+        # logs
+        if self.current.logs.exists():
+            self.printer.change_head("Moving logs into data dir")
+            shutil.move(
+                str(self.current.logs.absolute()),
+                str(self.data.logs.absolute()),
+            )
+            self.printer.print("Moved logs and created symlink")
+
+        # config
+        if self.current.config.exists():
+            self.printer.change_head("Moving logs into data dir")
+            shutil.move(
+                str(self.current.config.absolute()),
+                str(self.data.config.absolute()),
+            )
+            self.printer.print("Moved logs and created symlink")
+
+
     @staticmethod
-    def configure(config: Config):
+    def configure(config: Config, only_move: bool = False, backups: Optional[bool]=None):
+        if not backups:
+            backups = config.backups
+
         release = DeploymentManager(config)
 
         if release.current.path.is_symlink():
-            raise Exception(f"{release.current.path} is symlink.")
+            raise SiteAlreadyConfigured(str(release.current.path))
 
         try:
-            release.printer.change_head("Creating backup")
-            shutil.copytree(config.bench_path, release.backup.path, symlinks=True)
-            release.printer.print("Backup completed")
+            if backups:
+                release.printer.change_head("Creating backup")
+                shutil.copytree(config.bench_path, release.backup.path / 'configure' , symlinks=True)
+                release.bench_db_and_configs_backup()
+                release.printer.print("Backup completed")
+            else:
+                release.printer.error('Taking backup is disabled.')
 
-            if not release.data.path.exists():
-                release.printer.change_head("Creating release data dir")
-                release.data.path.mkdir()
-                release.printer.print("Created release data dir")
+            release.configure_data_dir()
 
-            # move all sites
-            release.printer.change_head("Moving sites into data dir")
-            for site in release.current.list_sites():
-                new_site_path = release.new.sites / site.name
-                data_site_path = release.data.sites / site.name
-                shutil.move(str(site.absolute()), str(data_site_path.absolute()))
-                site.symlink_to(get_relative_path(new_site_path, data_site_path), True)
-                release.printer.print(f"Moved {site.name} and created symlink")
+            if only_move:
+                return
 
-            # common_site_config.json
-            if release.current.common_site_config.exists():
-                release.printer.change_head(
-                    "Moving common_site_config.json into data dir"
-                )
-                shutil.move(
-                    str(release.current.common_site_config.absolute()),
-                    str(release.data.common_site_config.absolute()),
-                )
-                release.current.common_site_config.symlink_to(
-                    get_relative_path(
-                        release.new.common_site_config, release.data.common_site_config
-                    ),
-                    True,
-                )
-                release.printer.print(
-                    "Moved common_site_config.json and created symlink"
-                )
-
-            # logs
-            if release.current.logs.exists():
-                release.printer.change_head("Moving logs into data dir")
-                shutil.move(
-                    str(release.current.logs.absolute()),
-                    str(release.data.logs.absolute()),
-                )
-                release.current.logs.symlink_to(
-                    get_relative_path(release.new.logs, release.data.logs), True
-                )
-                release.printer.print("Moved logs and created symlink")
-
-            # config
-            if release.current.config.exists():
-                release.printer.change_head("Moving logs into data dir")
-                shutil.move(
-                    str(release.current.config.absolute()),
-                    str(release.data.config.absolute()),
-                )
-                release.current.config.symlink_to(
-                    get_relative_path(release.new.config, release.data.config), True
-                )
-                release.printer.print("Moved logs and created symlink")
+            release.configure_symlinks()
 
             # bench
             release.printer.change_head(
@@ -197,43 +203,42 @@ class DeploymentManager:
             release.bench_install_and_migrate(release.current)
 
         except Exception as e:
-            release.printer.print(f'Rollback\n{"--"*10} ')
+            if backups:
+                release.printer.print(f'Rollback\n{"--"*10} ')
+                release.printer.change_head(
+                    f"Deleting the {release.current.path.name} tangled deployment"
+                )
+                if release.current.path.exists():
+                    if release.current.path.is_symlink():
+                        release.current.path.unlink()
+                    else:
+                        shutil.rmtree(release.current.path)
 
-            release.printer.change_head(
-                f"Deleting the {release.current.path.name} tangled deployment"
-            )
+                release.printer.print(
+                    f"Deleted the {release.current.path.name} tangled deployment"
+                )
 
-            if release.current.path.exists():
-                if release.current.path.is_symlink():
-                    release.current.path.unlink()
-                else:
-                    shutil.rmtree(release.current.path)
+                release.printer.change_head(
+                    f"Moving backup {release.backup.path.name} to {release.current.path}"
+                )
 
-            release.printer.print(
-                f"Deleted the {release.current.path.name} tangled deployment"
-            )
+                if release.backup.path.exists():
+                    shutil.move(release.backup.path, release.current.path)
 
-            release.printer.change_head(
-                f"Moving backup {release.backup.path.name} to {release.current.path}"
-            )
+                release.printer.print(
+                    f"Moved backup {release.backup.path.name} to {release.current.path}"
+                )
 
-            if release.backup.path.exists():
-                shutil.move(release.backup.path, release.current.path)
+                release.printer.change_head(
+                    f"Deleting the {release.data.path.name} tangled deployment"
+                )
 
-            release.printer.print(
-                f"Moved backup {release.backup.path.name} to {release.current.path}"
-            )
+                if release.data.path.exists():
+                   shutil.rmtree(release.data.path)
 
-            release.printer.change_head(
-                f"Deleting the {release.data.path.name} tangled deployment"
-            )
-
-            if release.data.path.exists():
-               shutil.rmtree(release.data.path)
-
-            release.printer.print(
-                f"Deleted the {release.data.path.name} tangled deployment"
-            )
+                release.printer.print(
+                    f"Deleted the {release.data.path.name} tangled deployment"
+                )
 
             raise e
 
@@ -248,9 +253,12 @@ class DeploymentManager:
 
     def create_new_release(self):
         if not self.bench_path.is_symlink():
-            raise RuntimeError(
-                f"Provided bench is not configured. Please use `configure` subcommand for this."
-            )
+            if not self.config.configure:
+                raise RuntimeError(
+                        f"Provided bench is not configured. Please use `configure` subcommand for this."
+                    )
+        else:
+            self.config.configure = False
 
         self.printer.print(f'Bench: {self.config.bench_name} Site: {self.config.site_name}')
 
@@ -259,17 +267,38 @@ class DeploymentManager:
         self.bench_db_and_configs_backup()
 
         if self.config.fm:
-            if self.config.fm.db_bench_name:
+            if self.config.fm.restore_db_from_site:
                 if not self.config.restore_db_file_path:
                     self.config.restore_db_file_path = self.bench_backup(
-                        self.config.fm.db_bench_name
+                        self.config.fm.restore_db_from_site
                     )
 
         for dir in [self.new.path, self.new.apps, self.new.sites]:
             dir.mkdir(exist_ok=True)
             self.printer.print(f"Created dir [blue]{dir.name}[/blue] ")
 
+        if self.config.configure:
+
+            if self.config.maintenance_mode:
+                start_time = time.time()
+
+                self.printer.print("Enabled maintenance mode")
+                self.current.maintenance_mode(self.site_name, True)
+
+            DeploymentManager.configure(config=self.config, only_move=True,backups=True)
+            self.printer.change_head(
+                f"Moving bench directory, creating initial release"
+            )
+            shutil.move(
+                str(self.current.path.absolute()), str(self.path / 'prev_frappe_bench')
+            )
+            self.bench_path.symlink_to(
+                get_relative_path(self.bench_path, self.new.path), True
+            )
+
+
         self.configure_symlinks()
+
         self.clone_apps(self.new)
 
         self.python_env_create(self.new)
@@ -277,7 +306,9 @@ class DeploymentManager:
         self.bench_setup_requiments(self.new)
         self.bench_build(self.new)
 
-        if self.config.use_maintenance_mode:
+        self.bench_clear_cache(self.current,True)
+
+        if self.config.maintenance_mode:
             start_time = time.time()
 
             self.printer.print("Enabled maintenance mode")
@@ -286,6 +317,7 @@ class DeploymentManager:
         self.sync_configs_with_files(self.config.site_name)
 
         exception = None
+
         try:
             self.bench_symlink_and_restart(self.new)
 
@@ -293,12 +325,11 @@ class DeploymentManager:
                 self.bench_restore(self.config.restore_db_file_path)
 
                 if self.config.fm:
-                    if self.config.fm.db_bench_name:
-                        self.sync_db_encryption_key_from_site(self.config.fm.db_bench_name,self.config.fm.db_bench_name)
+                    if self.config.fm.restore_db_from_site:
+                        self.sync_db_encryption_key_from_site(self.config.fm.restore_db_from_site,self.config.fm.restore_db_from_site)
 
                 self.site_installed_apps = self.get_site_installed_apps(self.current)
 
-            self.bench_clear_cache(self.current,True)
             self.bench_install_and_migrate(self.current)
 
         except Exception as e:
@@ -316,7 +347,7 @@ class DeploymentManager:
 
         self.current.maintenance_mode(self.site_name, False)
 
-        if self.config.use_maintenance_mode:
+        if self.config.maintenance_mode:
             self.printer.print("Disabled maintenance mode")
             end_time = time.time()
             elapsed_time = end_time - start_time
@@ -416,54 +447,49 @@ class DeploymentManager:
     def bench_backup(self, site_name: str, file_name: Optional[str] = None ) -> Optional[Path]:
         """Return backup host path"""
 
-        if self.config.mode == "fm":
-            self.printer.change_head(f"Exporting {site_name} db")
+        self.printer.change_head(f"Exporting {site_name} db")
 
-            file_name = f"{site_name if file_name is None else file_name}.sql"
+        file_name = f"{site_name if file_name is None else file_name}.sql.gz"
 
-            backup_bench = MigrationBench(name=site_name, path=self.path.parent)
-            self.printer.change_head(f"bench backup {site_name}")
-            backup_bench_db_info = backup_bench.get_db_connection_info()
+        host_backup_config_path = self.backup.path / 'site_config.json'
+        host_backup_db_path = self.backup.path / file_name
 
-            export_path = (
+        backup_config_path = str(host_backup_config_path.absolute())
+        backup_db_path = str(host_backup_db_path.absolute())
+
+
+        if self.mode == 'fm':
+            backup_db_path = (
                 f"/workspace/{'/'.join(self.backup.path.parts[-2:])}/{file_name}"
             )
+            backup_config_path = (
+                f"/workspace/{'/'.join(self.backup.path.parts[-2:])}/site_config.json"
+            )
 
-            self.backup.path.mkdir(exist_ok=True)
+        db_export_command = ['bench','backup','--backup-path-conf', backup_config_path, '--backup-path-db', backup_db_path ]
 
-            host_export_path = self.backup.path / file_name
+        output = self.host_run(
+            db_export_command,
+            self.current,
+            stream=True,
+            container=self.mode == "fm",
+            capture_output=True)
 
-            bench_db_name = backup_bench_db_info.get("name")
-            mariadb_client = self.get_mariadb_bench_client()
-            mariadb_client.db_export(bench_db_name, export_file_path=export_path)
-
-            self.printer.print(f"Exported {site_name} db")
-
-            self.printer.change_head(f"Compress {site_name} db")
-
-            with open(host_export_path, 'rb') as f_in:
-                with gzip.open(self.backup.path / (file_name + '.gz'), 'wb') as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-
-            if host_export_path.exists():
-                host_export_path.unlink()
-
-            self.printer.print(f"DB has been compressed.")
-
-
-            return self.backup.path / file_name
-
-        return None
+        return host_backup_db_path
 
     def bench_restore(self, db_file_path: Path):
-        backup_bench = MigrationBench(name=self.site_name, path=self.path.parent)
+        if not self.mode == 'host':
+            self.printer.warning("db restore is not implemented in host mode")
+            return
 
+        backup_bench = MigrationBench(name=self.site_name, path=self.path.parent)
         self.printer.change_head(
             f"Restoring {self.site_name} with db from {db_file_path}"
         )
         backup_bench_db_info = backup_bench.get_db_connection_info()
 
         bench_db_name = backup_bench_db_info.get("name")
+
         mariadb_client = self.get_mariadb_bench_client()
         mariadb_client.db_import(
             db_name=bench_db_name, host_db_file_path=db_file_path
@@ -492,9 +518,7 @@ class DeploymentManager:
 
 
     def sync_configs_with_files(self, site_name: str):
-
         self.printer.change_head(f"Updating common_site_config.json, site_config.json")
-
         common_site_config_path = self.current.sites / "common_site_config.json"
 
         site_config_path = (
@@ -608,15 +632,14 @@ class DeploymentManager:
                 capture_output=capture_output,
                 cwd=str(bench_directory.path.absolute()),
             )
-
             if self.verbose:
                 end_time = time.time()
                 elapsed_time = end_time - start_time
                 self.printer.print(
                     f"Time Taken: {elapsed_time:.2f} sec, Command: '{' '.join(command)}'",
-                    emoji_code=":robot_face:",
+                    emoji_code=":robot_face:"
                 )
-                return output
+            return output
 
         docker_command = " ".join(command)
 
@@ -662,6 +685,7 @@ class DeploymentManager:
                 )
 
     def configure_uv(self, bench_directory: BenchDirectory):
+
         if self.config.uv:
             try:
                 output = self.host_run(
@@ -678,7 +702,7 @@ class DeploymentManager:
     def python_env_create(
         self, bench_directory: BenchDirectory, python_version: Optional[str] = None
     ):
-        python_version = python_version if python_version else ""
+        python_version = self.config.python_version if self.config.python_version else ""
 
         venv_create_command = [f"python{python_version}", "-m", "venv", "env"]
 
@@ -783,6 +807,7 @@ class DeploymentManager:
         node_cmd = ["bench", "setup", "requirements", "--node"]
 
         self.printer.change_head("Installing all apps node packages")
+
         self.host_run(
             node_cmd,
             bench_directory,
@@ -790,6 +815,7 @@ class DeploymentManager:
             container=self.mode == "fm",
             capture_output=False,
         )
+
         self.printer.print("Installed all apps node packages")
 
         start_time = time.time()
@@ -846,19 +872,32 @@ class DeploymentManager:
             get_relative_path(self.bench_path, bench_directory.path), True
         )
 
-        command = ["bench", "restart"]
+
+        start_time = time.time()
 
         if self.mode == "fm":
-            command = ["fm", "restart", self.site_name]
+            from frappe_manager.commands import app
+            try:
+                app(['restart',self.site_name])
+            except SystemExit:
+                pass
+        else:
+            services_to_restart = ['workers', 'redis', 'web']
 
-        self.printer.stop()
-        self.host_run(
-            command,
-            bench_directory,
-            stream=False,
-            container=False,
-            capture_output=False,
-        )
+            for service in services_to_restart:
+                command = ["sudo", "supervisorctl", "restart", f"frappe-bench-{service}"]
+                self.host_run(
+                    command,
+                    bench_directory,
+                    stream=False,
+                    container=False,
+                    capture_output=False,
+                )
+
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        self.printer.print(f"Frappe Services Restart Time Taken: {human_readable_time(elapsed_time)}", emoji_code = ":robot_face:")
+
         self.printer.start("Working")
         self.printer.print("Symlinked and restarted")
 

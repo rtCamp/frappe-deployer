@@ -58,3 +58,31 @@ def update_json_keys_in_file_path(file_path: Path, data_to_update: dict[Any,Any]
     json_data.update(data_to_update)
     file_path.write_text(json.dumps(json_data, ensure_ascii=False, indent=4))
     return True
+
+def human_readable_time(seconds: float) -> str:
+    """
+    Convert a time duration in seconds to a human-readable format.
+
+    Parameters
+    ----------
+    seconds : float
+        The total time duration in seconds.
+
+    Returns
+    -------
+    str
+        The human-readable time duration.
+    """
+    seconds = int(seconds)
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    parts = []
+    if hours > 0:
+        parts.append(f"{hours}h")
+    if minutes > 0:
+        parts.append(f"{minutes}m")
+    if seconds > 0 or not parts:
+        parts.append(f"{seconds:.2f}s")
+
+    return " ".join(parts)

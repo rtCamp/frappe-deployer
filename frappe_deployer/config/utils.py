@@ -30,7 +30,7 @@ def __check_ref_exists_for_url__(repo_url: str, ref: Optional[str] = None) -> bo
 
         return False
 
-    except GitCommandError:
+    except GitCommandError as e:
         return False
 
 def get_repo_url(repo:str, ref: Optional[str] = None, token: Optional[str] = None) -> str:

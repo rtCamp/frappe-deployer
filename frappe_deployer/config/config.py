@@ -26,7 +26,7 @@ class Config(BaseModel):
         List of application configurations.
     run_bench_migrate : bool
         Flag to run bench migrate.
-    use_maintenance_mode : bool
+    maintenance_mode : bool
         Flag to use maintenance mode while restart and bench migrate and bench install-app.
     releases_retain_limit : Optional[int]
         Number of releases to retain.
@@ -55,15 +55,18 @@ class Config(BaseModel):
     github_token: Optional[str] = Field(None, description="The GitHub personal access token.")
     remove_remote: Optional[bool] = Field(True, description="Flag to remove the remote to cloned apps.")
     apps: List[AppConfig] = Field(..., description="List of application configurations.")
+    python_version: Optional[str] = Field(None, description="Python Version to for venv creation.")
     run_bench_migrate: bool = Field(True, description="Flag to run bench migrate.")
-    use_maintenance_mode: bool = Field(True, description='Flag to use maintenance mode while restart and bench migrate and bench install-app.')
+    maintenance_mode: bool = Field(True, description='Flag to use maintenance mode while restart and bench migrate and bench install-app.',alias='use_maintenance_mode')
+    backups: bool = Field(True, description="Flag to enable or disable backups.")
+    configure: bool = Field(False, description="Flag to enable or disable site configuration for deployment.")
     releases_retain_limit: int = Field(7, description="Number of releases to retain.")
     reset_site: bool = Field(False, description="Flag to reset the site.")
     common_site_config: Optional[dict[str, Any]] = Field(None, description="Common site configuration dictionary.")
     site_config: Optional[dict[str, Any]] = Field(None, description="Site-specific configuration dictionary.")
     mode: Literal['host', 'fm'] = Field(..., description="Mode of operation, either 'host' or 'fm'.")
     restore_db_file_path: Optional[Path] = Field(None, description="Path to the database file to restore.")
-    verbose: bool = Field(False, description="Flag to enable verbose output.")
+    verbose: bool = Field(False, description="Flag to use 'uv' instead of 'pip' to manage and install packages.")
     uv: bool = Field(True, description="Flag to enable UV mode.")
     host: Optional[HostConfig] = Field(None, description="Host configuration.")
     fm: Optional[FMConfig] = Field(None, description="FM configuration.")
@@ -125,9 +128,31 @@ class Config(BaseModel):
         return v
 
     @staticmethod
-    def from_toml(file_name: str) -> 'Config':
-        with open(file_name, 'r') as file:
-            config_data = toml.load(file)
-            config = Config(**config_data)
-            #config.configure_config()
+    def from_toml(config_file_path: Optional[Path] = None, overrides: Optional[dict[str, Any]] = None ) -> 'Config':
+        config_data = {}
+
+        if config_file_path:
+            with open(config_file_path, 'r') as file:
+                config_data = toml.load(file)
+
+        if overrides:
+            # Merge overrides into config_data only if the keys are data members of Config
+            for key, value in overrides.items():
+                if key == 'apps':
+                    # Handle the merging of apps
+                    existing_apps = {app['repo']: app for app in config_data.get('apps', [])}
+
+                    for app in value:
+                        if app['repo'] in existing_apps:
+                            existing_apps[app['repo']].update(app)
+                        else:
+                            existing_apps[app['repo']] = app
+
+                    config_data['apps'] = list(existing_apps.values())
+                    continue
+
+                if key in Config.__fields__:
+                    config_data[key] = value
+
+        config = Config(**config_data)
         return config

@@ -1,6 +1,13 @@
 class ConfigPathDoesntExist(Exception):
     """Exception raised when the configuration file path does not exist."""
-    def init(self, path: str):
+    def __init__(self, path: str):
         self.path = path
-        self.message = f"The configuration file path '{self.path}' does not exist."
-        super().init(self.message)
+        self.message = f"The config file at '{self.path}' doesn't exists."
+        super().__init__(self.message)
+
+class SiteAlreadyConfigured(Exception):
+    """Exception raised when the site is already configured."""
+    def __init__(self, path: str):
+        self.path = path
+        self.message = f"The site at '{self.path}' is already configured (symlink exists)."
+        super().__init__(self.message)
