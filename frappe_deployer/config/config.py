@@ -53,10 +53,11 @@ class Config(BaseModel):
     """
     site_name: str = Field(..., description="The name of the site.")
     github_token: Optional[str] = Field(None, description="The GitHub personal access token.")
-    remove_remote: Optional[bool] = Field(True, description="Flag to remove the remote to cloned apps.")
+    remove_remote: Optional[bool] = Field(False, description="Flag to remove the remote to cloned apps.")
     apps: List[AppConfig] = Field(..., description="List of application configurations.")
     python_version: Optional[str] = Field(None, description="Python Version to for venv creation.")
     run_bench_migrate: bool = Field(True, description="Flag to run bench migrate.")
+    rollback: bool = Field(False, description="Allow rollback")
     maintenance_mode: bool = Field(True, description='Flag to use maintenance mode while restart and bench migrate and bench install-app.',alias='use_maintenance_mode')
     backups: bool = Field(True, description="Flag to enable or disable backups.")
     configure: bool = Field(False, description="Flag to enable or disable site configuration for deployment.")
@@ -103,6 +104,7 @@ class Config(BaseModel):
     def configure_config(cls, config):
 
         app: AppConfig
+
         for app in config.apps:
             app.configure_app(token=config.github_token,remove_remote=config.remove_remote)
 
@@ -128,12 +130,17 @@ class Config(BaseModel):
         return v
 
     @staticmethod
-    def from_toml(config_file_path: Optional[Path] = None, overrides: Optional[dict[str, Any]] = None ) -> 'Config':
+    def from_toml(config_file_path: Optional[Path] = None, config_string: Optional[str] = None, overrides: Optional[dict[str, Any]] = None ) -> 'Config':
         config_data = {}
 
         if config_file_path:
             with open(config_file_path, 'r') as file:
                 config_data = toml.load(file)
+
+        if config_string:
+            import io
+            with io.StringIO(config_string) as f:
+                config_data = toml.load(f)
 
         if overrides:
             # Merge overrides into config_data only if the keys are data members of Config

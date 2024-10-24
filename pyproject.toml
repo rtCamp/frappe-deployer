@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "frappe-deployer"
-version = "0.1.0"
+version = "0.2.0"
 description = "Automates setup and management of Frappe/Frappe-Manager environments using a config file."
 authors = ["Alok Singh <alokmilenium@gmail.com>"]
 license = "MIT"

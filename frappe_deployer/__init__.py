@@ -1,4 +1,6 @@
 from enum import Enum
+import toml
+import re
 import time
 from pathlib import Path
 from typing import Annotated, Any, Literal, Optional, Union
@@ -65,12 +67,14 @@ def pull(
     ctx: typer.Context,
     site_name: Annotated[Optional[str], typer.Argument(help='The name of the site.', show_default=False,metavar='Site Name / Bench Name')] = None,
     config_path: Annotated[Optional[Path], typer.Option(help='TOML config path', callback=validate_cofig_path,show_default=False)] = None,
+    config_content: Annotated[Optional[str], typer.Option(help='TOML config string content', show_default=False)] = None,
     apps: Annotated[list[str] , typer.Option('--apps','-a', help="List of apps in the format [underline]org_name/repo_name:branch[/underline]", callback=parse_apps, show_default=False)] = [],
     github_token: Annotated[Optional[str], typer.Option(help="The GitHub personal access token",show_default=False)] = None,
-    mode: Annotated[str, typer.Option('--mode','-m', help="List of apps in the format [underline]org_name/repo_name:branch[/underline]", show_default=False)] = ModeEnum.fm,
+    mode: Annotated[str, typer.Option('--mode','-m', help="Mode of operation, either 'host' or 'fm'.", show_default=False)] = ModeEnum.fm.value,
     python_version: Annotated[Optional[str], typer.Option('--python-version','-p', help="Specifiy the python version used to create bench python env. Defaults to whatever currently installed python version on your system.", show_default=False)] = None,
     releases_retain_limit: Annotated[Optional[int] , typer.Option('--releases-retain-limit', help="Number of releases to retain", show_default=False)] = None,
     remove_remote: Annotated[Optional[bool] , typer.Option(help="Remove remote after cloning",show_default=False)] = None,
+    rollback: Annotated[Optional[bool] , typer.Option(help="Enable/Disable rollback",show_default=False)] = None,
     maintenance_mode: Annotated[Optional[bool] , typer.Option(help="Enable/Disable maintenance mode",show_default=False)] = None,
     run_bench_migrate: Annotated[Optional[bool] , typer.Option(help="Enable/Disable 'bench migrate' run",show_default=False)] = None,
     backups: Annotated[Optional[bool], typer.Option(help="Enable/Disable taking backups")] = None,
@@ -96,7 +100,7 @@ def pull(
         current_locals['fm'] = {'restore_db_from_site': fm_restore_db_from_site}
 
     richprint.start('working')
-    config: Config = Config.from_toml(config_path, get_config_overrides(locals=current_locals))
+    config: Config = Config.from_toml(config_path, config_content, get_config_overrides(locals=current_locals))
 
     if len(config.apps) == 0:
         raise RuntimeError("Apps list cannot be empty in [code]pull[/code] command.")
@@ -107,6 +111,7 @@ def pull(
 
     manager.create_new_release()
 
-    total_end_time = time.time()
-    total_elapsed_time = total_end_time - total_start_time
-    manager.printer.print(f"Total Time Taken: [bold yellow]{human_readable_time(total_elapsed_time)}[/bold yellow]",emoji_code=":robot_face:")
+    if config.verbose:
+        total_end_time = time.time()
+        total_elapsed_time = total_end_time - total_start_time
+        manager.printer.print(f"Total Time Taken: [bold yellow]{human_readable_time(total_elapsed_time)}[/bold yellow]",emoji_code=":robot_face:")

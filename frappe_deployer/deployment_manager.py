@@ -1,4 +1,3 @@
-import gzip
 from pathlib import Path
 import shutil
 import time
@@ -23,8 +22,6 @@ from frappe_manager.utils.docker import (
 )
 from frappe_manager.utils.helpers import json
 from rich.rule import Rule
-import typer
-
 from frappe_deployer.config.app import AppConfig
 from frappe_deployer.config.config import Config
 from frappe_deployer.consts import (
@@ -278,7 +275,6 @@ class DeploymentManager:
             self.printer.print(f"Created dir [blue]{dir.name}[/blue] ")
 
         if self.config.configure:
-
             if self.config.maintenance_mode:
                 start_time = time.time()
 
@@ -292,6 +288,7 @@ class DeploymentManager:
             shutil.move(
                 str(self.current.path.absolute()), str(self.path / 'prev_frappe_bench')
             )
+
             self.bench_path.symlink_to(
                 get_relative_path(self.bench_path, self.new.path), True
             )
@@ -333,15 +330,16 @@ class DeploymentManager:
             self.bench_install_and_migrate(self.current)
 
         except Exception as e:
-            exception = e
-            self.printer.error(f"Failed to create new release {self.new.path.name}")
-            self.printer.stdout.print(Rule(title=f"Rolling back to previous release: {self.previous_release_dir.name}"))
+            if self.config.rollback:
+                exception = e
+                self.printer.error(f"Failed to create new release {self.new.path.name}")
+                self.printer.stdout.print(Rule(title=f"Rolling back to previous release: {self.previous_release_dir.name}"))
 
-            if self.bench_path.exists():
-                self.bench_path.unlink()
+                if self.bench_path.exists():
+                    self.bench_path.unlink()
 
-            self.bench_symlink_and_restart(BenchDirectory(self.previous_release_dir))
-            self.printer.print("Symlinked previous deployment before new release")
+                self.bench_symlink_and_restart(BenchDirectory(self.previous_release_dir))
+                self.printer.print("Symlinked previous deployment before new release")
 
             self.bench_install_and_migrate(self.current)
 
@@ -349,9 +347,11 @@ class DeploymentManager:
 
         if self.config.maintenance_mode:
             self.printer.print("Disabled maintenance mode")
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            self.printer.print(f"Maintenance Mode Time: {elapsed_time:.2f} seconds")
+
+            if self.config.verbose:
+                end_time = time.time()
+                elapsed_time = end_time - start_time
+                self.printer.print(f"Maintenance Mode Time: {elapsed_time:.2f} seconds",emoji_code=':robot_face:')
 
         self.cleanup_releases()
 
@@ -666,7 +666,9 @@ class DeploymentManager:
                     f"Time Taken: {elapsed_time:.2f} sec, Command: '{' '.join(command)}'",
                     emoji_code=":robot_face:",
                 )
-                return output
+
+            return output
+
         else:
             output: Iterable[Tuple[str, bytes]] = compose_project.docker.compose.exec(
                 service=container_service,
@@ -675,8 +677,9 @@ class DeploymentManager:
                 workdir=workdir,
                 stream=not capture_output,
             )
+            self.printer.live_lines(output)
+
             if self.verbose:
-                self.printer.live_lines(output)
                 end_time = time.time()
                 elapsed_time = end_time - start_time
                 self.printer.print(
@@ -808,7 +811,7 @@ class DeploymentManager:
 
         self.printer.change_head("Installing all apps node packages")
 
-        self.host_run(
+        output = self.host_run(
             node_cmd,
             bench_directory,
             stream=False,
@@ -819,6 +822,7 @@ class DeploymentManager:
         self.printer.print("Installed all apps node packages")
 
         start_time = time.time()
+
         self.bench_install_all_apps_in_python_env(bench_directory)
 
         end_time = time.time()
@@ -878,7 +882,7 @@ class DeploymentManager:
         if self.mode == "fm":
             from frappe_manager.commands import app
             try:
-                app(['restart',self.site_name])
+                app(['restart', self.site_name])
             except SystemExit:
                 pass
         else:
@@ -894,9 +898,10 @@ class DeploymentManager:
                     capture_output=False,
                 )
 
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        self.printer.print(f"Frappe Services Restart Time Taken: {human_readable_time(elapsed_time)}", emoji_code = ":robot_face:")
+        if self.config.verbose:
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            self.printer.print(f"Frappe Services Restart Time Taken: {human_readable_time(elapsed_time)}", emoji_code = ":robot_face:")
 
         self.printer.start("Working")
         self.printer.print("Symlinked and restarted")
