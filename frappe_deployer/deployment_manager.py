@@ -394,7 +394,7 @@ class DeploymentManager:
         if deleted_dir_names:
             self.printer.print(f"Deleted releases [blue]{deleted_dir_names}[/blue]")
 
-        self.printer.change_head("Working")
+        self.printer.start("Working")
 
     def extract_timestamp(self, dir_name: str) -> int:
         try:
