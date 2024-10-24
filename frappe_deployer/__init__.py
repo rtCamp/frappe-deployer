@@ -23,20 +23,9 @@ class CustomLogger:
     def debug(self, msg):
         print(f"Custom debug: {msg}")
 
-def patched_change_head(original_function):
-    def wrapper(*args, **kwargs):
-        result = original_function(*args, **kwargs)
-        richprint.print(*args, emoji_code=':construction:')
-        return result
-    return wrapper
-
-
 
 patcher = patch('frappe_manager.logger.log.get_logger.__defaults__', (LOG_FILE_NAME.parent, LOG_FILE_NAME.name))
-patcher2 = patch.object(richprint, 'change_head', new=patched_change_head(richprint.change_head))
-
 patcher.start()
-patcher2.start()
 
 cli = typer.Typer(no_args_is_help=True, rich_markup_mode="rich")
 

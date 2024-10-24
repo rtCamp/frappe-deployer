@@ -4,11 +4,19 @@ from typing import Any, List, Literal, Optional
 from frappe_manager import CLI_BENCHES_DIRECTORY
 from frappe_manager.utils.site import richprint
 from pydantic import BaseModel, Field, field_validator, model_validator
+from unittest.mock import patch
 import toml
 
 from frappe_deployer.config.app import AppConfig
 from frappe_deployer.config.fm import FMConfig
 from frappe_deployer.config.host import HostConfig
+
+def patched_change_head(original_function):
+    def wrapper(*args, **kwargs):
+        result = original_function(*args, **kwargs)
+        richprint.print(*args, emoji_code=':construction:')
+        return result
+    return wrapper
 
 class Config(BaseModel):
     """
@@ -85,6 +93,15 @@ class Config(BaseModel):
             raise ValueError(f"{path} file doesn't exists")
 
         return path
+
+    @field_validator('verbose',mode='before')
+    def validate_verbose(cls, value):
+
+        if value:
+            patcher = patch.object(richprint, 'change_head', new=patched_change_head(richprint.change_head))
+            patcher.start()
+
+        return value
 
     @property
     def bench_path(self) -> Path:
