@@ -82,7 +82,7 @@ def pull(
     uv: Annotated[Optional[bool] , typer.Option('--uv',help="Use [underline]uv[/underline] instead of [underline]pip[/underline] to manage and install packages", show_default=False)] = None,
     verbose: Annotated[Optional[bool] , typer.Option('--verbose','-v',help="Enable verbose output", show_default=False)] = None,
     host_bench_path: Annotated[Optional[Path] , typer.Option(help="Specify the path to the bench directory", show_default=False,rich_help_panel='Host Mode',)] = None,
-    fm_restore_db_from_site: Annotated[Optional[Path] , typer.Option(help="Specify the site name to import the database from.", show_default=False,rich_help_panel='FM Mode')] = None,
+    fm_restore_db_from_site: Annotated[Optional[str] , typer.Option(help="Specify the site name to import the database from.", show_default=False, rich_help_panel='FM Mode')] = None,
     configure: Annotated[Optional[bool] , typer.Option(help="If not configure then configure and then pull.", show_default=False)] = None,
 ):
     """

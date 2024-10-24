@@ -66,7 +66,7 @@ class Config(BaseModel):
     python_version: Optional[str] = Field(None, description="Python Version to for venv creation.")
     run_bench_migrate: bool = Field(True, description="Flag to run bench migrate.")
     rollback: bool = Field(False, description="Allow rollback")
-    maintenance_mode: bool = Field(True, description='Flag to use maintenance mode while restart and bench migrate and bench install-app.',alias='use_maintenance_mode')
+    maintenance_mode: bool = Field(True, description='Flag to use maintenance mode while restart and bench migrate and bench install-app.')
     backups: bool = Field(True, description="Flag to enable or disable backups.")
     configure: bool = Field(False, description="Flag to enable or disable site configuration for deployment.")
     releases_retain_limit: int = Field(7, description="Number of releases to retain.")
@@ -118,7 +118,7 @@ class Config(BaseModel):
         return self.bench_path.name
 
     @model_validator(mode='after')
-    def configure_config(cls, config):
+    def configure_config(cls, config: Any) -> Any:
 
         app: AppConfig
 
@@ -129,11 +129,14 @@ class Config(BaseModel):
 
         for app in config.apps:
             if not app.exists:
+
                 all_apps_exists = False
                 richprint.error(app.repo_url)
 
         if not all_apps_exists:
             raise RuntimeError("Please ensure all apps repo's are accessible.")
+
+        return config
 
 
     @property

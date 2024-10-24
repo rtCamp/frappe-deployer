@@ -244,7 +244,6 @@ class DeploymentManager:
 
         (self.backup.sites/ self.site_name).mkdir(exist_ok=True,parents=True)
         shutil.copyfile(self.current.common_site_config, self.backup.common_site_config)
-        shutil.copyfile(self.current.sites / self.site_name / 'site_config.json', self.backup.sites / self.site_name / 'site_config.json')
         self.bench_backup(self.site_name)
         self.printer.print("Backed up db, common_site_config and site_config.json")
 
@@ -261,13 +260,15 @@ class DeploymentManager:
 
         # create new release dirs
         self.printer.change_head(f"Configuring new release dirs")
-        self.bench_db_and_configs_backup()
+
+        if not self.config.configure:
+            self.bench_db_and_configs_backup()
 
         if self.config.fm:
             if self.config.fm.restore_db_from_site:
                 if not self.config.restore_db_file_path:
                     self.config.restore_db_file_path = self.bench_backup(
-                        self.config.fm.restore_db_from_site
+                        self.config.fm.restore_db_from_site, using_bench_backup=False,compress=True,sql_delete_after_compress=False
                     )
 
         for dir in [self.new.path, self.new.apps, self.new.sites]:
@@ -320,6 +321,12 @@ class DeploymentManager:
 
             if self.config.restore_db_file_path:
                 self.bench_restore(self.config.restore_db_file_path)
+
+                if self.config.fm:
+                    if self.config.fm.restore_db_from_site:
+                        if self.config.restore_db_file_path.exists():
+                            self.config.restore_db_file_path.unlink()
+                            self.printer.print(f'Deleted temporary exported db file {self.config.restore_db_file_path.name}')
 
                 if self.config.fm:
                     if self.config.fm.restore_db_from_site:
@@ -444,7 +451,7 @@ class DeploymentManager:
 
         return mariadb_client
 
-    def bench_backup(self, site_name: str, file_name: Optional[str] = None ) -> Optional[Path]:
+    def bench_backup(self, site_name: str, file_name: Optional[str] = None, using_bench_backup: bool = True, compress: bool = True, sql_delete_after_compress: bool = True) -> Optional[Path]:
         """Return backup host path"""
 
         self.printer.change_head(f"Exporting {site_name} db")
@@ -452,6 +459,7 @@ class DeploymentManager:
         file_name = f"{site_name if file_name is None else file_name}.sql.gz"
 
         host_backup_config_path = self.backup.path / 'site_config.json'
+
         host_backup_db_path = self.backup.path / file_name
 
         backup_config_path = str(host_backup_config_path.absolute())
@@ -466,31 +474,67 @@ class DeploymentManager:
                 f"/workspace/{'/'.join(self.backup.path.parts[-2:])}/site_config.json"
             )
 
-        db_export_command = ['bench','backup','--backup-path-conf', backup_config_path, '--backup-path-db', backup_db_path ]
 
-        output = self.host_run(
-            db_export_command,
-            self.current,
-            stream=True,
-            container=self.mode == "fm",
-            capture_output=True)
+        if using_bench_backup:
+            db_export_command = ['bench','backup','--backup-path-conf', backup_config_path, '--backup-path-db', backup_db_path ]
+
+            output = self.host_run(
+                db_export_command,
+                self.current,
+                stream=True,
+                container=self.mode == "fm",
+                capture_output=True)
+
+            return host_backup_db_path
+
+        backup_bench = MigrationBench(name=site_name, path=self.path.parent)
+        backup_bench_db_info = backup_bench.get_db_connection_info()
+
+        bench_db_name = backup_bench_db_info.get("name")
+        mariadb_client = self.get_mariadb_bench_client()
+
+        host_backup_db_path = host_backup_db_path.parent / host_backup_db_path.name.rstrip('.gz')
+
+        backup_db_path = backup_db_path.rstrip('.gz')
+
+        output = mariadb_client.db_export(bench_db_name, export_file_path=backup_db_path)
+
+        self.printer.print(f"Exported {site_name} db")
+
+        if compress:
+            self.printer.change_head(f"Compress {site_name} db")
+            with open(host_backup_db_path, 'rb') as f_in:
+                import gzip
+                with gzip.open(str(host_backup_db_path) + '.gz', 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+
+            if sql_delete_after_compress:
+                if host_backup_db_path.exists():
+                    host_backup_db_path.unlink()
+
+            self.printer.print(f"DB has been compressed.")
 
         return host_backup_db_path
 
+
     def bench_restore(self, db_file_path: Path):
-        if not self.mode == 'host':
+
+        if self.mode == 'host':
             self.printer.warning("db restore is not implemented in host mode")
             return
 
         backup_bench = MigrationBench(name=self.site_name, path=self.path.parent)
+
         self.printer.change_head(
             f"Restoring {self.site_name} with db from {db_file_path}"
         )
+
         backup_bench_db_info = backup_bench.get_db_connection_info()
 
         bench_db_name = backup_bench_db_info.get("name")
 
         mariadb_client = self.get_mariadb_bench_client()
+
         mariadb_client.db_import(
             db_name=bench_db_name, host_db_file_path=db_file_path
         )

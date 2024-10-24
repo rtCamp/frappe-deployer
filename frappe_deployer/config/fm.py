@@ -11,4 +11,4 @@ class FMConfig(BaseModel):
         The name of the database bench. This attribute is optional and can be None.
     """
 
-    restore_db_from_site: Optional[str] = Field(None, description="The name of the database bench. This attribute is optional and can be None.",alias='db_bench_name')
+    restore_db_from_site: Optional[str] = Field(None, description="The name of the database bench. This attribute is optional and can be None.")

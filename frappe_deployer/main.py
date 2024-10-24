@@ -25,11 +25,9 @@ def cli_entrypoint():
         richprint.error(f'[red]Error Occured[/red]  {str(e).strip()}',emoji_code="\n:red_square:")
         richprint.error(f"More info about error is logged in {LOG_FILE_NAME}.log", emoji_code=':mag:')
 
-        from pprint import pprint
-        pprint(Path(f'{LOG_FILE_NAME}.log').read_text())
-
         exception_traceback: str = capture_and_format_exception()
         logger.error(f"Exception Occured:  : \n{exception_traceback}")
+        richprint.print(f"Exception Occured:  : \n{exception_traceback}")
 
         typer.Exit(1)
 
