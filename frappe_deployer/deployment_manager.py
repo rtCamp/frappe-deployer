@@ -1,6 +1,7 @@
 from pathlib import Path
 import shutil
 import time
+import gzip
 from typing import Iterable, Literal, Optional, Tuple, Union
 
 from frappe_manager import CLI_DIR
@@ -495,6 +496,8 @@ class DeploymentManager:
 
         host_backup_db_path = host_backup_db_path.parent / host_backup_db_path.name.rstrip('.gz')
 
+        self.backup.path.mkdir(exist_ok=True,parents=True)
+
         backup_db_path = backup_db_path.rstrip('.gz')
 
         output = mariadb_client.db_export(bench_db_name, export_file_path=backup_db_path)
@@ -522,6 +525,15 @@ class DeploymentManager:
         if self.mode == 'host':
             self.printer.warning("db restore is not implemented in host mode")
             return
+
+        # Check if the input file is a .gz file
+        if db_file_path.suffix == '.gz':
+            self.printer.change_head(f"Decompressing {db_file_path}")
+            with gzip.open(db_file_path, 'rb') as f_in:
+                decompressed_path = db_file_path.with_suffix('')  # Remove .gz suffix
+                with open(decompressed_path, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            db_file_path = decompressed_path  # Update db_file_path to the decompressed file
 
         backup_bench = MigrationBench(name=self.site_name, path=self.path.parent)
 
