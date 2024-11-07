@@ -56,6 +56,7 @@ class DeploymentManager:
         self.mode = config.mode
         self.path = config.deploy_dir_path
         self.printer = richprint
+        self.bench_cli = "bench"
 
         self.current = BenchDirectory(config.bench_path)
         self.site_installed_apps = self.get_site_installed_apps(self.current)
@@ -67,6 +68,38 @@ class DeploymentManager:
         self.previous_release_dir = self.current.path.resolve()
 
         self.printer.start("Working")
+        self.configure_bench_cli()
+
+    def configure_bench_cli(self):
+        # Step 1: Create a virtual environment in ~/.cache/frappe-deployer-venv
+        venv_path = Path.home() / ".cache" / "frappe-deployer-venv"
+
+        if self.mode == 'fm':
+            venv_path =  Path("/workspace/.cache/frappe-deployer-venv")
+
+        # Check if the virtual environment exists
+        if not venv_path.exists() or not (venv_path / "bin" / "bench").exists():
+            self.python_env_create(self.current, venv_path=str(venv_path))
+
+            # Step 2: Install bench and frappe from given GitHub tags link using uv
+            bench_install_command = [
+                "uv", "pip",
+                "install",
+                "--python",
+                f"{str(venv_path)}/bin/python",
+                "git+https://github.com/frappe/bench.git",
+                "git+https://github.com/frappe/frappe.git"
+            ]
+
+            self.host_run(
+                bench_install_command,
+                self.current,
+                container=self.mode == "fm",
+                capture_output=False
+            )
+
+        # Step 3: Use this bench from this venv in subsequent runs
+        self.bench_cli = str((venv_path / "bin" / "bench").absolute())
 
     def configure_symlinks(self):
         self.printer.change_head(f"Configuring symlinks")
@@ -252,7 +285,7 @@ class DeploymentManager:
         if not self.bench_path.is_symlink():
             if not self.config.configure:
                 raise RuntimeError(
-                        f"Provided bench is not configured. Please use `configure` subcommand for this."
+                        "Provided bench is not configured. Please use `configure` subcommand for this."
                     )
         else:
             self.config.configure = False
@@ -260,7 +293,7 @@ class DeploymentManager:
         self.printer.print(f'Bench: {self.config.bench_name} Site: {self.config.site_name}')
 
         # create new release dirs
-        self.printer.change_head(f"Configuring new release dirs")
+        self.printer.change_head("Configuring new release dirs")
 
         if not self.config.configure:
             self.bench_db_and_configs_backup()
@@ -477,12 +510,12 @@ class DeploymentManager:
 
 
         if using_bench_backup:
-            db_export_command = ['bench','backup','--backup-path-conf', backup_config_path, '--backup-path-db', backup_db_path ]
+            db_export_command = [self.bench_cli,'backup','--backup-path-conf', backup_config_path, '--backup-path-db', backup_db_path ]
 
             output = self.host_run(
                 db_export_command,
                 self.current,
-                stream=True,
+                #stream=True,
                 container=self.mode == "fm",
                 capture_output=True)
 
@@ -592,15 +625,15 @@ class DeploymentManager:
         self.printer.print(f"Updated common_site_config.json, site_config.json")
 
     def bench_clear_cache(self, bench_directory: BenchDirectory, website_cache: bool = False):
-        clear_cache_command = ['bench', 'clear-cache']
-        clear_website_cache_command = ['bench', 'clear-website-cache']
+        clear_cache_command = [self.bench_cli, 'clear-cache']
+        clear_website_cache_command = [self.bench_cli, 'clear-website-cache']
 
         self.printer.change_head(f"Clearing cache{' and website cache' if website_cache else ''}")
         for command in [clear_cache_command,clear_website_cache_command]:
             self.host_run(
                 command,
                 bench_directory,
-                stream=True,
+                #stream=True,
                 container=self.mode == "fm",
                 capture_output=False,
             )
@@ -616,11 +649,11 @@ class DeploymentManager:
 
         if self.config.run_bench_migrate:
             self.printer.change_head("Running bench migrate")
-            bench_migrate = ["bench", "migrate"]
+            bench_migrate = [self.bench_cli, "migrate"]
             self.host_run(
                 bench_migrate,
                 bench_directory,
-                stream=True,
+                #stream=True,
                 container=self.mode == "fm",
                 capture_output=False,
             )
@@ -642,7 +675,7 @@ class DeploymentManager:
                 continue
 
             install_command = [
-                "bench",
+                self.bench_cli,
                 "--site",
                 self.site_name,
                 "install-app",
@@ -654,7 +687,7 @@ class DeploymentManager:
             output = self.host_run(
                 install_command,
                 bench_directory,
-                stream=False,
+                #stream=False,
                 container=self.mode == "fm",
                 capture_output=True,
             )
@@ -675,27 +708,47 @@ class DeploymentManager:
         container: bool = False,
         container_service: str = "frappe",
         container_user: str = "frappe",
-        stream: bool = False,
         capture_output: bool = True,
     ) -> Union[Iterable[Tuple[str, bytes]], SubprocessOutput]:
         if self.verbose:
             start_time = time.time()
 
         if not container:
-            output = run_command_with_exit_code(
-                command,
-                stream=stream,
-                capture_output=capture_output,
-                cwd=str(bench_directory.path.absolute()),
-            )
-            if self.verbose:
-                end_time = time.time()
-                elapsed_time = end_time - start_time
-                self.printer.print(
-                    f"Time Taken: {elapsed_time:.2f} sec, Command: '{' '.join(command)}'",
-                    emoji_code=":robot_face:"
+            if capture_output:
+                output = run_command_with_exit_code(
+                    command,
+                    stream=not capture_output,
+                    capture_output=capture_output,
+                    cwd=str(bench_directory.path.absolute()),
                 )
-            return output
+
+                if self.verbose:
+                    end_time = time.time()
+                    elapsed_time = end_time - start_time
+                    self.printer.print(
+                        f"Time Taken: {elapsed_time:.2f} sec, Command: '{' '.join(command)}'",
+                        emoji_code=":robot_face:"
+                    )
+                return output
+
+            else:
+                output = run_command_with_exit_code(
+                    command,
+                    stream=not capture_output,
+                    capture_output=capture_output,
+                    cwd=str(bench_directory.path.absolute()),
+                )
+
+                self.printer.live_lines(output)
+
+                if self.verbose:
+                    end_time = time.time()
+                    elapsed_time = end_time - start_time
+                    self.printer.print(
+                        f"Time Taken: {elapsed_time:.2f} sec, Command: '{' '.join(command)}'",
+                        emoji_code=":robot_face:"
+                    )
+                return None
 
         docker_command = " ".join(command)
 
@@ -750,7 +803,7 @@ class DeploymentManager:
                 output = self.host_run(
                     ["pip", "install", "uv"],
                     bench_directory,
-                    stream=False,
+                    #stream=False,
                     container=self.mode == "fm",
                     capture_output=True,
                 )
@@ -759,11 +812,11 @@ class DeploymentManager:
                 self.python_env_create(bench_directory)
 
     def python_env_create(
-        self, bench_directory: BenchDirectory, python_version: Optional[str] = None
+            self, bench_directory: BenchDirectory, venv_path: str = 'env', python_version: Optional[str] = None
     ):
-        python_version = self.config.python_version if self.config.python_version else ""
+        python_version = self.config.python_version if self.config.python_version else "3"
 
-        venv_create_command = [f"python{python_version}", "-m", "venv", "env"]
+        venv_create_command = [f"python{python_version}", "-m", "venv", venv_path]
 
         self.printer.change_head(
             f"Creating python venv {'using uv' if self.config.uv else ''}"
@@ -774,27 +827,27 @@ class DeploymentManager:
             output = self.host_run(
                 ["pip", "install", "uv"],
                 bench_directory,
-                stream=False,
+                #stream=False,
                 container=self.mode == "fm",
                 capture_output=True,
             )
             venv_create_command = [
-                f"uv",
+                "uv",
                 "venv",
                 "--python",
                 f"python{python_version}",
-                "env",
+                venv_path,
             ]
 
         output = self.host_run(
             venv_create_command,
             bench_directory,
-            stream=False,
+            #stream=False,
             container=self.mode == "fm",
             capture_output=True,
         )
 
-        pkg_install = ["env/bin/python", "-m", "pip", "install", "wheel"]
+        pkg_install = [f"{venv_path}/bin/python", "-m", "pip", "install", "wheel"]
 
         if self.config.uv:
             pkg_install = [
@@ -802,7 +855,7 @@ class DeploymentManager:
                 "pip",
                 "install",
                 "--python",
-                "env/bin/python",
+                f"{venv_path}/bin/python",
                 "-U",
                 "pip",
             ]
@@ -810,14 +863,14 @@ class DeploymentManager:
         output = self.host_run(
             pkg_install,
             bench_directory,
-            stream=False,
+            #stream=False,
             container=self.mode == "fm",
             capture_output=True,
         )
         output = self.host_run(
-            ["env/bin/python", "--version"],
+            [f"{venv_path}/bin/python", "--version"],
             bench_directory,
-            stream=False,
+            #stream=False,
             container=self.mode == "fm",
             capture_output=True,
         )
@@ -830,7 +883,7 @@ class DeploymentManager:
             f"Installing all apps in python env {'using uv' if self.config.uv else ''}"
         )
 
-        install_cmd = ["bench", "setup", "requirements", "--python"]
+        install_cmd = [self.bench_cli, "setup", "requirements", "--python"]
 
         if self.config.uv:
             install_cmd = [
@@ -847,7 +900,7 @@ class DeploymentManager:
                 self.host_run(
                     install_cmd + [f"apps/{app.name}"],
                     bench_directory,
-                    stream=False,
+                    #stream=False,
                     container=self.mode == "fm",
                     capture_output=False,
                 )
@@ -855,7 +908,7 @@ class DeploymentManager:
             self.host_run(
                 install_cmd,
                 bench_directory,
-                stream=False,
+                #stream=False,
                 container=self.mode == "fm",
                 capture_output=False,
             )
@@ -863,14 +916,14 @@ class DeploymentManager:
         self.printer.print("Installed apps in python env")
 
     def bench_setup_requiments(self, bench_directory: BenchDirectory):
-        node_cmd = ["bench", "setup", "requirements", "--node"]
+        node_cmd = [self.bench_cli, "setup", "requirements", "--node"]
 
         self.printer.change_head("Installing all apps node packages")
 
         output = self.host_run(
             node_cmd,
             bench_directory,
-            stream=False,
+            #stream=True,
             container=self.mode == "fm",
             capture_output=False,
         )
@@ -911,11 +964,11 @@ class DeploymentManager:
 
         for app in apps:
             self.printer.change_head(f"Building app {app.name}")
-            build_cmd = ["bench", "build","--app", app.name]
+            build_cmd = [self.bench_cli, "build","--app", app.name]
             self.host_run(
                 build_cmd,
                 bench_directory,
-                stream=False,
+                #stream=False,
                 container=self.mode == "fm",
                 capture_output=False,
             )
@@ -945,11 +998,11 @@ class DeploymentManager:
             services_to_restart = ['workers', 'redis', 'web']
 
             for service in services_to_restart:
-                command = ["sudo", "supervisorctl", "restart", f"frappe-bench-{service}"]
+                command = ["sudo", "supervisorctl", "restart", f"frappe-bench-{service}:"]
                 self.host_run(
                     command,
                     bench_directory,
-                    stream=False,
+                    #stream=False,
                     container=False,
                     capture_output=False,
                 )
@@ -963,12 +1016,12 @@ class DeploymentManager:
         self.printer.print("Symlinked and restarted")
 
     def get_site_installed_apps(self, bench_directory: BenchDirectory):
-        command = ["bench", "list-apps", "-f", "json"]
+        command = [self.bench_cli, "list-apps", "-f", "json"]
         try:
             output = self.host_run(
                 command,
                 bench_directory,
-                stream=False,
+                #stream=False,
                 container=self.mode == "fm",
                 capture_output=True,
             )

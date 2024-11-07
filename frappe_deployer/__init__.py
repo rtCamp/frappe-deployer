@@ -37,6 +37,18 @@ def validate_cofig_path(configpath: Optional[Union[str,Path]]):
             richprint.exit(str(exception.message))
         return Path(config_path)
 
+
+def validate_db_file_path(db_file_path: Optional[Union[str,Path]]):
+    if db_file_path:
+        if isinstance(db_file_path, str):
+            db_file_path = Path(db_file_path)
+
+        if not db_file_path.exists():
+            msg = f"The provided db file at {str(db_file_path)} doesn't exists"
+            richprint.exit(str(msg))
+
+        return Path(db_file_path)
+
 def parse_apps(apps_list: list[str]):
     apps = []
     for repo_with_branch_name in apps_list:
@@ -84,6 +96,7 @@ def pull(
     host_bench_path: Annotated[Optional[Path] , typer.Option(help="Specify the path to the bench directory", show_default=False,rich_help_panel='Host Mode',)] = None,
     fm_restore_db_from_site: Annotated[Optional[str] , typer.Option(help="Specify the site name to import the database from.", show_default=False, rich_help_panel='FM Mode')] = None,
     configure: Annotated[Optional[bool] , typer.Option(help="If not configure then configure and then pull.", show_default=False)] = None,
+    restore_db_file_path: Annotated[Optional[Path], typer.Option(help='Restore db file path', callback=validate_db_file_path,show_default=False)] = None,
 ):
     """
     Pulls the current set of frappe apps and setup new release based on provided config file/flags.
