@@ -102,16 +102,20 @@ class DeploymentManager:
         self.bench_cli = str((venv_path / "bin" / "bench").absolute())
 
     def configure_symlinks(self):
-        self.printer.change_head(f"Configuring symlinks")
+        self.printer.change_head("Configuring symlinks")
 
         # all sites symlink
         for site in self.data.list_sites():
-            new_site_path = self.new.sites / site.name
             data_site_path = self.data.sites / site.name
-            new_site_path.symlink_to(
-                get_relative_path(new_site_path, data_site_path), True
-            )
-            self.printer.print(f"Symlink {site.name}")
+            new_site_path = self.new.sites / site.name
+            new_site_path.mkdir(parents=True)
+
+            # Symlink all directories or files at one level in data_site_path
+            for item in data_site_path.iterdir():
+                data_item_symlink = data_site_path / item.name
+                item_symlink = new_site_path / item.name
+                item_symlink.symlink_to(get_relative_path(item_symlink, data_item_symlink), True)
+                self.printer.print(f"Symlinked {data_item_symlink} to {item}")
 
         # common_site_config.json
         if not self.data.common_site_config.exists():
@@ -317,9 +321,11 @@ class DeploymentManager:
                 self.current.maintenance_mode(self.site_name, True)
 
             DeploymentManager.configure(config=self.config, only_move=True,backups=True)
+
             self.printer.change_head(
-                f"Moving bench directory, creating initial release"
+                "Moving bench directory, creating initial release"
             )
+
             shutil.move(
                 str(self.current.path.absolute()), str(self.path / 'prev_frappe_bench')
             )
