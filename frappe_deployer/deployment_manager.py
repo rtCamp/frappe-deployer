@@ -101,21 +101,54 @@ class DeploymentManager:
         # Step 3: Use this bench from this venv in subsequent runs
         self.bench_cli = str((venv_path / "bin" / "bench").absolute())
 
-    def configure_symlinks(self):
-        self.printer.change_head("Configuring symlinks")
+    def sync_sites_to_data_dir(self):
+        """Sync sites from current bench to data directory"""
+        self.printer.change_head("Syncing sites to data directory")
 
-        # all sites symlink
+        # Create data sites directory if it doesn't exist
+        self.data.sites.mkdir(parents=True, exist_ok=True)
+
+        # Move all sites from current bench to data directory
+        # for site in self.current.list_sites():
+        #     data_site_path = self.data.sites / site.name
+
+        #     # Skip if site already exists in data directory
+        #     if data_site_path.exists():
+        #         self.printer.print(f"Site {site.name} already exists in data directory")
+        #         continue
+
+        #     # Move site to data directory
+        #     shutil.move(str(site.absolute()), str(data_site_path.absolute()))
+        #     self.printer.print(f"Moved {site.name} to data directory")
+
+        # Create symlinks from new bench to data directory and handle new files
         for site in self.data.list_sites():
             data_site_path = self.data.sites / site.name
             new_site_path = self.new.sites / site.name
-            new_site_path.mkdir(parents=True)
+            new_site_path.mkdir(parents=True, exist_ok=True)
 
-            # Symlink all directories or files at one level in data_site_path
+            # First, check for new files/dirs in new_site_path that don't exist in data_site_path
+            if new_site_path.exists():
+                for item in new_site_path.iterdir():
+                    data_item_path = data_site_path / item.name
+                    if not data_item_path.exists():
+                        # Move new item to data directory
+                        shutil.move(str(item), str(data_item_path))
+                        self.printer.print(f"Moved new item {item.name} to data directory")
+
+            # Create symlinks for all files in data site directory
             for item in data_site_path.iterdir():
-                data_item_symlink = data_site_path / item.name
-                item_symlink = new_site_path / item.name
-                item_symlink.symlink_to(get_relative_path(item_symlink, data_item_symlink), True)
-                self.printer.print(f"Symlinked {data_item_symlink} to {item}")
+                data_item_path = data_site_path / item.name
+                site_item_symlink = new_site_path / item.name
+                if not site_item_symlink.exists():
+                    site_item_symlink.symlink_to(get_relative_path(site_item_symlink, data_item_path), True)
+                    self.printer.print(f"Created symlink from {site_item_symlink} to {data_item_path}")
+
+    def configure_symlinks(self):
+        self.printer.change_head("Configuring symlinks")
+
+        # Sync sites to data directory
+        self.sync_sites_to_data_dir()
 
         # common_site_config.json
         if not self.data.common_site_config.exists():
