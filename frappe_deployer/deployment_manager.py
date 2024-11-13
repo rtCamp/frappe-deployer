@@ -141,8 +141,9 @@ class DeploymentManager:
                 data_item_path = data_site_path / item.name
                 site_item_symlink = new_site_path / item.name
                 if not site_item_symlink.exists():
-                    site_item_symlink.symlink_to(get_relative_path(site_item_symlink, data_item_path), True)
-                    self.printer.print(f"Created symlink from {site_item_symlink} to {data_item_path}")
+                    relative_path = get_relative_path(site_item_symlink, data_item_path)
+                    site_item_symlink.symlink_to(relative_path, True)
+                    self.printer.print(f"Created symlink from {site_item_symlink.name} to {relative_path}")
 
     def configure_symlinks(self):
         self.printer.change_head("Configuring symlinks")
