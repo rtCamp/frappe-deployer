@@ -29,11 +29,11 @@ def cli_entrypoint():
         logger.error(f"Exception Occured:  : \n{exception_traceback}")
         richprint.print(f"Exception Occured:  : \n{exception_traceback}")
 
-        typer.Exit(1)
-
+        raise typer.Exit(1)
 
     finally:
         atexit.register(exit_cleanup)
+
 
 
 def exit_cleanup():
