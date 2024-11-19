@@ -22,12 +22,13 @@ def cli_entrypoint():
 
         richprint.stop()
 
-        richprint.error(f'[red]Error Occured[/red]  {str(e).strip()}',emoji_code="\n:red_square:")
+        richprint.error(f'[red]Error Occured[/red]  {str(e).strip()}', emoji_code="\n:red_square:")
         richprint.error(f"More info about error is logged in {LOG_FILE_NAME}.log", emoji_code=':mag:')
 
         exception_traceback: str = capture_and_format_exception()
+        richprint.print(f"Exception Occured\n{exception_traceback}")
+
         logger.error(f"Exception Occured:  : \n{exception_traceback}")
-        richprint.print(f"Exception Occured:  : \n{exception_traceback}")
 
         raise typer.Exit(1)
 

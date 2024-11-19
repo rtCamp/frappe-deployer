@@ -37,7 +37,7 @@ class HostConfig(BaseModel):
         """
         bench_path = values.get('bench_path')
 
-        if bench_path and not Path(bench_path).exists():
+        if (bench_path and not Path(bench_path).exists()) or not bench_path:
             raise ValueError(f"The bench_path '{bench_path}' does not exist.")
 
         values['bench_path'] = Path(bench_path)
