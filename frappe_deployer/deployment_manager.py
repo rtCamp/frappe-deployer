@@ -71,7 +71,7 @@ class DeploymentManager:
         self.configure_bench_cli()
 
     def configure_bench_cli(self):
-        # Step 1: Create a virtual environment in ~/.cache/frappe-deployer-venv
+        # Create a virtual environment in ~/.cache/frappe-deployer-venv
         venv_path = Path.home() / ".cache" / "frappe-deployer-venv"
 
         if self.mode == 'fm':
@@ -81,7 +81,7 @@ class DeploymentManager:
         if not venv_path.exists() or not (venv_path / "bin" / "bench").exists():
             self.python_env_create(self.current, venv_path=str(venv_path))
 
-            # Step 2: Install bench and frappe from given GitHub tags link using uv
+            # Install bench and frappe from given GitHub tags link using uv
             bench_install_command = [
                 "uv", "pip",
                 "install",
@@ -98,7 +98,7 @@ class DeploymentManager:
                 capture_output=False
             )
 
-        # Step 3: Use this bench from this venv in subsequent runs
+        # Use this bench from this venv in subsequent runs
         self.bench_cli = str((venv_path / "bin" / "bench").absolute())
 
     def sync_sites_to_data_dir(self):
@@ -109,17 +109,7 @@ class DeploymentManager:
         self.data.sites.mkdir(parents=True, exist_ok=True)
 
         # Move all sites from current bench to data directory
-        # for site in self.current.list_sites():
-        #     data_site_path = self.data.sites / site.name
-
-        #     # Skip if site already exists in data directory
-        #     if data_site_path.exists():
-        #         self.printer.print(f"Site {site.name} already exists in data directory")
-        #         continue
-
-        #     # Move site to data directory
-        #     shutil.move(str(site.absolute()), str(data_site_path.absolute()))
-        #     self.printer.print(f"Moved {site.name} to data directory")
+        # NOTE: This is done in configure function for a specific bench
 
         # Create symlinks from new bench to data directory and handle new files
         for site in self.data.list_sites():
@@ -258,7 +248,7 @@ class DeploymentManager:
 
             # bench
             release.printer.change_head(
-                f"Moving bench directory, creating initial release"
+                "Moving bench directory, creating initial release"
             )
             shutil.move(
                 str(release.current.path.absolute()), str(release.new.path.absolute())
@@ -647,7 +637,7 @@ class DeploymentManager:
 
 
     def sync_configs_with_files(self, site_name: str):
-        self.printer.change_head(f"Updating common_site_config.json, site_config.json")
+        self.printer.change_head("Updating common_site_config.json, site_config.json")
         common_site_config_path = self.current.sites / "common_site_config.json"
 
         site_config_path = (
@@ -662,7 +652,7 @@ class DeploymentManager:
         if self.config.site_config:
             update_json_keys_in_file_path(site_config_path, self.config.site_config)
 
-        self.printer.print(f"Updated common_site_config.json, site_config.json")
+        self.printer.print("Updated common_site_config.json, site_config.json")
 
     def bench_clear_cache(self, bench_directory: BenchDirectory, website_cache: bool = False):
         clear_cache_command = [self.bench_cli, 'clear-cache']
