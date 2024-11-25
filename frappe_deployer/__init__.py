@@ -83,7 +83,7 @@ def pull(
     config_content: Annotated[Optional[str], typer.Option(help='TOML config string content', show_default=False)] = None,
     apps: Annotated[list[str] , typer.Option('--apps','-a', help="List of apps in the format [underline]org_name/repo_name:branch[/underline]", callback=parse_apps, show_default=False)] = [],
     github_token: Annotated[Optional[str], typer.Option(help="The GitHub personal access token",show_default=False)] = None,
-    mode: Annotated[str, typer.Option('--mode','-m', help="Mode of operation, either 'host' or 'fm'.", show_default=False)] = ModeEnum.fm.value,
+    mode: Annotated[Optional[str], typer.Option('--mode','-m', help="Mode of operation, either 'host' or 'fm'.", show_default=False)] = None,
     python_version: Annotated[Optional[str], typer.Option('--python-version','-p', help="Specifiy the python version used to create bench python env. Defaults to whatever currently installed python version on your system.", show_default=False)] = None,
     releases_retain_limit: Annotated[Optional[int] , typer.Option('--releases-retain-limit', help="Number of releases to retain", show_default=False)] = None,
     remove_remote: Annotated[Optional[bool] , typer.Option(help="Remove remote after cloning",show_default=False)] = None,
