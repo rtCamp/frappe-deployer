@@ -618,7 +618,7 @@ class DeploymentManager:
         self.printer.print(f"Restored {self.site_name} with db from {db_file_path}")
 
     def sync_db_encryption_key_from_site(self, from_bench_name: str, from_site_name: str):
-        self.printer.change_head(f"Copying db_encryption_key from {from_bench_name},if exists")
+        self.printer.change_head(f"Copying db_encryption_key from {from_bench_name}")
 
         site_config_path = (
             self.path.parent
@@ -630,12 +630,12 @@ class DeploymentManager:
             / "site_config.json"
         )
         site_config_data = get_json(site_config_path)
-        db_encryption_key = site_config_data.get('db_encryption_key', None)
+        encryption_key = site_config_data.get('encryption_key', None)
 
-        if db_encryption_key:
+        if encryption_key:
             current_site_config_path = self.current.sites / self.site_name / 'site_config.json'
-            update_json_keys_in_file_path(current_site_config_path,{"db_encryption_key": db_encryption_key})
-            self.printer.change_head(f"Copyied db_encryption_key from {from_bench_name}")
+            update_json_keys_in_file_path(current_site_config_path,{"encryption_key": encryption_key, "backup_encryption_key": encryption_key})
+            self.printer.print(f"Copyied ncryption_key from {from_bench_name}")
 
 
     def sync_configs_with_files(self, site_name: str):
