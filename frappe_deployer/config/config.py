@@ -149,7 +149,22 @@ class Config(BaseModel):
             raise ValueError('mode must be either "host" or "fm"')
         return v
 
-    @staticmethod
+    def to_toml(self, file_path: Path) -> None:
+        """
+        Dumps the configuration to a TOML file.
+
+        Parameters
+        ----------
+        file_path : Path
+            The path where to save the TOML file.
+        """
+        config_dict = self.model_dump(exclude_none=True)
+        if config_dict.get('github_token'):
+            config_dict['github_token'] = 'XXXXXXXXXXXXX'
+        with open(file_path, 'w') as f:
+            toml.dump(config_dict, f)
+
+    @staticmethod 
     def from_toml(config_file_path: Optional[Path] = None, config_string: Optional[str] = None, overrides: Optional[dict[str, Any]] = None ) -> 'Config':
         config_data = {}
 

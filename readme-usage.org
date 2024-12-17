@@ -1,0 +1,186 @@
+#+title: Readme Usage
+
+* Frappe Deployer
+A CLI tool for managing and deploying Frappe applications with support for both host and Frappe Manager (FM) modes.
+
+#+begin_quote
+This tool replaces your current frappe_manager installation with specified configurations. While it will be upstreamed in the future, it currently provides local setup and pull-based deployment functionality.
+#+end_quote
+
+** Architecture Overview
+ The tool manages deployments through a structured directory layout:
+
+ - ~./~
+   - ~deployment-data/~ - Persistent data directory containing sites, configs a
+ logs
+   - ~deployment-backup/~ - Backup directory for rollbacks
+   - ~release_TIMESTAMP/~ - Current release directory (symlinked from bench_path)
+
+ Key components:
+
+ - Configuration Management (`config/`)
+   - Handles TOML configuration files and CLI overrides
+   - Manages app configurations and deployment settings
+
+ - Deployment Manager
+   - Core logic for deploying and managing Frappe applications
+   - Creates new timestamped release directories using pattern
+ `release_YYYYMMDD_HHMMSS`
+   - Maintains symlinks between releases and data directory
+   - Handles backups and rollbacks
+   - Manages Python environments and app installations
+
+ - Release Directory Management
+   - Manages bench directory structure and symlinks
+   - Syncs sites and configs between data and release dirs
+   - Handles maintenance mode during deployments
+
+** Commands
+
+*** pull
+The main command for deploying and configuring Frappe applications.
+Pulls and deploys Frappe applications based on configuration.
+
+#+begin_src bash
+# Basic pull with config file and site name
+frappe-deployer pull my-site-name --config-path ./config.toml
+
+# Pull specific apps with branch/tag
+frappe-deployer pull my-site-name -a frappe/frappe:version-14 -a myorg/custom_app:main
+
+# Pull with GitHub token for private repositories
+frappe-deployer pull my-site-name --github-token ghp_xxxxxxxxxxxx
+
+# Host mode with specific bench path
+frappe-deployer pull my-site-name --mode host --host-bench-path /path/to/bench
+
+# FM mode with database restore
+frappe-deployer pull my-site-name --mode fm --fm-restore-db-from-site source-site
+#+end_src
+
+** Configuration File (TOML)
+Example configuration file:
+
+#+begin_src toml
+site_name = "my-site"
+github_token = "ghp_xxxxxxxxxxxx"  # Optional for private repos
+mode = "fm"  # or "host"
+python_version = "3.10"  # Optional
+releases_retain_limit = 3
+remove_remote = true
+rollback = true
+maintenance_mode = true
+run_bench_migrate = true
+backups = true
+verbose = false
+
+# App configurations
+[[apps]]
+repo = "frappe/frappe"
+ref = "version-14"
+
+[[apps]]
+repo = "frappe/erpnext"
+ref = "version-14"
+
+# Host mode specific settings
+[host]
+bench_path = "/path/to/bench"
+
+# FM mode specific settings
+[fm]
+restore_db_from_site = "source-site"
+#+end_src
+
+** Features
+- Supports both host and Frappe Manager (FM) deployment modes
+- Flexible configuration through TOML files and CLI options
+- GitHub integration with token support for private repositories
+- Backup management
+- Release management with retention policies
+- Python environment management
+- Database migration handling
+- Maintenance mode support
+- Verbose logging options
+- UV package manager support (alternative to pip)
+
+** Common Use Cases
+
+*** Example Usage
+
+**** Using Configuration File
+#+begin_src bash
+# Basic usage with config file
+frappe-deployer pull my-site-name --config-path ./config.toml
+
+# With additional CLI overrides
+frappe-deployer pull my-site-name --config-path ./config.toml --verbose --maintenance-mode
+#+end_src
+
+**** Using CLI Only (No Config File)
+#+begin_src bash
+# Complete setup using only CLI arguments
+frappe-deployer pull my-site-name \
+  --configure \
+  -a frappe/frappe:version-14 \
+  -a frappe/erpnext:version-14 \
+  --mode fm \
+  --python-version 3.10 \
+  --releases-retain-limit 3 \
+  --maintenance-mode \
+  --verbose
+
+# Host mode example with all CLI options
+frappe-deployer pull my-site-name \
+  --configure \
+  -a frappe/frappe:version-14 \
+  -a frappe/erpnext:version-14 \
+  --mode host \
+  --host-bench-path /path/to/bench \
+  --python-version 3.10 \
+  --github-token ghp_xxxxxxxxxxxx \
+  --uv \
+  --verbose
+
+# FM mode with database restore
+frappe-deployer pull my-site-name \
+  --configure \
+  -a frappe/frappe:version-14 \
+  --mode fm \
+  --fm-restore-db-from-site source-site \
+  --maintenance-mode
+#+end_src
+
+**** Working with Private Repositories
+#+begin_src bash
+# Using GitHub token
+frappe-deployer pull my-site-name \
+  --configure \
+  -a myorg/private-app:main \
+  --github-token ghp_xxxxxxxxxxxx
+#+end_src
+
+** Best Practices
+1. Always maintain a configuration file for reproducible deployments
+2. Use version control for your configuration files
+3. Regularly backup before major changes
+4. Test deployments in a staging environment first
+5. Use maintenance mode for production deployments
+6. Keep release retention limits reasonable for disk space management
+
+** Troubleshooting
+- Ensure proper permissions for bench directories
+- Verify GitHub token has required permissions
+- Check Python version compatibility
+- Enable verbose mode for detailed logs: =--verbose=
+- Verify network connectivity for repository access
+
+** Notes
+- The tool supports both pip and uv package managers for Python package installation
+- Backup functionality is enabled by default but can be disabled via --no-backups flag
+- Configuration can be provided via TOML file, CLI options, or direct config string content
+- CLI options override configuration file settings
+- Supports two deployment modes: 'fm' (Frappe Manager) and 'host' mode
+- Database restoration can be done either from another site or from a specified backup file
+- Rich console output with progress indicators and timing information when verbose mode is enabled
+- Automatic git remote cleanup available through remove_remote option
