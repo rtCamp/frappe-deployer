@@ -337,6 +337,8 @@ class DeploymentManager:
             dir.mkdir(exist_ok=True)
             self.printer.print(f"Created dir [blue]{dir.name}[/blue] ")
 
+        self.config.to_toml(self.new.path / f'{self.config.site_name}.toml')
+
         if self.config.configure:
             if self.config.maintenance_mode:
                 start_time = time.time()
