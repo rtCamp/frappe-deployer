@@ -1,8 +1,13 @@
+import tempfile
 from pathlib import Path
 import shutil
 import time
 import gzip
 from typing import Iterable, Literal, Optional, Tuple, Union
+from pydantic import BaseModel
+from frappe_deployer.config.app import AppConfig
+from frappe_deployer.config.fm import FMConfig
+from frappe_deployer.config.host import HostConfig
 
 from frappe_manager import CLI_DIR
 from frappe_manager.compose_manager.ComposeFile import ComposeFile
@@ -332,7 +337,7 @@ class DeploymentManager:
                     self.config.restore_db_file_path = self.bench_backup(
                         self.config.fm.restore_db_from_site, using_bench_backup=False,compress=True,sql_delete_after_compress=False
                     )
-
+                    
         for dir in [self.new.path, self.new.apps, self.new.sites]:
             dir.mkdir(exist_ok=True)
             self.printer.print(f"Created dir [blue]{dir.name}[/blue] ")
@@ -390,6 +395,10 @@ class DeploymentManager:
 
                 if self.config.fm:
                     if self.config.fm.restore_db_from_site:
+                        
+                        if self.config.search_replace:
+                            self.search_and_replace_in_database(self.config.fm.restore_db_from_site, self.site_name)
+
                         if self.config.restore_db_file_path.exists():
                             self.config.restore_db_file_path.unlink()
                             self.printer.print(f'Deleted temporary exported db file {self.config.restore_db_file_path.name}')
@@ -671,67 +680,173 @@ class DeploymentManager:
             )
             self.printer.print(f"{' '.join(command)} done")
 
-    def bench_install_and_migrate(
-        self,
-        bench_directory: BenchDirectory,
-    ):
-        apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
+    def get_script_env(self) -> dict[str, str]:
+        """Get environment variables for scripts with config values"""
+        env = {}
 
-        app: Union[AppConfig, Path]
+        # Add computed properties first
+        computed_props = {
+            "SITE_NAME": self.site_name,
+            "BENCH_PATH": str(self.bench_path),
+            "MODE": self.mode,
+            "DEPLOY_PATH": str(self.config.deploy_dir_path),
+            "APPS": ",".join(d.name for d in self.current.apps.iterdir() if d.is_dir())
+        }
+        env.update(computed_props)
 
-        if self.config.run_bench_migrate:
-            self.printer.change_head("Running bench migrate")
-            bench_migrate = [self.bench_cli, "migrate"]
-            self.host_run(
-                bench_migrate,
-                bench_directory,
-                #stream=True,
-                container=self.mode == "fm",
-                capture_output=False,
-            )
-            self.printer.print("Bench migrate done")
-        else:
-            self.printer.print("Skipped. Bench bench migrate")
+        # Get all fields from Config class
+        config_fields = self.config.__class__.model_fields
 
-        for app in apps:
-            app_path = bench_directory.apps / app.name
-            app_python_module_name = bench_directory.get_app_python_module_name(
-                app_path
-            )
-            if self.is_app_installed_in_site(
-                site_name=self.site_name, app_name=app_python_module_name
-            ):
-                self.printer.print(
-                    f"App {app_python_module_name} is already installed."
-                )
-                continue
+        # Add environment variables for each config field
+        for field_name, field in config_fields.items():
+            value = getattr(self.config, field_name, None)
+            if value is not None:  # Skip None values
+                env_key = field_name.upper()
+                
+                # Handle different types of values
+                if isinstance(value, list) and value and isinstance(value[0], BaseModel):
+                    # Handle list of Pydantic models
+                    import json
+                    env[env_key] = json.dumps([item.model_dump() for item in value])
+                elif isinstance(value, dict):
+                    import json
+                    env[env_key] = json.dumps(value)
+                elif isinstance(value, Path):
+                    env[env_key] = str(value)
+                elif isinstance(value, bool):
+                    env[env_key] = str(value).lower()
+                elif isinstance(value, (BaseModel, AppConfig, FMConfig, HostConfig)):
+                    # Handle single Pydantic model
+                    import json
+                    env[env_key] = json.dumps(value.model_dump())
+                else:
+                    env[env_key] = str(value)
 
-            install_command = [
-                self.bench_cli,
-                "--site",
-                self.site_name,
-                "install-app",
-                app_python_module_name,
-            ]
-            self.printer.change_head(
-                f"Installing app {app_python_module_name} in {self.site_name}"
-            )
+        return env
+
+    def _run_script(self, script_content: str, bench_directory: BenchDirectory, 
+                   script_type: str, container: bool = False) -> None:
+        """Execute a shell script with proper setup and cleanup."""
+        self.printer.change_head(f"Running {script_type}")
+        
+        # Create deployment_tmp directory in bench directory
+        script_dir = self.current.path.parent / "deployment_tmp"
+        script_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create unique script name
+        script_name = f"temp_script_{int(time.time())}.sh"
+        script_path = script_dir / script_name
+        
+        try:
+            # Write script content
+            with open(script_path, 'w') as script_file:
+                script_file.write("set -e\n")  # Remove shebang, just keep error handling
+                script_file.write(script_content)
+            
+            script_path.chmod(0o755)
+            
+            # Adjust script path for container execution
+            if container:
+                container_script_path = f"/workspace/deployment_tmp/{script_name}"
+                workdir = f"/workspace/deployment_tmp"
+            else:
+                container_script_path = str(script_path)
+                workdir = str(script_dir)
+            
+            # Get script environment variables
+            script_env = self.get_script_env()
+            
+            # Execute script using bash explicitly
             output = self.host_run(
-                install_command,
+                ["bash", container_script_path],
                 bench_directory,
-                #stream=False,
-                container=self.mode == "fm",
+                container=container,
                 capture_output=True,
+                workdir=workdir,
+                env=script_env
             )
+            
+            # Print output
+            if output and output.combined:
+                for line in output.combined:
+                    if line.strip():
+                        self.printer.print(line.strip())
+            self.printer.print(f"{script_type} done")
 
-            if f"App {app_python_module_name} already installed" in output.combined:
-                self.printer.print(
-                    f"App {app_python_module_name} is already installed."
-                )
+        finally:
+            # Cleanup
+            try:
+                if script_path.exists():
+                    script_path.unlink()
+                    if not any(script_dir.iterdir()):  # If directory is empty
+                        script_dir.rmdir()  # Remove the deployment_tmp directory
+            except Exception as e:
+                self.printer.warning(f"Failed to cleanup temporary script: {e}")
 
-            self.printer.print(
-                f"Installed app {app_python_module_name} in {self.site_name}"
-            )
+    def _run_bench_migrate(self, bench_directory: BenchDirectory) -> None:
+        """Run bench migrate command if configured."""
+        if not self.config.run_bench_migrate:
+            self.printer.print("Skipped. Bench migrate")
+            return
+
+        self.printer.change_head("Running bench migrate")
+        self.host_run(
+            [self.bench_cli, "migrate"],
+            bench_directory,
+            container=self.mode == "fm",
+            capture_output=False,
+        )
+        self.printer.print("Bench migrate done")
+
+    def _install_app(self, app_path: Path, bench_directory: BenchDirectory) -> None:
+        """Install a single app if not already installed."""
+        app_python_module_name = bench_directory.get_app_python_module_name(app_path)
+        
+        if self.is_app_installed_in_site(self.site_name, app_python_module_name):
+            self.printer.print(f"App {app_python_module_name} is already installed.")
+            return
+
+        self.printer.change_head(f"Installing app {app_python_module_name} in {self.site_name}")
+        install_command = [
+            self.bench_cli, "--site", self.site_name, "install-app", app_python_module_name
+        ]
+        
+        output = self.host_run(
+            install_command,
+            bench_directory,
+            container=self.mode == "fm",
+            capture_output=True,
+        )
+
+        if f"App {app_python_module_name} already installed" in output.combined:
+            self.printer.print(f"App {app_python_module_name} is already installed.")
+        else:
+            self.printer.print(f"Installed app {app_python_module_name} in {self.site_name}")
+
+    def bench_install_and_migrate(self, bench_directory: BenchDirectory) -> None:
+        """Main function to handle installation and migration process."""
+        print('gg')
+        # Run pre-scripts
+        if self.config.host_pre_script:
+            self._run_script(self.config.host_pre_script, bench_directory, "host pre-script")
+        
+        if self.mode == "fm" and self.config.fm_pre_script:
+            self._run_script(self.config.fm_pre_script, bench_directory, "FM pre-script", container=True)
+
+        # Run bench migrate
+        self._run_bench_migrate(bench_directory)
+
+        # Run post-scripts
+        if self.mode == "fm" and self.config.fm_post_script:
+            self._run_script(self.config.fm_post_script, bench_directory, "FM post-script", container=True)
+        
+        if self.config.host_post_script:
+            self._run_script(self.config.host_post_script, bench_directory, "host post-script")
+
+        # Install apps
+        apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
+        for app in apps:
+            self._install_app(bench_directory.apps / app.name, bench_directory)
 
     def host_run(
         self,
@@ -741,9 +856,22 @@ class DeploymentManager:
         container_service: str = "frappe",
         container_user: str = "frappe",
         capture_output: bool = True,
+        workdir: Optional[str] = None,
+        env: Optional[dict[str, str]] = None,
     ) -> Union[Iterable[Tuple[str, bytes]], SubprocessOutput]:
         if self.verbose:
             start_time = time.time()
+
+        # Prepare environment variables
+        import os
+        base_env = os.environ.copy()
+        if env:
+            base_env.update(env)
+
+        # Convert env dict to proper format for container
+        formatted_env = None
+        if env and container:
+            formatted_env = [f"{key}={value}" for key, value in env.items()]
 
         if not container:
             if capture_output:
@@ -752,6 +880,7 @@ class DeploymentManager:
                     stream=not capture_output,
                     capture_output=capture_output,
                     cwd=str(bench_directory.path.absolute()),
+                    env=base_env  # Pass merged environment for host execution
                 )
 
                 if self.verbose:
@@ -784,7 +913,7 @@ class DeploymentManager:
 
         docker_command = " ".join(command)
 
-        workdir = f"/workspace/{bench_directory.path.name}"
+        workdir = workdir or f"/workspace/{bench_directory.path.name}"
 
         compose_file: ComposeFile = ComposeFile(self.path.parent / "docker-compose.yml")
         compose_project: ComposeProject = ComposeProject(
@@ -798,6 +927,7 @@ class DeploymentManager:
                 user=container_user,
                 workdir=workdir,
                 stream=not capture_output,
+                env=formatted_env  # Pass formatted list for docker execution
             )
 
             if self.verbose:
@@ -817,6 +947,7 @@ class DeploymentManager:
                 user=container_user,
                 workdir=workdir,
                 stream=not capture_output,
+                env=formatted_env  # Pass formatted list for docker execution
             )
             self.printer.live_lines(output)
 
@@ -1006,6 +1137,69 @@ class DeploymentManager:
             )
             self.printer.print(f"Builded app {app.name}")
         self.printer.print("Builded all apps")
+
+    def search_and_replace_in_database(
+        self,
+        search: str,
+        replace: str,
+        dry_run: bool = False,
+        verbose: bool = False
+    ) -> None:
+        """
+        Search and replace text across all text fields in the database.
+        
+        Args:
+            search: Text to search for
+            replace: Text to replace with
+            dry_run: If True, only show what would be changed
+            verbose: If True, show detailed output
+        """
+        try:
+            # Copy search_replace.py to bench sites directory
+            search_replace_script = Path(__file__).parent / 'search_replace.py'
+            if not search_replace_script.exists():
+                self.printer.exit(f"Search/replace script not found at {search_replace_script}")
+                
+            bench_script_path = self.current.sites / 'search_replace.py'
+            shutil.copy2(search_replace_script, bench_script_path)
+            
+            try:
+                # Build command for search/replace operation
+                python_path = "../env/bin/python"
+                search_replace_cmd = [
+                    python_path,
+                    "search_replace.py",
+                    self.site_name,
+                    search,
+                    replace
+                ]
+                if dry_run:
+                    search_replace_cmd.append('--dry-run')
+                if verbose or self.config.verbose:
+                    search_replace_cmd.append('--verbose')
+                    
+                # Run the command using host_run and capture output
+                result = self.host_run(
+                    search_replace_cmd,
+                    self.current,
+                    container=self.mode == "fm",
+                    capture_output=True,
+                    workdir=f"/workspace/{self.current.path.name}/sites" if self.mode == "fm" else str(self.current.sites.absolute())
+                )
+                
+                # Print the output with proper formatting
+                if result.combined:
+                    for line in result.combined:
+                        if line.strip():
+                            self.printer.print(line.strip())
+                
+            finally:
+                # Cleanup - remove the copied script
+                if bench_script_path.exists():
+                    bench_script_path.unlink()
+                    
+        except Exception as e:
+            self.printer.warning(f"Failed to perform search and replace: {str(e)}")
 
     def bench_symlink_and_restart(self, bench_directory: BenchDirectory):
         self.printer.change_head("Symlinking and restarting")

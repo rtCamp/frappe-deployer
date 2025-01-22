@@ -43,3 +43,6 @@ def exit_cleanup():
     """
     remove_zombie_subprocess_process(process_opened)
     richprint.stop()
+
+if __name__ == "__main__":
+    cli_entrypoint()

@@ -77,6 +77,11 @@ class Config(BaseModel):
     restore_db_file_path: Optional[Path] = Field(None, description="Path to the database file to restore.")
     verbose: bool = Field(False, description="Flag to use 'uv' instead of 'pip' to manage and install packages.")
     uv: bool = Field(True, description="Flag to enable UV mode.")
+    search_replace: bool = Field(True, description="Flag to enable search and replace in database.")
+    host_pre_script: Optional[str] = Field(None, description="Script to run before bench migrate in host mode")
+    host_post_script: Optional[str] = Field(None, description="Script to run after bench migrate in host mode") 
+    fm_pre_script: Optional[str] = Field(None, description="Script to run before bench migrate in FM mode")
+    fm_post_script: Optional[str] = Field(None, description="Script to run after bench migrate in FM mode")
     host: Optional[HostConfig] = Field(None, description="Host configuration.")
     fm: Optional[FMConfig] = Field(None, description="FM configuration.")
 

@@ -1,19 +1,26 @@
 from enum import Enum
-import toml
-import re
 import time
 from pathlib import Path
 from typing import Annotated, Any, Literal, Optional, Union
+from frappe_manager import CLI_BENCHES_DIRECTORY, CLI_SERVICES_DIRECTORY, CLI_SERVICES_NGINX_PROXY_DIR
 from frappe_manager.logger.log import richprint
 import typer
+import shutil
 
 from frappe_deployer.config.config import Config
-from frappe_deployer.consts import LOG_FILE_NAME
+from frappe_deployer.consts import LOG_FILE_NAME, MAINTENANCE_MODE_CONFIG, BYPASS_TOKEN
 from frappe_deployer.deployment_manager import DeploymentManager
 from frappe_deployer.exceptions import ConfigPathDoesntExist
 from unittest.mock import patch
 
 from frappe_deployer.helpers import human_readable_time
+
+__version__ = "0.4.0"
+
+def version_callback(value: bool):
+    if value:
+        typer.echo(f"frappe-deployer version: {__version__}")
+        raise typer.Exit()
 
 class ModeEnum(str, Enum):
     fm = 'fm'
@@ -28,6 +35,16 @@ patcher = patch('frappe_manager.logger.log.get_logger.__defaults__', (LOG_FILE_N
 patcher.start()
 
 cli = typer.Typer(no_args_is_help=True, rich_markup_mode="rich")
+
+@cli.callback()
+def main(
+    version: Annotated[
+        bool, 
+        typer.Option("--version", "-V", callback=version_callback, is_eager=True)
+    ] = False
+):
+    """Frappe Deployer CLI tool"""
+    pass
 
 def validate_cofig_path(configpath: Optional[Union[str,Path]]):
     if configpath:
@@ -89,6 +106,7 @@ def pull(
     remove_remote: Annotated[Optional[bool] , typer.Option(help="Remove remote after cloning",show_default=False)] = None,
     rollback: Annotated[Optional[bool] , typer.Option(help="Enable/Disable rollback",show_default=False)] = None,
     maintenance_mode: Annotated[Optional[bool] , typer.Option(help="Enable/Disable maintenance mode",show_default=False)] = None,
+    search_replace: Annotated[Optional[bool] , typer.Option(help="Enable search and replace in database.",show_default=False)] = None,
     run_bench_migrate: Annotated[Optional[bool] , typer.Option(help="Enable/Disable 'bench migrate' run",show_default=False)] = None,
     backups: Annotated[Optional[bool], typer.Option(help="Enable/Disable taking backups")] = None,
     uv: Annotated[Optional[bool] , typer.Option('--uv',help="Use [underline]uv[/underline] instead of [underline]pip[/underline] to manage and install packages", show_default=False)] = None,
@@ -129,3 +147,97 @@ def pull(
         total_end_time = time.time()
         total_elapsed_time = total_end_time - total_start_time
         manager.printer.print(f"Total Time Taken: [bold yellow]{human_readable_time(total_elapsed_time)}[/bold yellow]",emoji_code=":robot_face:")
+
+@cli.command(no_args_is_help=True)
+def enable_maintenance(
+    ctx: typer.Context,
+    site_name: Annotated[Optional[str], typer.Argument(help='The name of the site.', show_default=False,metavar='Site Name / Bench Name')] = None,
+):
+    richprint.start('working')
+    
+    # check if site exists
+    site_config_path: Path = CLI_BENCHES_DIRECTORY / f'{site_name}'
+
+    if not site_config_path.exists():
+        richprint.exit(f"Site {site_name} does not exist")
+    
+    try:
+        # Write maintenance config
+        vhostd_config_path: Path = CLI_SERVICES_NGINX_PROXY_DIR / 'vhostd' / f'{site_name}_location'
+        vhostd_config_path.write_text(MAINTENANCE_MODE_CONFIG.format(BYPASS_TOKEN=BYPASS_TOKEN))
+        
+        # Reload nginx to apply changes
+        from subprocess import run
+        run(['docker', 'compose', '-f', str(CLI_SERVICES_DIRECTORY / 'docker-compose.yml'), 'restart', 'global-nginx-proxy'])
+        
+        richprint.print(f"Maintenance mode enabled for site {site_name}")
+        richprint.print(f"Developer bypass URL: [link]http://{site_name}/{BYPASS_TOKEN}/[/link]")
+    except Exception as e:
+        richprint.exit(f"Failed to enable maintenance mode: {str(e)}")
+
+@cli.command(no_args_is_help=True)
+def disable_maintenance(
+    ctx: typer.Context,
+    site_name: Annotated[Optional[str], typer.Argument(help='The name of the site.', show_default=False,metavar='Site Name / Bench Name')] = None,
+):
+    richprint.start('working')
+    
+    # check if site exists
+    site_config_path: Path = CLI_BENCHES_DIRECTORY / f'{site_name}'
+
+    if not site_config_path.exists():
+        richprint.exit(f"Site {site_name} does not exist")
+
+    try:
+        # Remove maintenance config if it exists
+        vhostd_config_path: Path = CLI_SERVICES_NGINX_PROXY_DIR / 'vhostd' / f'{site_name}_location'
+        if vhostd_config_path.exists():
+            vhostd_config_path.unlink()
+        
+        # Reload nginx to apply changes
+        from subprocess import run
+        run(['docker', 'compose', '-f', str(CLI_SERVICES_DIRECTORY / 'docker-compose.yml'), 'restart', 'global-nginx-proxy'])
+
+        richprint.print(f"Maintenance mode disabled for site {site_name}")
+    except Exception as e:
+        richprint.exit(f"Failed to disable maintenance mode: {str(e)}")
+
+@cli.command(no_args_is_help=True)
+def search_replace(
+    ctx: typer.Context,
+    site_name: Annotated[str, typer.Argument(help='The name of the site.')],
+    search: Annotated[str, typer.Argument(help='Text to search for')],
+    replace: Annotated[str, typer.Argument(help='Text to replace with')],
+    dry_run: Annotated[bool, typer.Option(help="Show what would be changed without making changes")] = False,
+):
+    """
+    Search and replace text across all text fields in the Frappe database
+    """
+    richprint.start('working')
+    
+    # Check if site exists
+    site_config_path: Path = CLI_BENCHES_DIRECTORY / f'{site_name}'
+
+    if not site_config_path.exists():
+        richprint.exit(f"Site {site_name} does not exist")
+
+    try:
+        # Create minimal config for DeploymentManager
+        from frappe_deployer.config.config import Config
+        config = Config(
+            site_name=site_name,
+            bench_path=site_config_path / 'workspace/frappe-bench',
+            apps=[],
+            mode='fm'
+        )
+        manager = DeploymentManager(config)
+
+        # Use the DeploymentManager's search_and_replace_in_database method
+        manager.search_and_replace_in_database(
+            search=search,
+            replace=replace,
+            dry_run=dry_run,
+            verbose=manager.config.verbose
+        )
+    except Exception as e:
+        richprint.warning(f"Failed to perform search and replace: {str(e)}")
