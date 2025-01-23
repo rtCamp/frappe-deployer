@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from frappe_deployer.helpers import human_readable_time
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 def version_callback(value: bool):
     if value:
@@ -44,7 +44,8 @@ def main(
     ] = False
 ):
     """Frappe Deployer CLI tool"""
-    pass
+    if not version:
+        typer.echo(f"frappe-deployer version: {__version__}")
 
 def validate_cofig_path(configpath: Optional[Union[str,Path]]):
     if configpath:
