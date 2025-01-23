@@ -187,18 +187,22 @@ class Config(BaseModel):
             for key, value in overrides.items():
                 if key == 'apps':
                     # Handle the merging of apps
-                    existing_apps = {app['repo']: app for app in config_data.get('apps', [])}
-
+                    existing_apps = {app['repo'].lower(): app for app in config_data.get('apps', [])}
+                    
                     for app in value:
-                        if app['repo'] in existing_apps:
-                            existing_apps[app['repo']].update(app)
+                        app_repo = app['repo'].lower()
+                        if app_repo in existing_apps:
+                            # Update existing app with new values while preserving old values
+                            merged_app = existing_apps[app_repo].copy()
+                            merged_app.update(app)
+                            existing_apps[app_repo] = merged_app
                         else:
-                            existing_apps[app['repo']] = app
+                            existing_apps[app_repo] = app
 
                     config_data['apps'] = list(existing_apps.values())
                     continue
 
-                if key in Config.__fields__:
+                if key in Config.model_fields:
                     config_data[key] = value
 
         config = Config(**config_data)
