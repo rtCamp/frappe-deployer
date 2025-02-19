@@ -1,4 +1,5 @@
 from enum import Enum
+from frappe_deployer.config.remote_worker import RemoteWorkerConfig
 import time
 from pathlib import Path
 from typing import Annotated, Any, Literal, Optional, Union
@@ -14,8 +15,10 @@ from frappe_deployer.exceptions import ConfigPathDoesntExist
 from unittest.mock import patch
 
 from frappe_deployer.helpers import human_readable_time
+from frappe_deployer.remote_worker import create_worker_site_config, enable_remote_worker, link_worker_configs, only_start_workers_compose_services, rsync_workspace
 
 __version__ = "0.5.0"
+
 
 def version_callback(value: bool):
     if value:
@@ -35,6 +38,8 @@ patcher = patch('frappe_manager.logger.log.get_logger.__defaults__', (LOG_FILE_N
 patcher.start()
 
 cli = typer.Typer(no_args_is_help=True, rich_markup_mode="rich")
+remote_worker = typer.Typer(help="Remote worker management commands")
+cli.add_typer(remote_worker, name="remote-worker")
 
 @cli.callback()
 def main(
@@ -139,6 +144,7 @@ def pull(
         raise RuntimeError("Apps list cannot be empty in [code]pull[/code] command.")
 
     manager = DeploymentManager(config)
+    manager.configure_basic_info()
 
     total_start_time = time.time()
 
@@ -232,6 +238,7 @@ def search_replace(
             mode='fm'
         )
         manager = DeploymentManager(config)
+        manager.configure_basic_info()
 
         # Use the DeploymentManager's search_and_replace_in_database method
         manager.search_and_replace_in_database(
@@ -242,3 +249,101 @@ def search_replace(
         )
     except Exception as e:
         richprint.warning(f"Failed to perform search and replace: {str(e)}")
+
+
+@remote_worker.command()
+def enable(
+    site_name: Annotated[str, typer.Argument(help="The name of the site")],
+    config_path: Annotated[Optional[Path], typer.Option(help='TOML config path', callback=validate_cofig_path, show_default=False)] = None,
+    server: Annotated[Optional[str], typer.Option("--server", "-s", help="Remote server IP address or domain name")] = None,
+    ssh_user: Annotated[Optional[str], typer.Option("--ssh-user", "-u", help="SSH username for the remote server")] = None,
+    ssh_port: Annotated[Optional[int], typer.Option("--ssh-port", "-p", help="SSH port number")] = None,
+):
+    """
+    Sync workspace to remote worker server.
+
+    Only FM mode is supported as of now.
+    """
+
+    current_locals = locals()
+
+    # Create remote worker config if server details provided via CLI
+    if server:
+        current_locals['remote_worker'] = {
+            'server': server,
+            'ssh_user': ssh_user or 'frappe',
+            'ssh_port': ssh_port or 22
+        }
+        current_locals['mode'] = 'fm'
+
+    current_locals = configure_basic_deployment_config(site_name, current_locals)
+
+    richprint.start("working")
+    config = Config.from_toml(config_file_path=config_path, overrides=get_config_overrides(locals=current_locals))
+
+    if not config.remote_worker or not config.remote_worker.server:
+        raise RuntimeError("Remote worker configuration is required. Provide either a config file or --server option.")
+
+    deployment_manager = DeploymentManager(config)
+
+    enable_remote_worker(site_name)
+    create_worker_site_config(deployment_manager=deployment_manager)
+
+
+@remote_worker.command()
+def sync(
+    site_name: Annotated[str, typer.Argument(help="The name of the site")],
+    config_path: Annotated[Optional[Path], typer.Option(help='TOML config path', callback=validate_cofig_path, show_default=False)] = None,
+    server: Annotated[Optional[str], typer.Option("--server", "-s", help="Remote server IP address or domain name")] = None,
+    ssh_user: Annotated[Optional[str], typer.Option("--ssh-user", "-u", help="SSH username for the remote server")] = None,
+    ssh_port: Annotated[Optional[int], typer.Option("--ssh-port", "-p", help="SSH port number")] = None,
+):
+    """
+    Sync workspace to remote worker server.
+
+    Only FM mode is supported as of now.
+    """
+
+    current_locals = locals()
+
+    # Create remote worker config if server details provided via CLI
+    if server:
+        current_locals['remote_worker'] = {
+            'server': server,
+            'ssh_user': ssh_user or 'frappe',
+            'ssh_port': ssh_port or 22
+        }
+        current_locals['mode'] = 'fm'
+
+    current_locals = configure_basic_deployment_config(site_name, current_locals)
+
+    richprint.start("working")
+
+    config = Config.from_toml(config_file_path=config_path, overrides=get_config_overrides(locals=current_locals))
+
+    if not config.remote_worker or not config.remote_worker.server:
+        raise RuntimeError("Remote worker configuration is required. Provide either a config file or --server option.")
+
+    deployment_manager = DeploymentManager(config)
+    rsync_workspace(deployment_manager=deployment_manager)
+    link_worker_configs(deployment_manager)
+    only_start_workers_compose_services(deployment_manager)
+
+
+def configure_basic_deployment_config(site_name: str, config_data: dict) -> dict:
+    """Create a minimal deployment manager for syncing operations.
+
+    Args:
+        site_name (str): Name of the site
+        source_path (Path): Source path for the bench
+
+    Returns:
+        DeploymentManager: Minimal deployment manager instance
+    """
+
+    config_data['site_name'] = site_name
+    config_data['bench_path'] = str(CLI_BENCHES_DIRECTORY / f'{site_name}/frappe-bench')
+    config_data['apps'] = []
+    config_data['verbose'] = True
+
+    return config_data

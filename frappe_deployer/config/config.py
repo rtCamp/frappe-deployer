@@ -10,6 +10,7 @@ import toml
 from frappe_deployer.config.app import AppConfig
 from frappe_deployer.config.fm import FMConfig
 from frappe_deployer.config.host import HostConfig
+from frappe_deployer.config.remote_worker import RemoteWorkerConfig
 
 def patched_change_head(original_function):
     def wrapper(*args, **kwargs):
@@ -84,6 +85,7 @@ class Config(BaseModel):
     fm_post_script: Optional[str] = Field(None, description="Script to run after bench migrate in FM mode")
     host: Optional[HostConfig] = Field(None, description="Host configuration.")
     fm: Optional[FMConfig] = Field(None, description="FM configuration.")
+    remote_worker: Optional[RemoteWorkerConfig] = Field(None, description="Remote worker configuration.")
 
     @field_validator('restore_db_file_path',mode='before')
     def validate_db_file_path(cls, value, values):
@@ -163,11 +165,20 @@ class Config(BaseModel):
         file_path : Path
             The path where to save the TOML file.
         """
+        def mask_github_token(data):
+            if isinstance(data, dict):
+                return {k: mask_github_token(v) for k, v in data.items()}
+
+            elif isinstance(data, list):
+                return [mask_github_token(item) for item in data]
+
+            return data
+
         config_dict = self.model_dump(exclude_none=True)
-        if config_dict.get('github_token'):
-            config_dict['github_token'] = 'XXXXXXXXXXXXX'
+        masked_config = mask_github_token(config_dict)
+
         with open(file_path, 'w') as f:
-            toml.dump(config_dict, f)
+            toml.dump(masked_config, f)
 
     @staticmethod 
     def from_toml(config_file_path: Optional[Path] = None, config_string: Optional[str] = None, overrides: Optional[dict[str, Any]] = None ) -> 'Config':

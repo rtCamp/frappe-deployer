@@ -26,6 +26,7 @@ from frappe_manager.utils.docker import (
     SubprocessOutput,
     run_command_with_exit_code,
 )
+from frappe_deployer.ssh import ssh_run
 from frappe_manager.utils.helpers import json
 from rich.rule import Rule
 from frappe_deployer.config.app import AppConfig
@@ -64,7 +65,6 @@ class DeploymentManager:
         self.bench_cli = "bench"
 
         self.current = BenchDirectory(config.bench_path)
-        self.site_installed_apps = self.get_site_installed_apps(self.current)
 
         self.data = BenchDirectory(self.path / DATA_DIR_NAME)
         self.backup = BenchDirectory(self.path / BACKUP_DIR_NAME / RELEASE_SUFFIX)
@@ -73,6 +73,9 @@ class DeploymentManager:
         self.previous_release_dir = self.current.path.resolve()
 
         self.printer.start("Working")
+
+    def configure_basic_info(self):
+        self.site_installed_apps = self.get_site_installed_apps(self.current)
         self.configure_bench_cli()
 
     def configure_bench_cli(self):
@@ -825,7 +828,7 @@ class DeploymentManager:
 
     def bench_install_and_migrate(self, bench_directory: BenchDirectory) -> None:
         """Main function to handle installation and migration process."""
-        print('gg')
+
         # Run pre-scripts
         if self.config.host_pre_script:
             self._run_script(self.config.host_pre_script, bench_directory, "host pre-script")
@@ -900,7 +903,7 @@ class DeploymentManager:
                     cwd=str(bench_directory.path.absolute()),
                 )
 
-                self.printer.live_lines(output)
+                self.printer.live_lines(output,lines=10)
 
                 if self.verbose:
                     end_time = time.time()
