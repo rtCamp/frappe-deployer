@@ -51,7 +51,12 @@ def ssh_run(
 
     # Add working directory if specified
     working_dir = workdir
-    command_str = f"cd {working_dir} && {' '.join(command)}"
+    command_str = ""
+
+    if workdir:
+        command_str = f"cd {working_dir} && "
+
+    command_str += f"{' '.join(command)}"
 
     # Add environment variables to command
     if env:

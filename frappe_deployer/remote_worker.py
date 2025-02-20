@@ -2,6 +2,7 @@ import socket
 import subprocess
 import json
 import shutil
+from frappe_manager.docker_wrapper.DockerException import DockerException
 import requests
 import re
 from pathlib import Path
@@ -270,6 +271,18 @@ def only_start_workers_compose_services(deployment_manager: "DeploymentManager")
         capture_output=True,
     )
 
+    richprint.change_head("Starting if not started remote-worker services")
+
+    # Start worker compose services
+    ssh_run(
+        deployment_manager,
+        ["docker", "compose","-f", "docker-compose.workers.yml", "up", "-d"],
+        workdir=str(remote_bench_path),
+        capture_output=True,
+    )
+    richprint.print("Strated if not started remote-worker services")
+
+
     richprint.change_head("Restarting remote-worker services")
 
     # Start worker compose services
@@ -285,23 +298,61 @@ def link_worker_configs(deployment_manager: "DeploymentManager") -> None:
     """Link worker-specific config files to the bench directory on remote worker.
 
     This creates symbolic links from the worker config files in the data directory
-    to the actual bench sites directory on the remote worker.
+    to the actual bench sites directory on the remote worker, and handles frappe-bench linking.
 
     Args:
         deployment_manager: The deployment manager instance
     """
-    remote_bench_path = (
+    remote_base_path = (
         Path(deployment_manager.config.remote_worker.fm_benches_path)
         / deployment_manager.config.site_name
         / "workspace"
-        / "frappe-bench"
     )
+    remote_bench_path = remote_base_path / "frappe-bench"
+
+    # Check if frappe-bench is a symlink and get target in one step
+    try:
+        readlink_cmd = ["readlink", str(remote_bench_path)]
+        result = ssh_run(deployment_manager, readlink_cmd, capture_output=True)
+        current_target = result.combined[-1].strip()
+        is_symlink = True
+    except Exception as e:
+        current_target = None
+        is_symlink = False
+
+    if is_symlink:
+        # Unlink existing symlink 
+        unlink_cmd = ["unlink", str(remote_bench_path)]
+        ssh_run(deployment_manager, unlink_cmd, capture_output=True)
+
+        # Move the target directory to new release name
+        new_target = deployment_manager.current.path.readlink().name
+        if current_target != new_target:
+            move_cmd = ["mv", current_target, new_target] 
+            ssh_run(deployment_manager, move_cmd, workdir=str(remote_base_path), capture_output=True)
+    else:
+        # Move existing frappe-bench to new release name
+        new_target = deployment_manager.current.path.readlink().name
+        move_cmd = ["mv", "frappe-bench", new_target]
+        ssh_run(deployment_manager, move_cmd, workdir=str(remote_base_path), capture_output=True)
+
+    # Create new symlink
+    link_cmd = ["ln", "-sfn", new_target, "frappe-bench"]
+    ssh_run(deployment_manager, link_cmd, workdir=str(remote_base_path), capture_output=True)
+    deployment_manager.printer.print(f"Linked frappe-bench to {new_target}")
+
+    # Rest of the existing function...
+    dirs_which_should_always_be_there = [
+        f'deployment_data/sites/{deployment_manager.config.site_name}/private/files',
+        f'deployment_data/sites/{deployment_manager.config.site_name}/public/files',
+        'frappe-bench/config/pids'
+    ]
 
     try:
-        deployment_manager.printer.change_head("Reinstall all apps in env")
-        pip_install_command = ["docker compose run --rm --user frappe --entrypoint bash frappe -c 'for app in $(ls -1 apps); do /workspace/frappe-bench/env/bin/python -m pip install -U -e apps/$app; done'"]
-        ssh_run(deployment_manager, pip_install_command, workdir=str(remote_bench_path), capture_output=True)
-        deployment_manager.printer.print("Reinstalled all apps in python env")
+        # deployment_manager.printer.change_head("Reinstall all apps in env")
+        # pip_install_command = ["docker compose run --rm --user frappe --entrypoint bash --workdir '/workspace/frappe-bench' frappe -c 'for app in $(ls -1 apps); do /workspace/frappe-bench/env/bin/python -m pip install -U -e apps/$app; done'"]
+        # ssh_run(deployment_manager, pip_install_command, workdir=str(remote_bench_path), capture_output=True)
+        # deployment_manager.printer.print("Reinstalled all apps in python env")
 
         deployment_manager.printer.change_head("Linking common_site_config.json")
         # Link common site config
@@ -318,7 +369,7 @@ def link_worker_configs(deployment_manager: "DeploymentManager") -> None:
         ssh_run(deployment_manager, link_command, workdir=str(remote_bench_path), capture_output=True)
         deployment_manager.printer.print(f"Linked common_site_config.json to {str(relative_path)}")
 
-        deployment_manager.printer.change_head("Linking common_site_config.json")
+        deployment_manager.printer.change_head("Linking site_config.json")
         source_site_config = (
             deployment_manager.data.sites / deployment_manager.config.site_name / "site_config.workers.json"
         )
@@ -357,12 +408,15 @@ def rsync_workspace(deployment_manager: "DeploymentManager") -> None:
     try:
         # Define directories to include
         rsync_dirs = [
-            {"src": deployment_manager.current.path, "exclude": []},
-            {"src": deployment_manager.current.path.parent / '.local/share/uv',"dest": ".local/share/uv" , "exclude": ["--mkpath"]},
+            {"src": deployment_manager.current.path, "exclude": [], "type": "d"},
+            {"src": deployment_manager.current.path.parent / '.profile', "dest": ".profile", "exclude": [], "type": "f"},
+            {"src": deployment_manager.current.path.parent / '.local/bin', "dest": ".local/bin" , "exclude": ["--mkpath"], "type": "d"},
+            {"src": deployment_manager.current.path.parent / '.local/share/uv', "dest": ".local/share/uv" , "exclude": ["--mkpath"], "type": "d"},
             {
                 "src": deployment_manager.data.path,
+                "type": 'd',
                 "exclude": [
-                    f"--exclude=sites/{site_name}/public/***",
+                    f"--exclude=sites/{site_name}/public/files/***",
                     f"--exclude=sites/{site_name}/private/***",
                 ],
             },
@@ -389,6 +443,20 @@ def rsync_workspace(deployment_manager: "DeploymentManager") -> None:
 
         # Iterate through each directory configuration in rsync_dirs
         for dir_config in rsync_dirs:
+
+            src_dir = dir_config['src']
+
+            if not src_dir.exists():
+                deployment_manager.printer.print(f"Skipping sync, source doesn't exist at {src_dir.absolute()}")
+                continue
+
+            src_dir = str(src_dir)
+
+            dest_dir = str(dir_config['src'].name if dir_config.get('dest', None) is None else dir_config['dest'])
+            if dir_config['type'] == 'd':
+                src_dir += '/'
+                dest_dir += '/'
+
             # Build rsync command for each directory
             rsync_cmd = [
                 "rsync",
@@ -399,8 +467,8 @@ def rsync_workspace(deployment_manager: "DeploymentManager") -> None:
                 # "ssh -T -c aes128-gcm@openssh.com -o Compression=no -x",  # fastest SSH options
                 *rsync_patterns,  # Global patterns
                 *dir_config["exclude"],  # Directory-specific excludes
-                f"{dir_config['src']}/",  # Source directory with trailing slash
-                f"{target_path}/{dir_config['src'].name if dir_config.get('dest', None) is None else dir_config['dest']}/" ,  # Target directory with trailing slash
+                f"{src_dir}",  # Source directory with trailing slash
+                f"{target_path}/{dest_dir}" ,  # Target directory with trailing slash
             ]
 
             # Convert command list to string for debugging
