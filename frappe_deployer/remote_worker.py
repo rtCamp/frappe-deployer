@@ -239,6 +239,13 @@ def only_start_workers_compose_services(deployment_manager: "DeploymentManager")
         capture_output=True,
     )
 
+    ssh_run(
+        deployment_manager,
+        ["docker", "compose", "-f", "docker-compose.yml", "up", "-d", "scheduler", "redis-cache"],
+        workdir=str(remote_bench_path),
+        capture_output=True,
+    )
+
     richprint.change_head("Restarting remote-worker services")
 
     # Start worker compose services
