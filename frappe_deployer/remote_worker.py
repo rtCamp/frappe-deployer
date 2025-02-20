@@ -299,7 +299,7 @@ def link_worker_configs(deployment_manager: "DeploymentManager") -> None:
 
     try:
         deployment_manager.printer.change_head("Reinstall all apps in env")
-        pip_install_command = ["docker compose exec schedule bash -c 'for app in $(ls -1 apps); do /workspace/frappe-bench/env/bin/python -m pip install -U -e apps/$app; done'"]
+        pip_install_command = ["docker compose run --rm --user frappe --entrypoint bash frappe -c 'for app in $(ls -1 apps); do /workspace/frappe-bench/env/bin/python -m pip install -U -e apps/$app; done'"]
         ssh_run(deployment_manager, pip_install_command, workdir=str(remote_bench_path), capture_output=True)
         deployment_manager.printer.print("Reinstalled all apps in python env")
 
