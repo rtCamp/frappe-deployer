@@ -2,6 +2,8 @@ import socket
 import subprocess
 import json
 import shutil
+import requests
+import re
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
@@ -17,6 +19,15 @@ from frappe_manager.logger.log import richprint
 
 from .fmbench import FMServicesManager, FMBench
 
+
+def get_current_ip() -> str:
+    """Get the current public IP address of the server.
+    
+    Returns:
+        str: Public IP address of the server
+    """
+    response = requests.get('https://api.ipify.org')
+    return response.text
 
 def find_available_port(start_port: int = 11000) -> Optional[int]:
     """Find first available port not used by any bench's redis-queue service.
@@ -120,9 +131,7 @@ def enable_remote_worker(site_name: str) -> None:
     except KeyError:
         pass
     services_manager.compose_project.compose_file_manager.write_to_file()
-
-    if services_manager.compose_project.is_service_running("global-db"):
-        services_manager.compose_project.start_service(services=["global-db"])
+    services_manager.compose_project.start_service(services=["global-db"])
 
     # open redis-queue port
     bench.compose_project.compose_file_manager.yml["services"]["redis-queue"]["ports"] = [f"0.0.0.0:{queue_port}:6379"]
@@ -131,9 +140,8 @@ def enable_remote_worker(site_name: str) -> None:
     except KeyError:
         pass
     bench.compose_project.compose_file_manager.write_to_file()
+    bench.compose_project.start_service(services=["redis-queue"])
 
-    if bench.compose_project.is_service_running("redis-queue"):
-        bench.compose_project.start_service(services=["redis-queue"])
 
 
 def get_redis_queue_remote_url(site_name: str) -> str:
@@ -154,7 +162,7 @@ def get_redis_queue_remote_url(site_name: str) -> str:
     port_mapping = redis_config["ports"][0]
     exposed_port = port_mapping.split(":")[1]
 
-    return f"redis://{site_name}:{exposed_port}"
+    return f"redis://{get_current_ip()}:{exposed_port}"
 
 
 def create_worker_site_config(deployment_manager: "DeploymentManager", force: bool = False) -> None:
@@ -200,7 +208,7 @@ def create_worker_site_config(deployment_manager: "DeploymentManager", force: bo
         with open(target_site) as f:
             site_config = json.load(f)
 
-        site_config.update({"db_host": deployment_manager.config.site_name})
+        site_config.update({"db_host": get_current_ip()})
 
         with open(target_site, "w") as f:
             json.dump(site_config, f, indent=4)
@@ -215,6 +223,22 @@ def create_worker_site_config(deployment_manager: "DeploymentManager", force: bo
             target_site.unlink()
         raise
 
+def stop_all_compose_services(deployment_manager: "DeploymentManager") -> None:
+    remote_bench_path = (
+        Path(deployment_manager.config.remote_worker.fm_benches_path) / deployment_manager.config.site_name
+    )
+
+    richprint.change_head("Stop all remote-worker services")
+
+    # Stop regular compose services
+    ssh_run(
+        deployment_manager,
+        ["docker", "compose", "-f", "docker-compose.yml", "-f", "docker-compose.workers.yml", "down", "--timeout" , "10"],
+        workdir=str(remote_bench_path),
+        capture_output=True,
+    )
+
+    richprint.print("Stoped all remote-worker services")
 
 def only_start_workers_compose_services(deployment_manager: "DeploymentManager") -> None:
     """Switch Docker Compose configuration on remote worker to use worker-specific compose file.
@@ -241,7 +265,7 @@ def only_start_workers_compose_services(deployment_manager: "DeploymentManager")
 
     ssh_run(
         deployment_manager,
-        ["docker", "compose", "-f", "docker-compose.yml", "up", "-d", "scheduler", "redis-cache"],
+        ["docker", "compose", "-f", "docker-compose.yml", "up", "-d", "schedule"],
         workdir=str(remote_bench_path),
         capture_output=True,
     )
@@ -266,7 +290,6 @@ def link_worker_configs(deployment_manager: "DeploymentManager") -> None:
     Args:
         deployment_manager: The deployment manager instance
     """
-    deployment_manager.printer.change_head("Linking worker config files")
     remote_bench_path = (
         Path(deployment_manager.config.remote_worker.fm_benches_path)
         / deployment_manager.config.site_name
@@ -275,6 +298,12 @@ def link_worker_configs(deployment_manager: "DeploymentManager") -> None:
     )
 
     try:
+        deployment_manager.printer.change_head("Reinstall all apps in env")
+        pip_install_command = ["docker compose exec schedule bash -c 'for app in $(ls -1 apps); do /workspace/frappe-bench/env/bin/python -m pip install -U -e apps/$app; done'"]
+        ssh_run(deployment_manager, pip_install_command, workdir=str(remote_bench_path), capture_output=True)
+        deployment_manager.printer.print("Reinstalled all apps in python env")
+
+        deployment_manager.printer.change_head("Linking common_site_config.json")
         # Link common site config
         source_common = deployment_manager.data.sites / "common_site_config.workers.json"
         source_target_common = deployment_manager.current.sites / "common_site_config.json"
@@ -287,7 +316,9 @@ def link_worker_configs(deployment_manager: "DeploymentManager") -> None:
             str(remote_common),
         ]
         ssh_run(deployment_manager, link_command, workdir=str(remote_bench_path), capture_output=True)
+        deployment_manager.printer.print(f"Linked common_site_config.json to {str(relative_path)}")
 
+        deployment_manager.printer.change_head("Linking common_site_config.json")
         source_site_config = (
             deployment_manager.data.sites / deployment_manager.config.site_name / "site_config.workers.json"
         )
@@ -303,7 +334,7 @@ def link_worker_configs(deployment_manager: "DeploymentManager") -> None:
             str(remote_site_config),
         ]
         ssh_run(deployment_manager, link_command, workdir=str(remote_bench_path), capture_output=True)
-        deployment_manager.printer.print(f"Linked site config for {deployment_manager.config.site_name}")
+        deployment_manager.printer.print(f"Linked site_config.json to {str(relative_path)}")
         deployment_manager.printer.print("Successfully linked worker config files")
     except Exception as e:
         deployment_manager.printer.warning(f"Failed to link worker configs: {str(e)}")
@@ -327,6 +358,7 @@ def rsync_workspace(deployment_manager: "DeploymentManager") -> None:
         # Define directories to include
         rsync_dirs = [
             {"src": deployment_manager.current.path, "exclude": []},
+            {"src": deployment_manager.current.path.parent / '.local/share/uv',"dest": ".local/share/uv" , "exclude": ["--mkpath"]},
             {
                 "src": deployment_manager.data.path,
                 "exclude": [
@@ -360,7 +392,7 @@ def rsync_workspace(deployment_manager: "DeploymentManager") -> None:
             # Build rsync command for each directory
             rsync_cmd = [
                 "rsync",
-                "-avzm",  # archive mode and compress
+                "-avz",  # archive mode and compress
                 "--delete",  # delete extraneous files from destination
                 "--checksum",  # skip based on checksum, not mod-time & size
                 # "-e",
@@ -368,7 +400,7 @@ def rsync_workspace(deployment_manager: "DeploymentManager") -> None:
                 *rsync_patterns,  # Global patterns
                 *dir_config["exclude"],  # Directory-specific excludes
                 f"{dir_config['src']}/",  # Source directory with trailing slash
-                f"{target_path}/{dir_config['src'].name}/",  # Target directory with trailing slash
+                f"{target_path}/{dir_config['src'].name if dir_config.get('dest', None) is None else dir_config['dest']}/" ,  # Target directory with trailing slash
             ]
 
             # Convert command list to string for debugging

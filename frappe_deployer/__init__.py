@@ -15,7 +15,7 @@ from frappe_deployer.exceptions import ConfigPathDoesntExist
 from unittest.mock import patch
 
 from frappe_deployer.helpers import human_readable_time
-from frappe_deployer.remote_worker import create_worker_site_config, enable_remote_worker, link_worker_configs, only_start_workers_compose_services, rsync_workspace
+from frappe_deployer.remote_worker import create_worker_site_config, enable_remote_worker, link_worker_configs, only_start_workers_compose_services, rsync_workspace, stop_all_compose_services
 
 __version__ = "0.5.0"
 
@@ -94,8 +94,14 @@ def configure(
     mode: Annotated[str, typer.Option('--mode','-m', help="List of apps in the format [underline]org_name/repo_name:branch[/underline]", show_default=False)] = ModeEnum.fm,
 ):
     current_locals = locals()
+
+    if not config_path:
+        current_locals['mode'] = 'fm'
+
+    current_locals.update(configure_basic_deployment_config(site_name))
+
     richprint.start('working')
-    config: Config = Config.from_toml(config_path, get_config_overrides(locals=current_locals))
+    config: Config = Config.from_toml(config_file_path=config_path, overrides=get_config_overrides(locals=current_locals))
     DeploymentManager.configure(config=config)
 
 @cli.command(no_args_is_help=True)
@@ -258,6 +264,8 @@ def enable(
     server: Annotated[Optional[str], typer.Option("--server", "-s", help="Remote server IP address or domain name")] = None,
     ssh_user: Annotated[Optional[str], typer.Option("--ssh-user", "-u", help="SSH username for the remote server")] = None,
     ssh_port: Annotated[Optional[int], typer.Option("--ssh-port", "-p", help="SSH port number")] = None,
+    verbose: Annotated[Optional[bool] , typer.Option('--verbose','-v',help="Enable verbose output", show_default=False)] = None,
+    force: Annotated[bool , typer.Option('--force',help="Force recreate common_site_config.json and site_config.json if exists.", show_default=False)] = False,
 ):
     """
     Sync workspace to remote worker server.
@@ -274,12 +282,14 @@ def enable(
             'ssh_user': ssh_user or 'frappe',
             'ssh_port': ssh_port or 22
         }
+
+    if not config_path:
         current_locals['mode'] = 'fm'
 
-    current_locals = configure_basic_deployment_config(site_name, current_locals)
+    current_locals.update(configure_basic_deployment_config(site_name))
 
     richprint.start("working")
-    config = Config.from_toml(config_file_path=config_path, overrides=get_config_overrides(locals=current_locals))
+    config = Config.from_toml(config_file_path=config_path, overrides=get_config_overrides(locals=current_locals, exclude=['force']))
 
     if not config.remote_worker or not config.remote_worker.server:
         raise RuntimeError("Remote worker configuration is required. Provide either a config file or --server option.")
@@ -287,7 +297,7 @@ def enable(
     deployment_manager = DeploymentManager(config)
 
     enable_remote_worker(site_name)
-    create_worker_site_config(deployment_manager=deployment_manager)
+    create_worker_site_config(deployment_manager=deployment_manager, force=force)
 
 
 @remote_worker.command()
@@ -297,6 +307,7 @@ def sync(
     server: Annotated[Optional[str], typer.Option("--server", "-s", help="Remote server IP address or domain name")] = None,
     ssh_user: Annotated[Optional[str], typer.Option("--ssh-user", "-u", help="SSH username for the remote server")] = None,
     ssh_port: Annotated[Optional[int], typer.Option("--ssh-port", "-p", help="SSH port number")] = None,
+    verbose: Annotated[Optional[bool] , typer.Option('--verbose','-v',help="Enable verbose output", show_default=False)] = None,
 ):
     """
     Sync workspace to remote worker server.
@@ -313,9 +324,11 @@ def sync(
             'ssh_user': ssh_user or 'frappe',
             'ssh_port': ssh_port or 22
         }
+
+    if not config_path:
         current_locals['mode'] = 'fm'
 
-    current_locals = configure_basic_deployment_config(site_name, current_locals)
+    current_locals.update(configure_basic_deployment_config(site_name))
 
     richprint.start("working")
 
@@ -325,12 +338,13 @@ def sync(
         raise RuntimeError("Remote worker configuration is required. Provide either a config file or --server option.")
 
     deployment_manager = DeploymentManager(config)
-    rsync_workspace(deployment_manager=deployment_manager)
+    #stop_all_compose_services(deployment_manager)
+    #rsync_workspace(deployment_manager=deployment_manager)
     link_worker_configs(deployment_manager)
-    only_start_workers_compose_services(deployment_manager)
+    #only_start_workers_compose_services(deployment_manager)
 
 
-def configure_basic_deployment_config(site_name: str, config_data: dict) -> dict:
+def configure_basic_deployment_config(site_name: str) -> dict:
     """Create a minimal deployment manager for syncing operations.
 
     Args:
@@ -341,9 +355,9 @@ def configure_basic_deployment_config(site_name: str, config_data: dict) -> dict
         DeploymentManager: Minimal deployment manager instance
     """
 
-    config_data['site_name'] = site_name
-    config_data['bench_path'] = str(CLI_BENCHES_DIRECTORY / f'{site_name}/frappe-bench')
-    config_data['apps'] = []
-    config_data['verbose'] = True
+    data: dict[str, Any] = {}
+    data['site_name'] = site_name
+    data['bench_path'] = str(CLI_BENCHES_DIRECTORY / f'{site_name}/frappe-bench')
+    data['apps'] = []
 
-    return config_data
+    return data
