@@ -14,7 +14,11 @@ class RemoteWorkerConfig(BaseModel):
         workspace_path: str
             Path on remote server where workspace will be synced (default: /home/frappe/frappe)
     """
-    server: str = Field(..., description="IP address or domain name of the remote server")
+    server: str = Field(
+        ..., 
+        description="IP address or domain name of the remote server",
+        min_length=1
+    )
     ssh_user: Optional[str] = Field("root", description="SSH username for the remote server")
     ssh_port: Optional[int] = Field(22, description="SSH port number")
 
