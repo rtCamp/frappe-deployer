@@ -17,7 +17,7 @@ from unittest.mock import patch
 from frappe_deployer.helpers import human_readable_time
 from frappe_deployer.remote_worker import create_worker_site_config, enable_remote_worker, link_worker_configs, only_start_workers_compose_services, rsync_workspace, stop_all_compose_services
 
-__version__ = "0.5.0"
+__version__ = "0.7.3"
 
 
 def version_callback(value: bool):
