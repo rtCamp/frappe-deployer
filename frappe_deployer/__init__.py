@@ -338,10 +338,11 @@ def sync(
         raise RuntimeError("Remote worker configuration is required. Provide either a config file or --server option.")
 
     deployment_manager = DeploymentManager(config)
-    #stop_all_compose_services(deployment_manager)
-    #rsync_workspace(deployment_manager=deployment_manager)
+
+    stop_all_compose_services(deployment_manager)
+    rsync_workspace(deployment_manager=deployment_manager)
     link_worker_configs(deployment_manager)
-    #only_start_workers_compose_services(deployment_manager)
+    only_start_workers_compose_services(deployment_manager)
 
 
 def configure_basic_deployment_config(site_name: str) -> dict:
