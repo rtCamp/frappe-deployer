@@ -294,6 +294,109 @@ def only_start_workers_compose_services(deployment_manager: "DeploymentManager")
     )
 
 
+def handle_frappe_bench_symlink(deployment_manager: "DeploymentManager", remote_base_path: Path, remote_bench_path: Path) -> str:
+    """Handle the frappe-bench symlink creation and target directory management.
+    
+    Args:
+        deployment_manager: The deployment manager instance
+        remote_base_path: Base path on remote server
+        remote_bench_path: Path to frappe-bench directory
+        
+    Returns:
+        str: Name of the new target directory
+    """
+    try:
+        readlink_cmd = ["readlink", str(remote_bench_path)]
+        result = ssh_run(deployment_manager, readlink_cmd, capture_output=True)
+        current_target = result.combined[-1].strip()
+        is_symlink = True
+    except Exception:
+        current_target = None
+        is_symlink = False
+
+    new_target = deployment_manager.current.path.readlink().name
+
+    if is_symlink:
+        # Unlink existing symlink 
+        ssh_run(deployment_manager, ["unlink", str(remote_bench_path)], capture_output=True)
+        
+        # Move target directory if different
+        if current_target != new_target:
+            ssh_run(
+                deployment_manager, 
+                ["mv", current_target, new_target],
+                workdir=str(remote_base_path),
+                capture_output=True
+            )
+    else:
+        # Move existing directory to new name
+        ssh_run(
+            deployment_manager,
+            ["mv", "frappe-bench", new_target],
+            workdir=str(remote_base_path),
+            capture_output=True
+        )
+
+    # Create new symlink
+    ssh_run(
+        deployment_manager,
+        ["ln", "-sfn", new_target, "frappe-bench"],
+        workdir=str(remote_base_path),
+        capture_output=True
+    )
+    deployment_manager.printer.print(f"Linked frappe-bench to {new_target}")
+    return new_target
+
+def create_required_directories(deployment_manager: "DeploymentManager", remote_base_path: Path) -> None:
+    """Create required directories on the remote server.
+    
+    Args:
+        deployment_manager: The deployment manager instance
+        remote_base_path: Base path on remote server
+    """
+    dirs_which_should_always_be_there = [
+        f'deployment_data/sites/{deployment_manager.config.site_name}/private/files',
+        f'deployment_data/sites/{deployment_manager.config.site_name}/public/files',
+        'frappe-bench/config/pids'
+    ]
+
+    for dir_path in dirs_which_should_always_be_there:
+        ssh_run(
+            deployment_manager,
+            ["mkdir", "-p", dir_path],
+            workdir=str(remote_base_path),
+            capture_output=True
+        )
+        deployment_manager.printer.print(f"Created directory: {dir_path}")
+
+def create_config_symlink(
+    deployment_manager: "DeploymentManager",
+    remote_bench_path: Path,
+    source_path: Path,
+    target_path: Path,
+    remote_path: Path,
+    config_type: str
+) -> None:
+    """Create a symlink for a config file.
+    
+    Args:
+        deployment_manager: The deployment manager instance
+        remote_bench_path: Path to frappe-bench directory
+        source_path: Source config file path
+        target_path: Target config file path
+        remote_path: Remote config file path
+        config_type: Type of config file for logging
+    """
+    relative_path = get_relative_path(target_path, source_path)
+    link_command = [
+        "ln",
+        "-sf",
+        str(relative_path),
+        str(remote_path),
+    ]
+    ssh_run(deployment_manager, link_command, workdir=str(remote_bench_path), capture_output=True)
+    deployment_manager.printer.print(f"Linked {config_type} to {str(relative_path)}")
+
 def link_worker_configs(deployment_manager: "DeploymentManager") -> None:
     """Link worker-specific config files to the bench directory on remote worker.
 
@@ -310,93 +413,153 @@ def link_worker_configs(deployment_manager: "DeploymentManager") -> None:
     )
     remote_bench_path = remote_base_path / "frappe-bench"
 
-    # Check if frappe-bench is a symlink and get target in one step
-    try:
-        readlink_cmd = ["readlink", str(remote_bench_path)]
-        result = ssh_run(deployment_manager, readlink_cmd, capture_output=True)
-        current_target = result.combined[-1].strip()
-        is_symlink = True
-    except Exception as e:
-        current_target = None
-        is_symlink = False
+    # Handle frappe-bench symlink
+    handle_frappe_bench_symlink(deployment_manager, remote_base_path, remote_bench_path)
 
-    if is_symlink:
-        # Unlink existing symlink 
-        unlink_cmd = ["unlink", str(remote_bench_path)]
-        ssh_run(deployment_manager, unlink_cmd, capture_output=True)
-
-        # Move the target directory to new release name
-        new_target = deployment_manager.current.path.readlink().name
-        if current_target != new_target:
-            move_cmd = ["mv", current_target, new_target] 
-            ssh_run(deployment_manager, move_cmd, workdir=str(remote_base_path), capture_output=True)
-    else:
-        # Move existing frappe-bench to new release name
-        new_target = deployment_manager.current.path.readlink().name
-        move_cmd = ["mv", "frappe-bench", new_target]
-        ssh_run(deployment_manager, move_cmd, workdir=str(remote_base_path), capture_output=True)
-
-    # Create new symlink
-    link_cmd = ["ln", "-sfn", new_target, "frappe-bench"]
-    ssh_run(deployment_manager, link_cmd, workdir=str(remote_base_path), capture_output=True)
-    deployment_manager.printer.print(f"Linked frappe-bench to {new_target}")
-
-    # Rest of the existing function...
-    dirs_which_should_always_be_there = [
-        f'deployment_data/sites/{deployment_manager.config.site_name}/private/files',
-        f'deployment_data/sites/{deployment_manager.config.site_name}/public/files',
-        'frappe-bench/config/pids'
-    ]
+    # Create required directories
+    create_required_directories(deployment_manager, remote_base_path)
 
     try:
-        # deployment_manager.printer.change_head("Reinstall all apps in env")
-        # pip_install_command = ["docker compose run --rm --user frappe --entrypoint bash --workdir '/workspace/frappe-bench' frappe -c 'for app in $(ls -1 apps); do /workspace/frappe-bench/env/bin/python -m pip install -U -e apps/$app; done'"]
-        # ssh_run(deployment_manager, pip_install_command, workdir=str(remote_bench_path), capture_output=True)
-        # deployment_manager.printer.print("Reinstalled all apps in python env")
-
-        deployment_manager.printer.change_head("Linking common_site_config.json")
         # Link common site config
-        source_common = deployment_manager.data.sites / "common_site_config.workers.json"
-        source_target_common = deployment_manager.current.sites / "common_site_config.json"
-        remote_common = remote_bench_path / "sites" / "common_site_config.json"
-        relative_path = get_relative_path(source_target_common, source_common)
-        link_command = [
-            "ln",
-            "-sf",  # Force create/update symlink
-            str(relative_path),
-            str(remote_common),
-        ]
-        ssh_run(deployment_manager, link_command, workdir=str(remote_bench_path), capture_output=True)
-        deployment_manager.printer.print(f"Linked common_site_config.json to {str(relative_path)}")
+        deployment_manager.printer.change_head("Linking common_site_config.json")
+        create_config_symlink(
+            deployment_manager,
+            remote_bench_path,
+            deployment_manager.data.sites / "common_site_config.workers.json",
+            deployment_manager.current.sites / "common_site_config.json",
+            remote_bench_path / "sites" / "common_site_config.json",
+            "common_site_config.json"
+        )
 
+        # Link site config
         deployment_manager.printer.change_head("Linking site_config.json")
-        source_site_config = (
-            deployment_manager.data.sites / deployment_manager.config.site_name / "site_config.workers.json"
+        create_config_symlink(
+            deployment_manager,
+            remote_bench_path,
+            deployment_manager.data.sites / deployment_manager.config.site_name / "site_config.workers.json",
+            deployment_manager.current.sites / deployment_manager.config.site_name / "site_config.json",
+            remote_bench_path / "sites" / deployment_manager.config.site_name / "site_config.json",
+            "site_config.json"
         )
-        source_target_site_config = (
-            deployment_manager.current.sites / deployment_manager.config.site_name / "site_config.json"
-        )
-        remote_site_config = remote_bench_path / "sites" / deployment_manager.config.site_name / "site_config.json"
-        relative_path = get_relative_path(source_target_site_config, source_site_config)
-        link_command = [
-            "ln",
-            "-sf",  # Force create/update symlink
-            str(relative_path),
-            str(remote_site_config),
-        ]
-        ssh_run(deployment_manager, link_command, workdir=str(remote_bench_path), capture_output=True)
-        deployment_manager.printer.print(f"Linked site_config.json to {str(relative_path)}")
-        deployment_manager.printer.print("Successfully linked worker config files")
+
+        deployment_manager.printer.print("[green]Successfully linked worker config files[/green]")
     except Exception as e:
         deployment_manager.printer.warning(f"Failed to link worker configs: {str(e)}")
         raise
 
 
+def parse_included_paths(deployment_manager: "DeploymentManager") -> list[dict]:
+    """Parse include_dirs and include_files from RemoteWorkerConfig into rsync format
+    
+    Args:
+        deployment_manager: The deployment manager instance
+    
+    Returns:
+        list[dict]: List of directory/file configurations for rsync
+    """
+    result = []
+    
+    # Process include_dirs
+    for dir_path in deployment_manager.config.remote_worker.include_dirs:
+        result.append({
+            "src": deployment_manager.current.path.parent / dir_path,
+            "dest": dir_path,
+            "exclude": ["--mkpath"],
+            "type": "d"
+        })
+    
+    # Process include_files
+    for file_path in deployment_manager.config.remote_worker.include_files:
+        result.append({
+            "src": deployment_manager.current.path.parent / file_path,
+            "dest": file_path,
+            "exclude": [],
+            "type": "f"
+        })
+    
+    return result
+
+def get_rsync_patterns() -> list[str]:
+    """Get the default rsync exclude patterns.
+    
+    Returns:
+        list[str]: List of rsync exclude patterns
+    """
+    return [
+        # Exclude specific problematic directories
+        "--exclude=**/.git/***",
+        "--exclude=**/node_modules/***",
+        "--exclude=**/__pycache__/***",
+        "--exclude=**/.pytest_cache/***",
+        "--exclude=**/.cache/***",
+        # Exclude common problematic files
+        "--exclude=*.pyc",
+        "--exclude=*.pyo",
+        "--exclude=*.pyd",
+        "--exclude=.DS_Store",
+        "--exclude=*.log",
+        "--exclude=*.swp",
+        "--exclude=*.swo",
+        "--exclude=*.sql",
+    ]
+
+def get_base_rsync_dirs(deployment_manager: "DeploymentManager") -> list[dict]:
+    """Get the base rsync directory configurations.
+    
+    Args:
+        deployment_manager: The deployment manager instance
+    
+    Returns:
+        list[dict]: List of base directory configurations
+    """
+    site_name = deployment_manager.config.site_name
+    return [
+        {"src": deployment_manager.current.path, "exclude": [], "type": "d"},
+        {
+            "src": deployment_manager.data.path,
+            "type": 'd',
+            "exclude": [
+                f"--exclude=sites/{site_name}/public/files/***",
+                f"--exclude=sites/{site_name}/private/***",
+            ],
+        },
+    ]
+
+def build_rsync_command(
+    src_dir: str, 
+    target_path: str, 
+    dest_dir: str, 
+    rsync_patterns: list[str], 
+    dir_excludes: list[str]
+) -> list[str]:
+    """Build the rsync command with all necessary options.
+    
+    Args:
+        src_dir: Source directory path
+        target_path: Remote target path
+        dest_dir: Destination directory name
+        rsync_patterns: Global exclude patterns
+        dir_excludes: Directory-specific excludes
+    
+    Returns:
+        list[str]: Complete rsync command as list
+    """
+    return [
+        "rsync",
+        "-avz",  # archive mode and compress
+        "--delete",  # delete extraneous files from destination
+        "--checksum",  # skip based on checksum, not mod-time & size
+        *rsync_patterns,  # Global patterns
+        *dir_excludes,  # Directory-specific excludes
+        f"{src_dir}",  # Source directory with trailing slash
+        f"{target_path}/{dest_dir}",  # Target directory with trailing slash
+    ]
+
 def rsync_workspace(deployment_manager: "DeploymentManager") -> None:
-    """Sync workspace to remote worker server using fastest rsync options
+    """Sync workspace to remote worker server using fastest rsync options.
 
     Args:
-        deployment_manager (DeploymentManager): Deployment manager instance with config
+        deployment_manager: Deployment manager instance with config
     """
     site_name = deployment_manager.config.site_name
     server = deployment_manager.config.remote_worker.server
@@ -405,87 +568,46 @@ def rsync_workspace(deployment_manager: "DeploymentManager") -> None:
     source_path = frappe_manager.CLI_BENCHES_DIRECTORY / site_name / "workspace"
     target_path = f"{ssh_user}@{server}:{deployment_manager.config.remote_worker.fm_benches_path}/{site_name}/workspace"
 
-    try:
-        # Define directories to include
-        rsync_dirs = [
-            {"src": deployment_manager.current.path, "exclude": [], "type": "d"},
-            {"src": deployment_manager.current.path.parent / '.profile', "dest": ".profile", "exclude": [], "type": "f"},
-            {"src": deployment_manager.current.path.parent / '.local/bin', "dest": ".local/bin" , "exclude": ["--mkpath"], "type": "d"},
-            {"src": deployment_manager.current.path.parent / '.local/share/uv', "dest": ".local/share/uv" , "exclude": ["--mkpath"], "type": "d"},
-            {
-                "src": deployment_manager.data.path,
-                "type": 'd',
-                "exclude": [
-                    f"--exclude=sites/{site_name}/public/files/***",
-                    f"--exclude=sites/{site_name}/private/***",
-                ],
-            },
-        ]
+    # Get base directories and include paths from config
+    rsync_dirs = get_base_rsync_dirs(deployment_manager)
+    rsync_dirs.extend(parse_included_paths(deployment_manager))
 
-        # Build rsync patterns in correct order
-        rsync_patterns = [
-            # Exclude specific problematic directories
-            "--exclude=**/.git/***",
-            "--exclude=**/node_modules/***",
-            "--exclude=**/__pycache__/***",
-            "--exclude=**/.pytest_cache/***",
-            "--exclude=**/.cache/***",
-            # Exclude common problematic files
-            "--exclude=*.pyc",
-            "--exclude=*.pyo",
-            "--exclude=*.pyd",
-            "--exclude=.DS_Store",
-            "--exclude=*.log",
-            "--exclude=*.swp",
-            "--exclude=*.swo",
-            "--exclude=*.sql",
-        ]
+    # Get global rsync patterns
+    rsync_patterns = get_rsync_patterns()
 
-        # Iterate through each directory configuration in rsync_dirs
-        for dir_config in rsync_dirs:
+    deployment_manager.printer.print(f"Starting rsync files")
 
-            src_dir = dir_config['src']
+    # Process each directory configuration
+    for dir_config in rsync_dirs:
+        src_dir = dir_config['src']
 
-            if not src_dir.exists():
-                deployment_manager.printer.print(f"Skipping sync, source doesn't exist at {src_dir.absolute()}")
-                continue
+        if not src_dir.exists():
+            deployment_manager.printer.print(f"[yellow]Skipping: {src_dir.absolute()} (directory not found)[/yellow]")
+            continue
 
-            src_dir = str(src_dir)
+        # Prepare source and destination paths
+        src_dir_str = str(src_dir)
+        dest_dir = str(dir_config['src'].name if dir_config.get('dest', None) is None else dir_config['dest'])
 
-            dest_dir = str(dir_config['src'].name if dir_config.get('dest', None) is None else dir_config['dest'])
-            if dir_config['type'] == 'd':
-                src_dir += '/'
-                dest_dir += '/'
+        if dir_config['type'] == 'd':
+            src_dir_str += '/'
+            dest_dir += '/'
 
-            # Build rsync command for each directory
-            rsync_cmd = [
-                "rsync",
-                "-avz",  # archive mode and compress
-                "--delete",  # delete extraneous files from destination
-                "--checksum",  # skip based on checksum, not mod-time & size
-                # "-e",
-                # "ssh -T -c aes128-gcm@openssh.com -o Compression=no -x",  # fastest SSH options
-                *rsync_patterns,  # Global patterns
-                *dir_config["exclude"],  # Directory-specific excludes
-                f"{src_dir}",  # Source directory with trailing slash
-                f"{target_path}/{dest_dir}" ,  # Target directory with trailing slash
-            ]
+        # Build and execute rsync command
+        rsync_cmd = build_rsync_command(
+            src_dir_str,
+            target_path,
+            dest_dir,
+            rsync_patterns,
+            dir_config["exclude"]
+        )
+        richprint.change_head(f"Syncing: {dest_dir}")
+        deployment_manager.host_run(
+            rsync_cmd,
+            deployment_manager.current,
+            container=False,
+            capture_output=False,
+        )
+        richprint.print(f"Synced {dest_dir}", emoji_code='[green]✓[/green]')
 
-            # Convert command list to string for debugging
-            cmd_str = " ".join(rsync_cmd)
-            richprint.change_head(f"Rsync dir: {dir_config['src']}")
-
-            try:
-                # Sync workspace with optimized options
-                deployment_manager.host_run(
-                    rsync_cmd,
-                    deployment_manager.current,
-                    container=False,
-                    capture_output=False,  # Change to True to capture error output
-                )
-                richprint.print(f"Successfully synced {dir_config['src']} to {target_path}/{dir_config['src'].name}")
-            except Exception as e:
-                richprint.print(f"[red]Error syncing {dir_config['src']}: {str(e)}[/red]")
-                raise
-    except Exception as e:
-        raise e
+    deployment_manager.printer.print("[green]Remote sync completed successfully[/green]")
