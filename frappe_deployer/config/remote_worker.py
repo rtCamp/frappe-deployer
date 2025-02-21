@@ -21,6 +21,8 @@ class RemoteWorkerConfig(BaseModel):
     )
     ssh_user: Optional[str] = Field("root", description="SSH username for the remote server")
     ssh_port: Optional[int] = Field(22, description="SSH port number")
+    include_dirs: Optional[list[str]] = Field(default_factory=list, description="List of additional directories to sync")
+    include_files: Optional[list[str]] = Field(default_factory=list, description="List of additional files to sync")
 
     @property
     def fm_benches_path(self) -> str:
