@@ -375,6 +375,51 @@ def search_replace(
         richprint.warning(f"Failed to perform search and replace: {str(e)}")
 
 
+@cli.command()
+def cleanup(
+    ctx: typer.Context,
+    site_name: Annotated[
+        Optional[str],
+        typer.Argument(help="The name of the site.", show_default=False, metavar="Site Name / Bench Name"),
+    ] = None,
+    config_path: Annotated[
+        Optional[Path], typer.Option(help="TOML config path", callback=validate_cofig_path, show_default=False)
+    ] = None,
+    backup_retain_limit: Annotated[
+        int, 
+        typer.Option(
+            "--backup-retain-limit",
+            help="Number of backup directories to retain",
+            show_default=True
+        )
+    ] = 2,
+    verbose: Annotated[
+        Optional[bool], 
+        typer.Option("--verbose", "-v", help="Enable verbose output", show_default=False)
+    ] = None,
+):
+    """
+    Cleanup deployment backups.
+    Retains specified number of recent backup directories.
+    Will sort backups by timestamp in name before determining which to keep.
+    """
+    current_locals = locals()
+
+    if not config_path:
+        current_locals["mode"] = "fm"
+
+    current_locals.update(configure_basic_deployment_config(site_name))
+
+    richprint.start("working")
+    config = Config.from_toml(
+        config_file_path=config_path,
+        overrides=get_config_overrides(locals=current_locals)
+    )
+
+    manager = DeploymentManager(config)
+    manager.cleanup_workspace_cache(backup_retain_limit)
+
+
 @remote_worker.command()
 def enable(
     site_name: Annotated[str, typer.Argument(help="The name of the site")],

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, List, Literal, Optional
+from typing import Any, List, Literal, Optional, Union
 
 from frappe_manager import CLI_BENCHES_DIRECTORY
 from frappe_manager.utils.site import richprint
@@ -130,7 +130,7 @@ class Config(BaseModel):
         app: AppConfig
 
         for app in config.apps:
-            app.configure_app(token=config.github_token,remove_remote=config.remove_remote)
+            app.configure_app(token=config.github_token, remove_remote=config.remove_remote)
 
         all_apps_exists = True
 
@@ -165,17 +165,27 @@ class Config(BaseModel):
         file_path : Path
             The path where to save the TOML file.
         """
-        def mask_github_token(data):
+        def mask_sensitive_data(data: Any) -> Any:
+            """Recursively mask sensitive data in config"""
             if isinstance(data, dict):
-                return {k: mask_github_token(v) for k, v in data.items()}
-
+                masked_data = {}
+                for k, v in data.items():
+                    if k == "github_token" and v:
+                        masked_data[k] = "********"
+                    elif k == "repo_url" and v and "@" in v:
+                        # Mask token in URLs like https://token@github.com/...
+                        parts = v.split('@')
+                        protocol_token = parts[0].split('//')
+                        masked_data[k] = f"{protocol_token[0]}//*********@{parts[1]}"
+                    else:
+                        masked_data[k] = mask_sensitive_data(v)
+                return masked_data
             elif isinstance(data, list):
-                return [mask_github_token(item) for item in data]
-
+                return [mask_sensitive_data(item) for item in data]
             return data
 
         config_dict = self.model_dump(exclude_none=True)
-        masked_config = mask_github_token(config_dict)
+        masked_config = mask_sensitive_data(config_dict)
 
         with open(file_path, 'w') as f:
             toml.dump(masked_config, f)

@@ -506,6 +506,81 @@ class DeploymentManager:
                 f"{'Remote removed ' if app.remove_remote else ''}Cloned Repo: {app.repo}, Module Name: '{app_name}'"
             )
 
+    def cleanup_workspace_cache(self, backup_retain_limit: int = 2):
+        """
+        Cleanup deployment backups and cache directories.
+        
+        Parameters
+        ----------
+        backup_retain_limit : int
+            Number of backup directories to retain, sorted by timestamp in name
+        """
+        self.printer.change_head("Cleaning up deployment backups and cache")
+
+        # Cleanup deployment backups
+        backup_dir = self.path / BACKUP_DIR_NAME
+        if backup_dir.exists():
+            backup_dirs = [d for d in backup_dir.iterdir() if d.is_dir()]
+            # Sort backup directories by timestamp in name
+            backup_dirs.sort(key=lambda x: x.name, reverse=True)  # Assuming names contain timestamps
+
+            # Get directories to remove (all except the N most recent)
+            backups_to_remove = backup_dirs[backup_retain_limit:]
+
+            for backup_to_remove in backups_to_remove:
+                try:
+                    shutil.rmtree(backup_to_remove)
+                    self.printer.print(f"Removed backup directory: {backup_to_remove.name}")
+                except Exception as e:
+                    self.printer.warning(f"Failed to remove {backup_to_remove.name}: {str(e)}")
+
+        # Cleanup .cache directory
+        cache_dir = self.path / '.cache'
+
+        if self.mode == 'host':
+            cache_dir = Path.home() / '.cache'
+
+        if cache_dir.exists():
+            try:
+                shutil.rmtree(cache_dir)
+                self.printer.print("Removed .cache directory")
+            except Exception as e:
+                self.printer.warning(f"Failed to remove .cache directory: {str(e)}")
+
+        # # Cleanup self.path except current symlink and data directory
+        # if self.path.exists():
+        #     current_bench = self.bench_path.resolve()
+        #     data_dir = self.path / DATA_DIR_NAME
+        #     backup_dir = self.path / BACKUP_DIR_NAME
+
+        #     for item in self.path.iterdir():
+        #         # Skip data directory, current bench symlink and backup directory
+        #         if (item == data_dir or
+        #             item == current_bench or
+        #             item == backup_dir or
+        #             item == self.bench_path):
+        #             continue
+
+        #         try:
+        #             if item.is_file():
+        #                 item.unlink()
+        #             elif item.is_dir():
+        #                 shutil.rmtree(item)
+        #             self.printer.print(f"Removed {item.name}")
+        #         except Exception as e:
+        #             self.printer.warning(f"Failed to remove {item.name}: {str(e)}")
+
+        # Cleanup prev_frappe_bench
+        prev_bench = self.path / 'prev_frappe_bench'
+        if prev_bench.exists():
+            try:
+                shutil.rmtree(prev_bench)
+                self.printer.print("Removed prev_frappe_bench directory")
+            except Exception as e:
+                self.printer.warning(f"Failed to remove prev_frappe_bench: {str(e)}")
+
+        self.printer.print("Cleanup completed")
+
     def get_mariadb_bench_client(self):
         compose_file: ComposeFile = ComposeFile(self.path.parent / "docker-compose.yml")
         compose_project: ComposeProject = ComposeProject(
