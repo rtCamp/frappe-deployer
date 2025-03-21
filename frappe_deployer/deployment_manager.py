@@ -445,38 +445,37 @@ class DeploymentManager:
             raise exception
 
     def cleanup_releases(self):
-
         retain_limit = self.config.releases_retain_limit
+        self.printer.change_head(f"Retaining {retain_limit} and cleaning up releases")
 
-        self.printer.change_head(f"Retaining {retain_limit} and cleaning up releaseas")
-
-        retain_limit  += 1
-
-        release_dirs = [d for d in self.path.iterdir() if d.is_dir() and d.name.startswith(RELEASE_DIR_NAME)]
-
-        release_dirs.sort(key=lambda d: self.extract_timestamp(d.name), reverse=True)
-
+        # Get current release directory (resolves symlink)
         current_release_bench_path = self.bench_path.resolve()
 
+        release_dirs = [d for d in self.path.iterdir() if d.is_dir() and d.name.startswith(RELEASE_DIR_NAME)]
+        release_dirs.sort(key=lambda d: self.extract_timestamp(d.name), reverse=True)
+
+        # Always keep current release at front
         if current_release_bench_path in release_dirs:
             release_dirs.remove(current_release_bench_path)
             release_dirs.insert(0, current_release_bench_path)
 
-        if self.previous_release_dir in release_dirs and not self.previous_release_dir == current_release_bench_path:
+        # Always keep previous release next if it exists
+        if self.previous_release_dir in release_dirs and self.previous_release_dir != current_release_bench_path:
             release_dirs.remove(self.previous_release_dir)
             release_dirs.insert(1, self.previous_release_dir)
 
+        # Keep required number of releases
         retain_releases_dirs = release_dirs[:retain_limit]
+        releases_to_remove = release_dirs[retain_limit:]
 
-        for dir in retain_releases_dirs:
-            release_dirs.remove(dir)
+        # Never remove current release
+        releases_to_remove = [d for d in releases_to_remove if d != current_release_bench_path]
 
-        for dir_to_remove in release_dirs:
+        for dir_to_remove in releases_to_remove:
             shutil.rmtree(dir_to_remove)
 
-        deleted_dir_names = ' '.join([d.name for d in release_dirs])
-
-        if deleted_dir_names:
+        if releases_to_remove:
+            deleted_dir_names = ' '.join([d.name for d in releases_to_remove])
             self.printer.print(f"Deleted releases [blue]{deleted_dir_names}[/blue]")
 
         self.printer.start("Working")
@@ -506,80 +505,271 @@ class DeploymentManager:
                 f"{'Remote removed ' if app.remove_remote else ''}Cloned Repo: {app.repo}, Module Name: '{app_name}'"
             )
 
-    def cleanup_workspace_cache(self, backup_retain_limit: int = 2):
-        """
-        Cleanup deployment backups and cache directories.
+    def get_dir_size(self, path: Path) -> str:
+        """Calculate directory size and return human readable format."""
+        import os
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+        
+        total_size = 0
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True
+        ) as progress:
+            task = progress.add_task(f"Calculating size of {path.name}...", total=None)
+            
+            for dirpath, dirnames, filenames in os.walk(path):
+                for f in filenames:
+                    fp = Path(dirpath) / f
+                    if not fp.is_symlink():  # Skip if it's a symbolic link
+                        try:
+                            total_size += fp.stat().st_size
+                            progress.update(task)
+                        except (PermissionError, FileNotFoundError):
+                            continue  # Skip files we can't access
+        
+        # Convert to human readable format
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if total_size < 1024.0:
+                return f"{total_size:.1f} {unit}"
+            total_size /= 1024.0
+        return f"{total_size:.1f} PB"
+
+    def cleanup_workspace_cache(
+        self,
+        backup_retain_limit: int = 0,
+        release_retain_limit: int = 0,
+        auto_approve: bool = False,
+        show_sizes: bool = False
+    ):
+        """Cleanup deployment backups, releases and cache directories with interactive prompts.
+        Also reports on items that have already been cleaned.
         
         Parameters
         ----------
         backup_retain_limit : int
-            Number of backup directories to retain, sorted by timestamp in name
+            Number of backup directories to retain, sorted by timestamp in name. Default 0 to remove all.
+        release_retain_limit : int
+            Number of release directories to retain. Default 0 to remove all except current.
+            Will always preserve current release and its previous release.
+        auto_approve : bool
+            If True, skip confirmation prompts and auto-approve all deletions
+        show_sizes : bool
+            Whether to calculate and show directory sizes (can be slow for large directories)
         """
-        self.printer.change_head("Cleaning up deployment backups and cache")
+        from rich.prompt import Confirm, Prompt
+        from rich.console import Console
+        from rich.table import Table
+        
+        console = Console()
+        self.printer.stop()  # Stop the "working" spinner
 
-        # Cleanup deployment backups
-        backup_dir = self.path / BACKUP_DIR_NAME
-        if backup_dir.exists():
-            backup_dirs = [d for d in backup_dir.iterdir() if d.is_dir()]
-            # Sort backup directories by timestamp in name
-            backup_dirs.sort(key=lambda x: x.name, reverse=True)  # Assuming names contain timestamps
+        def print_items_table(items: list[Path], title: str) -> Table:
+            """Create and print a table of items to be deleted"""
+            table = Table(title=title)
+            table.add_column("Index", justify="right", style="cyan")
+            table.add_column("Name", style="magenta") 
+            if show_sizes:
+                table.add_column("Size", style="green")
+            table.add_column("Path", style="blue")
+            
+            for idx, item in enumerate(items, 1):
+                row = [str(idx), item.name]
+                if show_sizes:
+                    size = self.get_dir_size(item)
+                    row.append(size)
+                row.append(str(item.absolute()))
+                table.add_row(*row)
+            
+            console.print(table)
+            return table
 
-            # Get directories to remove (all except the N most recent)
-            backups_to_remove = backup_dirs[backup_retain_limit:]
-
-            for backup_to_remove in backups_to_remove:
+        def get_selected_indices(items: list[Path], prompt_text: str) -> list[int]:
+            """Get user selection of items to delete"""
+            if not items:
+                return []
+                
+            if auto_approve:
+                return list(range(len(items)))
+                
+            print_items_table(items, prompt_text)
+            
+            while True:
+                selection = Prompt.ask(
+                    f"\nEnter indices to delete (1-{len(items)}, 'all' for all, or empty to skip)",
+                    default=""
+                )
+                
+                if not selection:
+                    return []
+                
+                if selection.lower() == 'all':
+                    return list(range(len(items)))
+                    
                 try:
-                    shutil.rmtree(backup_to_remove)
-                    self.printer.print(f"Removed backup directory: {backup_to_remove.name}")
-                except Exception as e:
-                    self.printer.warning(f"Failed to remove {backup_to_remove.name}: {str(e)}")
+                    indices = [int(i.strip()) - 1 for i in selection.split(',')]
+                    if all(0 <= i < len(items) for i in indices):
+                        return indices
+                    console.print("[red]Invalid indices. Please try again.[/red]")
+                except ValueError:
+                    console.print("[red]Invalid input. Please enter numbers separated by commas or 'all'.[/red]")
 
         # Cleanup .cache directory
         cache_dir = self.path / '.cache'
-
         if self.mode == 'host':
             cache_dir = Path.home() / '.cache'
 
-        if cache_dir.exists():
+        if not cache_dir.exists():
+            console.print(f"\n[blue]Cache directory {cache_dir} doesn't exist - already clean[/blue]")
+        else:
+            size = self.get_dir_size(cache_dir)
+            console.print(f"\n[yellow]Cache directory available for cleanup:[/yellow]")
+            size_info = f" ([green]{self.get_dir_size(cache_dir)}[/green])" if show_sizes else ""
+            console.print(f"[magenta]{cache_dir.name}[/magenta]{size_info} - [blue]{cache_dir.absolute()}[/blue]")
             try:
-                shutil.rmtree(cache_dir)
-                self.printer.print("Removed .cache directory")
+                if auto_approve or Confirm.ask(f"Delete cache directory: {cache_dir}?"):
+                    shutil.rmtree(cache_dir)
+                    console.print(f"[green]Removed {cache_dir.absolute()} directory[/green]")
             except Exception as e:
-                self.printer.warning(f"Failed to remove .cache directory: {str(e)}")
-
-        # # Cleanup self.path except current symlink and data directory
-        # if self.path.exists():
-        #     current_bench = self.bench_path.resolve()
-        #     data_dir = self.path / DATA_DIR_NAME
-        #     backup_dir = self.path / BACKUP_DIR_NAME
-
-        #     for item in self.path.iterdir():
-        #         # Skip data directory, current bench symlink and backup directory
-        #         if (item == data_dir or
-        #             item == current_bench or
-        #             item == backup_dir or
-        #             item == self.bench_path):
-        #             continue
-
-        #         try:
-        #             if item.is_file():
-        #                 item.unlink()
-        #             elif item.is_dir():
-        #                 shutil.rmtree(item)
-        #             self.printer.print(f"Removed {item.name}")
-        #         except Exception as e:
-        #             self.printer.warning(f"Failed to remove {item.name}: {str(e)}")
+                console.print(f"[red]Failed to remove {cache_dir.absolute()} directory: {str(e)}[/red]")
 
         # Cleanup prev_frappe_bench
         prev_bench = self.path / 'prev_frappe_bench'
-        if prev_bench.exists():
+        if not prev_bench.exists():
+            console.print("\n[blue]Previous bench directory doesn't exist - already clean[/blue]")
+        else:
+            size = self.get_dir_size(prev_bench)
+            console.print(f"\n[yellow]Previous bench directory available for cleanup:[/yellow]")
+            size_info = f" ([green]{self.get_dir_size(prev_bench)}[/green])" if show_sizes else ""
+            console.print(f"[magenta]{prev_bench.name}[/magenta]{size_info} - [blue]{prev_bench.absolute()}[/blue]")
             try:
-                shutil.rmtree(prev_bench)
-                self.printer.print("Removed prev_frappe_bench directory")
+                if auto_approve or Confirm.ask(f"Delete previous bench directory: {prev_bench}?"):
+                    shutil.rmtree(prev_bench)
+                    console.print(f"[green]Removed {prev_bench.absolute()} directory[/green]")
             except Exception as e:
-                self.printer.warning(f"Failed to remove prev_frappe_bench: {str(e)}")
+                console.print(f"[red]Failed to remove {prev_bench.absolute()}: {str(e)}[/red]")
 
-        self.printer.print("Cleanup completed")
+        # Cleanup deployment backups
+        backup_dir = self.path / BACKUP_DIR_NAME
+
+        if backup_dir.exists():
+            backup_dirs = [d for d in backup_dir.iterdir() if d.is_dir()]
+            backup_dirs.sort(key=lambda x: x.name, reverse=True)
+
+            if not backup_dirs:
+                console.print("\n[blue]No backup directories found - already clean[/blue]")
+            else:
+                # Modified logic: If retain_limit is 0, all backups can be deleted
+                # If retain_limit > 0, keep that many backups without asking
+                if backup_retain_limit > 0:
+                    kept_backups = backup_dirs[:backup_retain_limit]
+                    backups_to_remove = backup_dirs[backup_retain_limit:]
+                    
+                    console.print(f"\n[green]Currently keeping {len(kept_backups)} recent backups:[/green]")
+                    for backup in kept_backups:
+                        console.print(f"[green]  • {backup.name}[/green]")
+
+                    if not backups_to_remove:
+                        console.print(f"[blue]No backup directories to clean - already at {backup_retain_limit} limit[/blue]")
+                    else:
+                        console.print("\n[yellow]Backup directories that exceed retain limit:[/yellow]")
+                        selected_indices = get_selected_indices(
+                            backups_to_remove,
+                            f"Backup directories to clean (keeping {backup_retain_limit} most recent)"
+                        )
+
+                        for idx in selected_indices:
+                            backup_to_remove = backups_to_remove[idx]
+                            try:
+                                if auto_approve or Confirm.ask(f"Delete backup directory: {backup_to_remove.name}?"):
+                                    shutil.rmtree(backup_to_remove)
+                                    console.print(f"[green]Removed backup directory: {backup_to_remove.name}[/green]")
+                            except Exception as e:
+                                console.print(f"[red]Failed to remove {backup_to_remove.name}: {str(e)}[/red]")
+                else:
+                    # When retain_limit is 0, all backups can be selected for deletion
+                    console.print("\n[yellow]All backup directories available for cleanup:[/yellow]")
+                    selected_indices = get_selected_indices(
+                        backup_dirs,
+                        "Backup directories to clean (no retention limit)"
+                    )
+
+                    for idx in selected_indices:
+                        backup_to_remove = backup_dirs[idx]
+                        try:
+                            if auto_approve or Confirm.ask(f"Delete backup directory: {backup_to_remove.name}?"):
+                                shutil.rmtree(backup_to_remove)
+                                console.print(f"[green]Removed backup directory: {backup_to_remove.name}[/green]")
+                        except Exception as e:
+                            console.print(f"[red]Failed to remove {backup_to_remove.name}: {str(e)}[/red]")
+        else:
+            console.print("\n[blue]No backup directory exists - already clean[/blue]")
+
+        # Cleanup release directories
+        current_release = self.bench_path.resolve()
+        release_dirs = [d for d in self.path.iterdir()
+                        if d.is_dir() and d.name.startswith(RELEASE_DIR_NAME)]
+
+        if not release_dirs:
+            console.print("\n[blue]No release directories found - already clean[/blue]")
+        else:
+            release_dirs.sort(key=lambda x: self.extract_timestamp(x.name), reverse=True)
+
+            # Handle releases based on retain limit
+            if release_retain_limit > 0:
+                # Keep specific number of releases
+                kept_releases = release_dirs[:release_retain_limit]
+                releases_to_remove = release_dirs[release_retain_limit:]
+                releases_to_remove = [d for d in releases_to_remove if d != current_release]  # Protect current release
+
+                console.print(f"\n[green]Currently keeping {len(kept_releases)} releases:[/green]")
+                for release in kept_releases:
+                    suffix = " (current)" if release == current_release else ""
+                    console.print(f"[green]  • {release.name}{suffix}[/green]")
+
+                if not releases_to_remove:
+                    console.print(f"[blue]No release directories to clean - already at {release_retain_limit} limit[/blue]")
+                else:
+                    console.print("\n[yellow]Release directories that exceed retain limit:[/yellow]")
+                    selected_indices = get_selected_indices(
+                        releases_to_remove,
+                        f"Release directories to clean (keeping {release_retain_limit} most recent)"
+                    )
+
+                    if auto_approve:
+                        self.config.releases_retain_limit = release_retain_limit
+                        self.cleanup_releases()
+                    else:
+                        for idx in selected_indices:
+                            release_to_remove = releases_to_remove[idx]
+                            try:
+                                if release_to_remove != current_release and Confirm.ask(f"Delete release directory: {release_to_remove.name}?"):
+                                    shutil.rmtree(release_to_remove)
+                                    console.print(f"[green]Removed release directory: {release_to_remove.name}[/green]")
+                            except Exception as e:
+                                console.print(f"[red]Failed to remove release {release_to_remove.name}: {str(e)}[/red]")
+            else:
+                # When retain_limit is 0, show all releases except current
+                available_releases = [d for d in release_dirs if d != current_release]
+                if not available_releases:
+                    console.print("\n[blue]No release directories available for cleanup (excluding current release)[/blue]")
+                else:
+                    console.print("\n[yellow]All release directories available for cleanup:[/yellow]")
+                    selected_indices = get_selected_indices(
+                        available_releases,
+                        "Release directories to clean (no retention limit)"
+                    )
+
+                    for idx in selected_indices:
+                        release_to_remove = available_releases[idx]
+                        try:
+                            if auto_approve or Confirm.ask(f"Delete release directory: {release_to_remove.name}?"):
+                                shutil.rmtree(release_to_remove)
+                                console.print(f"[green]Removed release directory: {release_to_remove.name}[/green]")
+                        except Exception as e:
+                            console.print(f"[red]Failed to remove release {release_to_remove.name}: {str(e)}[/red]")
+
 
     def get_mariadb_bench_client(self):
         compose_file: ComposeFile = ComposeFile(self.path.parent / "docker-compose.yml")
@@ -1038,16 +1228,24 @@ class DeploymentManager:
                 )
 
     def configure_uv(self, bench_directory: BenchDirectory):
-
         if self.config.uv:
             try:
-                output = self.host_run(
-                    ["pip", "install", "uv"],
+                # First check if uv is already installed
+                check_uv = self.host_run(
+                    ["which", "uv"],
                     bench_directory,
-                    #stream=False,
                     container=self.mode == "fm",
                     capture_output=True,
                 )
+                
+                # If which command returns nothing, uv is not installed
+                if not check_uv.combined:
+                    output = self.host_run(
+                        ["pip", "install", "uv"],
+                        bench_directory,
+                        container=self.mode == "fm",
+                        capture_output=True,
+                    )
             except DockerException:
                 shutil.rmtree(bench_directory.env)
                 self.python_env_create(bench_directory)
@@ -1064,14 +1262,23 @@ class DeploymentManager:
         )
 
         if self.config.uv:
-            # install uv
-            output = self.host_run(
-                ["pip", "install", "uv"],
+            # First check if uv is already installed
+            check_uv = self.host_run(
+                ["which", "uv"],
                 bench_directory,
-                #stream=False,
                 container=self.mode == "fm",
                 capture_output=True,
             )
+            
+            # Only install uv if it's not already installed
+            if not check_uv.combined:
+                output = self.host_run(
+                    ["pip", "install", "uv"],
+                    bench_directory,
+                    container=self.mode == "fm",
+                    capture_output=True,
+                )
+
             venv_create_command = [
                 "uv",
                 "venv",
