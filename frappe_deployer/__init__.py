@@ -28,7 +28,7 @@ from frappe_manager import (
 from frappe_manager.logger.log import richprint
 import typer
 
-__version__ = "0.7.3"
+__version__ = "0.7.5"
 
 
 def version_callback(value: bool):
