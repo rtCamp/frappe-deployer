@@ -1231,13 +1231,17 @@ class DeploymentManager:
         if self.config.uv:
             try:
                 # First check if uv is already installed
-                check_uv = self.host_run(
-                    ["which", "uv"],
-                    bench_directory,
-                    container=self.mode == "fm",
-                    capture_output=True,
-                )
-                
+                try:
+                    check_uv = self.host_run(
+                        ["which", "uv"],
+                        bench_directory,
+                        container=self.mode == "fm",
+                        capture_output=True,
+
+                    )
+                except DockerException:
+                    pass
+
                 # If which command returns nothing, uv is not installed
                 if not check_uv.combined:
                     output = self.host_run(
@@ -1263,13 +1267,17 @@ class DeploymentManager:
 
         if self.config.uv:
             # First check if uv is already installed
-            check_uv = self.host_run(
-                ["which", "uv"],
-                bench_directory,
-                container=self.mode == "fm",
-                capture_output=True,
-            )
-            
+            try:
+                check_uv = self.host_run(
+                    ["which", "uv"],
+                    bench_directory,
+                    container=self.mode == "fm",
+                    capture_output=True,
+
+                )
+            except DockerException:
+                pass
+
             # Only install uv if it's not already installed
             if not check_uv.combined:
                 output = self.host_run(
