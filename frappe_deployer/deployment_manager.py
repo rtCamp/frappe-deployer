@@ -1231,6 +1231,7 @@ class DeploymentManager:
         if self.config.uv:
             try:
                 # First check if uv is already installed
+                check_uv = None
                 try:
                     check_uv = self.host_run(
                         ["which", "uv"],
@@ -1243,7 +1244,7 @@ class DeploymentManager:
                     pass
 
                 # If which command returns nothing, uv is not installed
-                if not check_uv.combined:
+                if not check_uv or not check_uv.combined:
                     output = self.host_run(
                         ["pip", "install", "uv"],
                         bench_directory,
@@ -1267,6 +1268,7 @@ class DeploymentManager:
 
         if self.config.uv:
             # First check if uv is already installed
+            check_uv = None
             try:
                 check_uv = self.host_run(
                     ["which", "uv"],
@@ -1278,8 +1280,8 @@ class DeploymentManager:
             except DockerException:
                 pass
 
-            # Only install uv if it's not already installed
-            if not check_uv.combined:
+            # If which command returns nothing, uv is not installed
+            if not check_uv or not check_uv.combined:
                 output = self.host_run(
                     ["pip", "install", "uv"],
                     bench_directory,
