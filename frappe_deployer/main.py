@@ -1,12 +1,12 @@
 import atexit
 import re
 import sys
-from pathlib import Path
 
 from frappe_manager.display_manager.DisplayManager import richprint
 from frappe_manager.logger import log
 from frappe_manager.utils.docker import process_opened
 from frappe_manager.utils.helpers import (
+    rich_object_to_string,
     remove_zombie_subprocess_process,
 )
 from rich.traceback import Traceback
