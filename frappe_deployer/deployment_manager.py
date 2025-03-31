@@ -911,7 +911,7 @@ class DeploymentManager:
 
         if encryption_key:
             current_site_config_path = self.current.sites / self.site_name / 'site_config.json'
-            update_json_keys_in_file_path(current_site_config_path,{"encryption_key": encryption_key, "backup_encryption_key": encryption_key})
+            update_json_keys_in_file_path(current_site_config_path,{"backup_encryption_key": encryption_key})
             self.printer.print(f"Copyied ncryption_key from {from_bench_name}")
 
 
