@@ -310,12 +310,12 @@ class DeploymentManager:
             raise e
 
     def bench_db_and_configs_backup(self):
-        self.printer.change_head("Backing up db, common_site_config and site_config.json")
-
-        (self.backup.sites/ self.site_name).mkdir(exist_ok=True,parents=True)
-        shutil.copyfile(self.current.common_site_config, self.backup.common_site_config)
-        self.bench_backup(self.site_name)
-        self.printer.print("Backed up db, common_site_config and site_config.json")
+        if self.config.backups:
+            self.printer.change_head("Backing up db, common_site_config and site_config.json")
+            (self.backup.sites/ self.site_name).mkdir(exist_ok=True,parents=True)
+            shutil.copyfile(self.current.common_site_config, self.backup.common_site_config)
+            self.bench_backup(self.site_name)
+            self.printer.print("Backed up db, common_site_config and site_config.json")
 
     def create_new_release(self):
         if not self.bench_path.is_symlink():
