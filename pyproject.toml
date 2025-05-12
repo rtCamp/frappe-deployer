@@ -11,8 +11,7 @@ frappe-deployer = "frappe_deployer.main:cli_entrypoint"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-#frappe-manager = { git = "https://github.com/rtcamp/frappe-manager.git", branch = "patch/16-0-1" }
-frappe-manager = { git = "https://github.com/rtcamp/frappe-manager.git", branch = "feat/v17" }
+frappe-manager = { git = "https://github.com/rtcamp/frappe-manager.git", branch = "develop" }
 gitpython = "^3.1.43"
 typer = {version = "^0.9.0", extras = ["all"]}
 toml = "^0.10.2"
