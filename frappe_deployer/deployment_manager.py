@@ -95,7 +95,7 @@ class DeploymentManager:
                 "install",
                 "--python",
                 f"{str(venv_path)}/bin/python",
-                "git+https://github.com/frappe/bench.git@v5.24.1",
+                "git+https://github.com/frappe/bench.git",
                 "git+https://github.com/frappe/frappe.git"
             ]
 
