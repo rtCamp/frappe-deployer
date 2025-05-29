@@ -63,6 +63,7 @@ class DeploymentManager:
         self.path = config.deploy_dir_path
         self.printer = richprint
         self.bench_cli = "bench"
+        self.fm_helper_cli = "/opt/user/.bin/fm-helper"
 
         self.current = BenchDirectory(config.bench_path)
 
@@ -1510,14 +1511,15 @@ class DeploymentManager:
         start_time = time.time()
 
         if self.mode == "fm":
-            from frappe_manager.commands import app
-            try:
-                app(['restart', self.site_name])
-            except SystemExit:
-                pass
+            restart_cmd = [self.fm_helper_cli, "restart"]
+            self.host_run(
+                restart_cmd,
+                bench_directory,
+                container=True,
+                capture_output=False,
+            )
         else:
-            services_to_restart = ['workers', 'redis', 'web']
-
+            services_to_restart = ['workers', 'web']
             for service in services_to_restart:
                 command = ["sudo", "supervisorctl", "restart", f"frappe-bench-{service}:"]
                 self.host_run(
