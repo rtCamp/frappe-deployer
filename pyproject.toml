@@ -1,10 +1,9 @@
 [tool.poetry]
 name = "frappe-deployer"
-version = "0.8.1"
+version = "0.8.2"
 description = "Automates setup and management of Frappe/Frappe-Manager environments using flags or config file."
 authors = ["Alok Singh <alokmilenium@gmail.com>"]
 license = "MIT"
-#readme = "readme.org"
 
 [tool.poetry.scripts]
 frappe-deployer = "frappe_deployer.main:cli_entrypoint"
