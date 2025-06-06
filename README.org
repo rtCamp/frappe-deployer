@@ -37,6 +37,17 @@ This tool replaces your current frappe_manager installation with specified confi
 
 ** Commands
 
+*** configure
+Sets up initial deployment configuration by moving existing bench to data directory structure.
+
+#+begin_src bash
+# Basic configuration with TOML file
+frappe-deployer configure my-site-name --config-path ./config.toml
+
+# Configure with CLI options
+frappe-deployer configure my-site-name --mode fm --backups
+#+end_src
+
 *** pull
 The main command for deploying and configuring Frappe applications.
 Pulls and deploys Frappe applications based on configuration.
@@ -56,10 +67,63 @@ frappe-deployer pull my-site-name --mode host --host-bench-path /path/to/bench
 
 # FM mode with database restore
 frappe-deployer pull my-site-name --mode fm --fm-restore-db-from-site source-site
+
+# Using config content directly
+frappe-deployer pull my-site-name --config-content 'site_name="test"\nmode="fm"\n[[apps]]\nrepo="frappe/frappe"'
+#+end_src
+
+*** enable-maintenance / disable-maintenance
+Enable or disable maintenance mode for a specific site.
+
+#+begin_src bash
+# Enable maintenance mode
+frappe-deployer enable-maintenance my-site-name
+
+# Disable maintenance mode  
+frappe-deployer disable-maintenance my-site-name
+#+end_src
+
+*** search-replace
+Search and replace text across all text fields in the Frappe database.
+
+#+begin_src bash
+# Perform search and replace
+frappe-deployer search-replace my-site-name "old-domain.com" "new-domain.com"
+
+# Dry run to see what would be changed
+frappe-deployer search-replace my-site-name "old-text" "new-text" --dry-run
+#+end_src
+
+*** cleanup
+Cleanup deployment backups, releases and cache directories.
+
+#+begin_src bash
+# Interactive cleanup with size calculation
+frappe-deployer cleanup my-site-name --show-sizes
+
+# Keep 2 backups and 3 releases, auto-approve all
+frappe-deployer cleanup my-site-name --backup-retain-limit 2 --release-retain-limit 3 --yes
+
+# Remove all backups and releases except current
+frappe-deployer cleanup my-site-name --backup-retain-limit 0 --release-retain-limit 0
+#+end_src
+
+*** remote-worker
+Manage remote worker functionality for distributed deployments.
+
+#+begin_src bash
+# Enable remote worker
+frappe-deployer remote-worker enable my-site-name --server 192.168.1.100 --ssh-user frappe
+
+# Sync workspace to remote worker
+frappe-deployer remote-worker sync my-site-name --server 192.168.1.100 --include-dir custom_apps
+
+# Using config file
+frappe-deployer remote-worker sync my-site-name --config-path ./config.toml
 #+end_src
 
 ** Configuration File (TOML)
-Example configuration file:
+Example configuration file with all available options:
 
 #+begin_src toml
 site_name = "my-site"
@@ -72,7 +136,31 @@ rollback = true
 maintenance_mode = true
 run_bench_migrate = true
 backups = true
+configure = false
 verbose = false
+uv = true
+search_replace = true
+
+# Custom scripts (shell scripts as strings)
+host_pre_script = '''
+echo "Running pre-deployment checks..."
+# Your custom host commands here
+'''
+
+host_post_script = '''
+echo "Post-deployment cleanup..."
+# Your custom host commands here
+'''
+
+fm_pre_script = '''
+echo "FM pre-deployment setup..."
+# Your custom FM container commands here
+'''
+
+fm_post_script = '''
+echo "FM post-deployment tasks..."
+# Your custom FM container commands here
+'''
 
 # App configurations
 [[apps]]
@@ -90,23 +178,181 @@ bench_path = "/path/to/bench"
 # FM mode specific settings
 [fm]
 restore_db_from_site = "source-site"
+
+# Remote worker configuration
+[remote_worker]
+server = "192.168.1.100"
+ssh_user = "frappe"
+ssh_port = 22
+workspace_path = "/home/frappe/workspace"
+include_dirs = ["custom_apps", "private_files"]
+include_files = ["special_config.json"]
 #+end_src
+
+** Advanced Features
+
+*** Custom Script Execution
+Execute custom shell scripts at different stages of deployment:
+
+- *host_pre_script*: Runs on host before bench migrate
+- *host_post_script*: Runs on host after bench migrate  
+- *fm_pre_script*: Runs in FM container before bench migrate
+- *fm_post_script*: Runs in FM container after bench migrate
+
+Scripts have access to environment variables with all config values and computed properties like SITE_NAME, BENCH_PATH, MODE, etc.
+
+*** Remote Worker Support
+Distribute Frappe workers across multiple servers:
+
+- Sync workspace to remote servers via rsync over SSH
+- Automatically configure remote worker settings
+- Include/exclude specific directories and files
+- Manage worker-specific configurations
+
+*** Maintenance Mode
+Built-in maintenance mode with developer bypass:
+
+- Automatically generates bypass tokens for developers
+- Nginx configuration for maintenance pages
+- Easy enable/disable commands
+
+*** Database Operations
+Advanced database management:
+
+- Search and replace across all text fields
+- Backup and restore with compression
+- Cross-site database migration
+- Encryption key synchronization
+
+*** Cleanup and Retention
+Intelligent cleanup of old releases and backups:
+
+- Configurable retention limits
+- Size calculation for storage planning
+- Interactive selection of items to delete
+- Protection of current releases
 
 ** Features
 - Supports both host and Frappe Manager (FM) deployment modes
-- Flexible configuration through TOML files and CLI options
+- Flexible configuration through TOML files, CLI options, and direct content
 - GitHub integration with token support for private repositories
-- Backup management
-- Release management with retention policies
-- Python environment management
-- Database migration handling
-- Maintenance mode support
-- Verbose logging options
-- UV package manager support (alternative to pip)
+- Comprehensive backup and restore management with compression
+- Release management with configurable retention policies
+- Database migration between sites with search/replace functionality
+- Python environment management with UV package manager support
+- Custom script execution at multiple deployment stages
+- Maintenance mode with developer bypass tokens
+- Remote worker distribution and synchronization
+- Interactive cleanup with size calculation and selective deletion
+- Search and replace across all database text fields
+- Rollback functionality for failed deployments
+- Rich console output with progress indicators and timing information
+- Environment variable injection for custom scripts
+- Cross-platform support (Linux, macOS with platform-specific optimizations)
 
 ** Common Use Cases
 
 *** Example Usage
+
+**** Initial Setup (First Time)
+#+begin_src bash
+# Configure a new site for deployment
+frappe-deployer configure my-site-name \
+  --mode fm \
+  --backups
+
+# Then pull with your apps
+frappe-deployer pull my-site-name \
+  -a frappe/frappe:version-14 \
+  -a frappe/erpnext:version-14 \
+  --maintenance-mode \
+  --verbose
+#+end_src
+
+**** Production Deployment with Scripts
+#+begin_src bash
+# Create config file with custom scripts
+cat > deploy-config.toml << EOF
+site_name = "production-site"
+mode = "fm"
+maintenance_mode = true
+rollback = true
+verbose = true
+
+host_pre_script = '''
+echo "Notifying team of deployment..."
+curl -X POST "https://hooks.slack.com/..." -d '{"text":"Deployment starting"}'
+'''
+
+host_post_script = '''
+echo "Running post-deployment tests..."
+curl -f http://production-site/api/method/ping || exit 1
+'''
+
+[[apps]]
+repo = "frappe/frappe"
+ref = "version-15"
+
+[[apps]]
+repo = "mycompany/custom_app"
+ref = "production"
+EOF
+
+# Deploy with config file
+frappe-deployer pull production-site --config-path deploy-config.toml
+#+end_src
+
+**** Database Migration Between Sites
+#+begin_src bash
+# Migrate database from staging to production
+frappe-deployer pull production-site \
+  --config-path ./config.toml \
+  --fm-restore-db-from-site staging-site \
+  --search-replace \
+  --maintenance-mode
+#+end_src
+
+**** Remote Worker Setup
+#+begin_src bash
+# Setup remote workers for scaling
+frappe-deployer remote-worker enable my-site-name \
+  --server worker1.example.com \
+  --ssh-user frappe \
+  --force
+
+# Sync workspace to remote worker
+frappe-deployer remote-worker sync my-site-name \
+  --server worker1.example.com \
+  --include-dir custom_integrations \
+  --include-file worker_config.json
+#+end_src
+
+**** Cleanup and Maintenance
+#+begin_src bash
+# Regular cleanup - keep 3 releases and 5 backups
+frappe-deployer cleanup my-site-name \
+  --release-retain-limit 3 \
+  --backup-retain-limit 5 \
+  --show-sizes
+
+# Emergency cleanup - remove everything except current
+frappe-deployer cleanup my-site-name \
+  --release-retain-limit 0 \
+  --backup-retain-limit 0 \
+  --yes
+#+end_src
+
+**** Search and Replace Operations
+#+begin_src bash
+# Change domain across entire database
+frappe-deployer search-replace my-site-name \
+  "old-domain.com" "new-domain.com"
+
+# Update API endpoints (dry run first)
+frappe-deployer search-replace my-site-name \
+  "https://api.old.com" "https://api.new.com" \
+  --dry-run
+#+end_src
 
 **** Using Configuration File
 #+begin_src bash
