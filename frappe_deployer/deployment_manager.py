@@ -1423,7 +1423,27 @@ class DeploymentManager:
 
         for app in apps:
             self.printer.change_head(f"Building app {app.name}")
-            build_cmd = [self.bench_cli, "build","--app", app.name]
+            
+            # Find corresponding AppConfig for the app to check for pre/post build commands
+            app_config = None
+            for config in self.apps:
+                app_name = bench_directory.get_app_python_module_name(bench_directory.apps / config.dir_name)
+                if app_name == app.name:
+                    app_config = config
+                    break
+            
+            # Run pre-build command if configured and in FM mode
+            if self.mode == "fm" and app_config and app_config.fm_pre_build:
+                self.printer.print(f"Running pre-build command for {app.name}")
+                self.host_run(
+                    ["/bin/bash", "-c", app_config.fm_pre_build],
+                    bench_directory,
+                    container=True,
+                    capture_output=False,
+                )
+            
+            # Run the regular build command
+            build_cmd = [self.bench_cli, "build", "--app", app.name]
             self.host_run(
                 build_cmd,
                 bench_directory,
@@ -1431,8 +1451,20 @@ class DeploymentManager:
                 container=self.mode == "fm",
                 capture_output=False,
             )
-            self.printer.print(f"Builded app {app.name}")
-        self.printer.print("Builded all apps")
+            
+            # Run post-build command if configured and in FM mode
+            if self.mode == "fm" and app_config and app_config.fm_post_build:
+                self.printer.print(f"Running post-build command for {app.name}")
+                self.host_run(
+                    ["/bin/bash", "-c", app_config.fm_post_build],
+                    bench_directory,
+                    container=True,
+                    capture_output=False,
+                )
+            
+            self.printer.print(f"Built app {app.name}")
+        
+        self.printer.print("Built all apps")
 
     def search_and_replace_in_database(
         self,
