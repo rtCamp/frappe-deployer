@@ -1435,11 +1435,11 @@ class DeploymentManager:
             # Run pre-build command if configured and in FM mode
             if self.mode == "fm" and app_config and app_config.fm_pre_build:
                 self.printer.print(f"Running pre-build command for {app.name}")
-                self.host_run(
-                    ["/bin/bash", "-c", app_config.fm_pre_build],
+                self._run_script(
+                    app_config.fm_pre_build,
                     bench_directory,
-                    container=True,
-                    capture_output=False,
+                    f"pre-build script for {app.name}",
+                    container=True
                 )
             
             # Run the regular build command
@@ -1455,11 +1455,11 @@ class DeploymentManager:
             # Run post-build command if configured and in FM mode
             if self.mode == "fm" and app_config and app_config.fm_post_build:
                 self.printer.print(f"Running post-build command for {app.name}")
-                self.host_run(
-                    ["/bin/bash", "-c", app_config.fm_post_build],
+                self._run_script(
+                    app_config.fm_post_build,
                     bench_directory,
-                    container=True,
-                    capture_output=False,
+                    f"post-build script for {app.name}",
+                    container=True
                 )
             
             self.printer.print(f"Built app {app.name}")
