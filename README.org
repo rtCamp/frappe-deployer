@@ -166,6 +166,8 @@ echo "FM post-deployment tasks..."
 [[apps]]
 repo = "frappe/frappe"
 ref = "version-14"
+fm_pre_build = "echo 'Running pre-build commands for frappe'"  # Commands to run before building the app
+fm_post_build = "echo 'Running post-build commands for frappe'"  # Commands to run after building the app
 
 [[apps]]
 repo = "frappe/erpnext"
@@ -198,6 +200,8 @@ Execute custom shell scripts at different stages of deployment:
 - *host_post_script*: Runs on host after bench migrate  
 - *fm_pre_script*: Runs in FM container before bench migrate
 - *fm_post_script*: Runs in FM container after bench migrate
+- *fm_pre_build*: Runs in FM container before building each app (specified per app). Use this to perform app-specific setup before build.
+- *fm_post_build*: Runs in FM container after building each app (specified per app). Use this for post-build tasks like asset compilation or custom optimizations.
 
 Scripts have access to environment variables with all config values and computed properties like SITE_NAME, BENCH_PATH, MODE, etc.
 
