@@ -16,14 +16,22 @@ class AppConfig(BaseModel):
     is_ref_commit: bool = Field(False)
     exists: bool = Field(False)
     remove_remote: bool = Field(False)
+    fm_pre_build: Optional[str] = Field(None, description="Command to run before build in FM mode")
+    fm_post_build: Optional[str] = Field(None, description="Command to run after build in FM mode")
 
     @property
     def dir_name(self):
         return self.repo.split('/')[-1]
 
-    def configure_app(self, token: Optional[str] = None, remove_remote: bool = False):
+    def configure_app(self, token: Optional[str] = None, remove_remote: bool = False, fm_pre_build: Optional[str] = None, fm_post_build: Optional[str] = None):
         self.is_ref_commit = is_ref_commit(self.ref)
         self.remove_remote = remove_remote
+        
+        # Set build commands if provided
+        if fm_pre_build:
+            self.fm_pre_build = fm_pre_build
+        if fm_post_build:
+            self.fm_post_build = fm_post_build
 
         if not self.repo_url:
             try:

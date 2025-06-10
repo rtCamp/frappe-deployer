@@ -1,13 +1,8 @@
-import tempfile
-from pathlib import Path
+import gzip
 import shutil
 import time
-import gzip
+from pathlib import Path
 from typing import Iterable, Literal, Optional, Tuple, Union
-from pydantic import BaseModel
-from frappe_deployer.config.app import AppConfig
-from frappe_deployer.config.fm import FMConfig
-from frappe_deployer.config.host import HostConfig
 
 from frappe_manager import CLI_DIR
 from frappe_manager.compose_manager.ComposeFile import ComposeFile
@@ -26,11 +21,14 @@ from frappe_manager.utils.docker import (
     SubprocessOutput,
     run_command_with_exit_code,
 )
-from frappe_deployer.ssh import ssh_run
 from frappe_manager.utils.helpers import json
+from pydantic import BaseModel
 from rich.rule import Rule
+
 from frappe_deployer.config.app import AppConfig
 from frappe_deployer.config.config import Config
+from frappe_deployer.config.fm import FMConfig
+from frappe_deployer.config.host import HostConfig
 from frappe_deployer.consts import (
     BACKUP_DIR_NAME,
     DATA_DIR_NAME,
@@ -45,6 +43,7 @@ from frappe_deployer.helpers import (
     update_json_keys_in_file_path,
 )
 from frappe_deployer.release_directory import BenchDirectory
+
 
 class DeploymentManager:
     apps: list[AppConfig]
@@ -509,6 +508,7 @@ class DeploymentManager:
     def get_dir_size(self, path: Path) -> str:
         """Calculate directory size and return human readable format."""
         import os
+
         from rich.progress import Progress, SpinnerColumn, TextColumn
         
         total_size = 0
@@ -559,8 +559,8 @@ class DeploymentManager:
         show_sizes : bool
             Whether to calculate and show directory sizes (can be slow for large directories)
         """
-        from rich.prompt import Confirm, Prompt
         from rich.console import Console
+        from rich.prompt import Confirm, Prompt
         from rich.table import Table
         
         console = Console()
@@ -625,7 +625,7 @@ class DeploymentManager:
             console.print(f"\n[blue]Cache directory {cache_dir} doesn't exist - already clean[/blue]")
         else:
             size = self.get_dir_size(cache_dir)
-            console.print(f"\n[yellow]Cache directory available for cleanup:[/yellow]")
+            console.print("\n[yellow]Cache directory available for cleanup:[/yellow]")
             size_info = f" ([green]{self.get_dir_size(cache_dir)}[/green])" if show_sizes else ""
             console.print(f"[magenta]{cache_dir.name}[/magenta]{size_info} - [blue]{cache_dir.absolute()}[/blue]")
             try:
@@ -641,7 +641,7 @@ class DeploymentManager:
             console.print("\n[blue]Previous bench directory doesn't exist - already clean[/blue]")
         else:
             size = self.get_dir_size(prev_bench)
-            console.print(f"\n[yellow]Previous bench directory available for cleanup:[/yellow]")
+            console.print("\n[yellow]Previous bench directory available for cleanup:[/yellow]")
             size_info = f" ([green]{self.get_dir_size(prev_bench)}[/green])" if show_sizes else ""
             console.print(f"[magenta]{prev_bench.name}[/magenta]{size_info} - [blue]{prev_bench.absolute()}[/blue]")
             try:
@@ -858,7 +858,7 @@ class DeploymentManager:
                 if host_backup_db_path.exists():
                     host_backup_db_path.unlink()
 
-            self.printer.print(f"DB has been compressed.")
+            self.printer.print("DB has been compressed.")
 
         return host_backup_db_path
 
@@ -949,7 +949,7 @@ class DeploymentManager:
             )
             self.printer.print(f"{' '.join(command)} done")
 
-    def get_script_env(self) -> dict[str, str]:
+    def get_script_env(self, app_name: Optional[str] = None) -> dict[str, str]:
         """Get environment variables for scripts with config values"""
         env = {}
 
@@ -961,6 +961,14 @@ class DeploymentManager:
             "DEPLOY_PATH": str(self.config.deploy_dir_path),
             "APPS": ",".join(d.name for d in self.current.apps.iterdir() if d.is_dir())
         }
+        
+        # Add app-specific environment variables if an app name is provided
+        if app_name:
+            computed_props.update({
+                "APP_NAME": app_name,
+                "APP_PATH": f"/workspace/{self.bench_path.name}/apps/{app_name}" if self.mode == "fm" else str(self.bench_path / "apps" / app_name)
+            })
+            
         env.update(computed_props)
 
         # Get all fields from Config class
@@ -994,7 +1002,8 @@ class DeploymentManager:
         return env
 
     def _run_script(self, script_content: str, bench_directory: BenchDirectory, 
-                   script_type: str, container: bool = False) -> None:
+                   script_type: str, container: bool = False, app_name: Optional[str] = None, 
+                   custom_workdir: Optional[str] = None) -> None:
         """Execute a shell script with proper setup and cleanup."""
         self.printer.change_head(f"Running {script_type}")
         
@@ -1017,13 +1026,21 @@ class DeploymentManager:
             # Adjust script path for container execution
             if container:
                 container_script_path = f"/workspace/deployment_tmp/{script_name}"
-                workdir = f"/workspace/deployment_tmp"
+                # Use custom workdir if provided
+                if custom_workdir:
+                    workdir = custom_workdir
+                else:
+                    workdir = "/workspace/deployment_tmp"
             else:
                 container_script_path = str(script_path)
-                workdir = str(script_dir)
+                # Use custom workdir if provided
+                if custom_workdir:
+                    workdir = custom_workdir
+                else:
+                    workdir = str(script_dir)
             
-            # Get script environment variables
-            script_env = self.get_script_env()
+            # Get script environment variables with optional app name
+            script_env = self.get_script_env(app_name)
             
             # Execute script using bash explicitly
             output = self.host_run(
@@ -1423,7 +1440,34 @@ class DeploymentManager:
 
         for app in apps:
             self.printer.change_head(f"Building app {app.name}")
-            build_cmd = [self.bench_cli, "build","--app", app.name]
+            
+            # Find corresponding AppConfig for the app to check for pre/post build commands
+            app_config = None
+            for config in self.apps:
+                app_name = bench_directory.get_app_python_module_name(bench_directory.apps / config.dir_name)
+                if app_name == app.name:
+                    app_config = config
+                    break
+            
+            # Define app directory path for container
+            app_dir_path = f"/workspace/{bench_directory.path.name}/apps/{app.name}"
+            
+            # Run pre-build command if configured and in FM mode
+            if self.mode == "fm" and app_config and app_config.fm_pre_build:
+                self.printer.print(f"Running pre-build command for {app.name} in app directory")
+                
+                # Use _run_script method which handles script execution properly
+                self._run_script(
+                    app_config.fm_pre_build,
+                    bench_directory,
+                    f"pre-build script for {app.name}",
+                    container=True,
+                    app_name=app.name,
+                    custom_workdir=app_dir_path
+                )
+            
+            # Run the regular build command
+            build_cmd = [self.bench_cli, "build", "--app", app.name]
             self.host_run(
                 build_cmd,
                 bench_directory,
@@ -1431,8 +1475,24 @@ class DeploymentManager:
                 container=self.mode == "fm",
                 capture_output=False,
             )
-            self.printer.print(f"Builded app {app.name}")
-        self.printer.print("Builded all apps")
+            
+            # Run post-build command if configured and in FM mode
+            if self.mode == "fm" and app_config and app_config.fm_post_build:
+                self.printer.print(f"Running post-build command for {app.name} in app directory")
+                
+                # Use _run_script method which handles script execution properly
+                self._run_script(
+                    app_config.fm_post_build,
+                    bench_directory,
+                    f"post-build script for {app.name}",
+                    container=True,
+                    app_name=app.name,
+                    custom_workdir=app_dir_path
+                )
+            
+            self.printer.print(f"Built app {app.name}")
+        
+        self.printer.print("Built all apps")
 
     def search_and_replace_in_database(
         self,
@@ -1548,7 +1608,7 @@ class DeploymentManager:
                 container=self.mode == "fm",
                 capture_output=True,
             )
-        except DockerException as e:
+        except DockerException:
             self.printer.warning(
                 f"Not able to get current list of apps installed in {self.site_name}"
             )

@@ -83,6 +83,8 @@ class Config(BaseModel):
     host_post_script: Optional[str] = Field(None, description="Script to run after bench migrate in host mode") 
     fm_pre_script: Optional[str] = Field(None, description="Script to run before bench migrate in FM mode")
     fm_post_script: Optional[str] = Field(None, description="Script to run after bench migrate in FM mode")
+    fm_pre_build: Optional[str] = Field(None, description="Script to run before building each app in FM mode")
+    fm_post_build: Optional[str] = Field(None, description="Script to run after building each app in FM mode")
     host: Optional[HostConfig] = Field(None, description="Host configuration.")
     fm: Optional[FMConfig] = Field(None, description="FM configuration.")
     remote_worker: Optional[RemoteWorkerConfig] = Field(None, description="Remote worker configuration.")
@@ -130,7 +132,13 @@ class Config(BaseModel):
         app: AppConfig
 
         for app in config.apps:
-            app.configure_app(token=config.github_token, remove_remote=config.remove_remote)
+            # Pass GitHub token and remote removal setting
+            app.configure_app(
+                token=config.github_token, 
+                remove_remote=config.remove_remote,
+                fm_pre_build=app.fm_pre_build or config.fm_pre_build,
+                fm_post_build=app.fm_post_build or config.fm_post_build
+            )
 
         all_apps_exists = True
 
