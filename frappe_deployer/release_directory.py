@@ -81,16 +81,16 @@ class BenchDirectory:
             depth = None
 
         if not app.is_ref_commit:
-            cloned_repo = git.Repo.clone_from(app.repo_url, clone_path, depth=depth, origin='upstream', branch=app.ref)
+            cloned_repo = git.Repo.clone_from(app.repo_url, clone_path, depth=depth, origin=app.remote_name, branch=app.ref)
         else:
-            cloned_repo = git.Repo.clone_from(app.repo_url, clone_path, depth=depth, origin='upstream')
+            cloned_repo = git.Repo.clone_from(app.repo_url, clone_path, depth=depth, origin=app.remote_name)
             if app.shallow_clone:
-                cloned_repo.git.fetch('--depth', '1', 'upstream', app.ref)
+                cloned_repo.git.fetch('--depth', '1', app.remote_name, app.ref)
 
             cloned_repo.git.checkout(app.ref)
 
         if app.remove_remote:
-            cloned_repo.delete_remote(cloned_repo.remote('upstream'))
+            cloned_repo.delete_remote(cloned_repo.remote(app.remote_name))
 
     def maintenance_mode(self, site_name: str, value: bool = True):
         site_config = self.sites / site_name  / 'site_config.json'
