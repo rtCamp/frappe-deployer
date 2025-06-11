@@ -220,6 +220,10 @@ def pull(
     restore_db_file_path: Annotated[
         Optional[Path], typer.Option(help="Restore db file path", callback=validate_db_file_path, show_default=False)
     ] = None,
+    remote_name: Annotated[
+        Optional[str], 
+        typer.Option("--remote-name", help="Name of the remote to use during cloning (default: upstream)", show_default=False)
+    ] = None,
 ):
     """
     Pulls the current set of frappe apps and setup new release based on provided config file/flags.

@@ -63,6 +63,7 @@ class Config(BaseModel):
     site_name: str = Field(..., description="The name of the site.")
     github_token: Optional[str] = Field(None, description="The GitHub personal access token.")
     remove_remote: Optional[bool] = Field(True, description="Flag to remove the remote to cloned apps.")
+    remote_name: Optional[str] = Field("upstream", description="Name of the remote to use during cloning")
     apps: List[AppConfig] = Field(..., description="List of application configurations.")
     python_version: Optional[str] = Field(None, description="Python Version to for venv creation.")
     run_bench_migrate: bool = Field(True, description="Flag to run bench migrate.")
@@ -136,6 +137,7 @@ class Config(BaseModel):
             app.configure_app(
                 token=config.github_token, 
                 remove_remote=config.remove_remote,
+                remote_name=config.remote_name,
                 fm_pre_build=app.fm_pre_build or config.fm_pre_build,
                 fm_post_build=app.fm_post_build or config.fm_post_build
             )

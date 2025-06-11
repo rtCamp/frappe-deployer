@@ -16,6 +16,7 @@ class AppConfig(BaseModel):
     is_ref_commit: bool = Field(False)
     exists: bool = Field(False)
     remove_remote: bool = Field(False)
+    remote_name: str = Field("upstream", description="Name of the remote to use during cloning")
     fm_pre_build: Optional[str] = Field(None, description="Command to run before build in FM mode")
     fm_post_build: Optional[str] = Field(None, description="Command to run after build in FM mode")
 
@@ -23,9 +24,13 @@ class AppConfig(BaseModel):
     def dir_name(self):
         return self.repo.split('/')[-1]
 
-    def configure_app(self, token: Optional[str] = None, remove_remote: bool = False, fm_pre_build: Optional[str] = None, fm_post_build: Optional[str] = None):
+    def configure_app(self, token: Optional[str] = None, remove_remote: bool = False, remote_name: Optional[str] = None, fm_pre_build: Optional[str] = None, fm_post_build: Optional[str] = None):
         self.is_ref_commit = is_ref_commit(self.ref)
         self.remove_remote = remove_remote
+        
+        # Set remote name if provided
+        if remote_name:
+            self.remote_name = remote_name
         
         # Set build commands if provided
         if fm_pre_build:
