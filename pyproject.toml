@@ -11,13 +11,10 @@ fmd = "frappe_deployer.main:cli_entrypoint"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-frappe-manager = { git = "https://github.com/rtcamp/frappe-manager.git", branch = "feat/fmx-cli" }
+frappe-manager = "^0.17.0"
 gitpython = "^3.1.43"
 typer = "^0.15.4"
 toml = "^0.10.2"
-
-[tool.black]
-line-length = 120
 
 [tool.ruff]
 line-length = 120

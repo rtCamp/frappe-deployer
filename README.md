@@ -19,8 +19,8 @@ A powerful CLI tool for managing and deploying Frappe applications with support 
 ## Quick Start
 
 ```bash
-# Install frappe-deployer
-pip install frappe-deployer
+# Install latest frappe-deployer
+pip install git+ssh://git@github.com/rtcamp/frappe-deployer.git@main
 
 # Configure a new site (FM mode)
 frappe-deployer configure my-site-name --mode fm
