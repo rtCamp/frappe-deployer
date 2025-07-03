@@ -1,0 +1,66 @@
+name: 'Frappe Deployer Action'
+description: 'Deploy Frappe applications using frappe-deployer CLI with TOML configuration'
+author: 'rtcamp'
+
+inputs:
+  environment:
+    description: 'Environment name (matches TOML config filename)'
+    required: true
+  ssh_private_key:
+    description: 'SSH private key for deployment'
+    required: true
+  ssh_server:
+    description: 'SSH server hostname/IP'
+    required: true
+  ssh_user:
+    description: 'SSH username'
+    required: true
+    default: 'frappe'
+  github_token:
+    description: 'GitHub token for accessing private repositories'
+    required: true
+  config_path:
+    description: 'Path to deployment config directory'
+    required: false
+    default: '.github/deploy_configs'
+  use_maintenance_mode:
+    description: 'Enable maintenance mode during deployment'
+    required: false
+    default: 'true'
+  use_bench_migrate:
+    description: 'Run bench migrate after deployment'
+    required: false
+    default: 'true'
+  additional_commands:
+    description: 'Additional CLI flags to append'
+    required: false
+  allowed_users:
+    description: 'Comma-separated list of allowed users (empty = unrestricted)'
+    required: false
+  verbose:
+    description: 'Enable verbose logging'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  env:
+    SSH_PRIVATE_KEY: ${{ inputs.ssh_private_key }}
+    SSH_SERVER: ${{ inputs.ssh_server }}
+    SSH_USER: ${{ inputs.ssh_user }}
+    ENVIRONMENT: ${{ inputs.environment }}
+    FRAPPE_DEPLOYER_COMMAND: >-
+      pull ${{ inputs.environment }}
+      --github-token ${{ inputs.github_token }}
+      --configure
+      ${{ inputs.use_maintenance_mode == 'true' && '--maintenance-mode' || '--no-maintenance-mode' }}
+      ${{ inputs.use_bench_migrate == 'true' && '--run-bench-migrate' || '--no-run-bench-migrate' }}
+      ${{ inputs.verbose == 'true' && '--verbose' || '' }}
+      ${{ inputs.additional_commands }}
+    FRAPPE_DEPLOYER_CONFIG_PATH: ${{ inputs.config_path }}/${{ inputs.environment }}.toml
+    ALLOWED_USERS: ${{ inputs.allowed_users }}
+
+branding:
+  icon: 'upload-cloud'
+  color: 'blue'

@@ -1,0 +1,25 @@
+site_name = "myapp-staging"
+mode = "fm"
+python_version = "3.11"
+maintenance_mode = true
+backups = true
+verbose = true
+releases_retain_limit = 3
+
+[[apps]]
+repo = "frappe/frappe"
+ref = "version-15"
+
+[[apps]]
+repo = "myorg/myapp"
+ref = "develop"
+
+# Optional: Custom scripts
+fm_pre_script = '''
+echo "Starting staging deployment..."
+'''
+
+fm_post_script = '''
+echo "Staging deployment complete!"
+bench clear-cache
+'''

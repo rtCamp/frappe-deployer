@@ -1,0 +1,32 @@
+site_name = "myapp-production"
+mode = "fm" 
+python_version = "3.11"
+maintenance_mode = true
+backups = true
+verbose = false
+releases_retain_limit = 5
+uv = true
+
+[[apps]]
+repo = "frappe/frappe"
+ref = "version-15"
+
+[[apps]]
+repo = "myorg/myapp"
+ref = "main"
+
+# Production-specific settings
+[common_site_config]
+disable_website_cache = false
+enable_scheduler = true
+
+fm_pre_script = '''
+echo "Starting production deployment..."
+echo "Checking system health..."
+'''
+
+fm_post_script = '''
+echo "Production deployment complete!"
+bench clear-cache
+bench clear-website-cache
+'''

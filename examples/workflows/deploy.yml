@@ -1,0 +1,44 @@
+name: Deploy Application
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      use_maintenance_mode:
+        description: 'Enable maintenance mode'
+        type: boolean
+        default: true
+      use_bench_migrate:
+        description: 'Run bench migrate'
+        type: boolean
+        default: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy Application
+        uses: rtcamp/frappe-deployer@v1
+        with:
+          environment: ${{ inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh_server: ${{ secrets.SSH_SERVER }}
+          ssh_user: 'frappe'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          use_maintenance_mode: ${{ inputs.use_maintenance_mode || 'true' }}
+          use_bench_migrate: ${{ inputs.use_bench_migrate || 'true' }}
+          verbose: 'true'
+          allowed_users: 'alice,bob,charlie'  # Optional: restrict who can deploy

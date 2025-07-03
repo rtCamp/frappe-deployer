@@ -1,0 +1,25 @@
+name: Test Docker Build
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build Docker image
+        run: |
+          docker build -t frappe-deployer-test .
+      
+      - name: Test binary creation
+        run: |
+          docker run --rm frappe-deployer-test ls -la /frappe-deployer/dist/
+      
+      - name: Test binary execution
+        run: |
+          docker run --rm frappe-deployer-test /frappe-deployer/dist/frappe-deployer --version

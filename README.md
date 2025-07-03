@@ -269,6 +269,161 @@ ssh_port = 22
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
+## GitHub Action Usage
+
+You can use frappe-deployer as a reusable GitHub Action in your repositories.
+
+### Setup
+
+1. **Add your deployment configuration** to your repository:
+   ```
+   your-repo/
+   ├── .github/
+   │   ├── workflows/
+   │   │   └── deploy.yml
+   │   └── deploy_configs/
+   │       ├── staging.toml
+   │       └── production.toml
+   ```
+
+2. **Create a workflow file** (e.g., `.github/workflows/deploy.yml`):
+   ```yaml
+   name: Deploy Application
+   
+   on:
+     push:
+       branches: [main]
+     workflow_dispatch:
+       inputs:
+         environment:
+           description: 'Environment to deploy'
+           required: true
+           default: 'staging'
+           type: choice
+           options:
+             - staging
+             - production
+         use_maintenance_mode:
+           description: 'Enable maintenance mode'
+           type: boolean
+           default: true
+         use_bench_migrate:
+           description: 'Run bench migrate'
+           type: boolean
+           default: true
+   
+   jobs:
+     deploy:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v4
+         
+         - name: Deploy with frappe-deployer
+           uses: rtcamp/frappe-deployer@v1  # Use specific version tag
+           with:
+             environment: ${{ inputs.environment || 'staging' }}
+             ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+             ssh_server: ${{ secrets.SSH_SERVER }}
+             ssh_user: ${{ secrets.SSH_USER }}
+             github_token: ${{ secrets.GITHUB_TOKEN }}
+             use_maintenance_mode: ${{ inputs.use_maintenance_mode || 'true' }}
+             use_bench_migrate: ${{ inputs.use_bench_migrate || 'true' }}
+             verbose: 'true'
+   ```
+
+### Action Inputs
+
+| Input | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `environment` | Environment name (matches TOML config filename) | Yes | - |
+| `ssh_private_key` | SSH private key for deployment | Yes | - |
+| `ssh_server` | SSH server hostname/IP | Yes | - |
+| `ssh_user` | SSH username | No | `frappe` |
+| `github_token` | GitHub token for private repos | Yes | - |
+| `config_path` | Path to config directory | No | `.github/deploy_configs` |
+| `use_maintenance_mode` | Enable maintenance mode | No | `true` |
+| `use_bench_migrate` | Run bench migrate | No | `true` |
+| `additional_commands` | Additional CLI flags | No | - |
+| `allowed_users` | Comma-separated allowed users | No | - |
+| `verbose` | Enable verbose logging | No | `false` |
+
+### Required Secrets
+
+Configure these secrets in your repository settings:
+
+- `SSH_PRIVATE_KEY` - SSH private key for server access
+- `SSH_SERVER` - Target server hostname/IP  
+- `SSH_USER` - SSH username (or use `ssh_user` input)
+- `GITHUB_TOKEN` - For accessing private repositories
+
+### Example Configurations
+
+**staging.toml**:
+```toml
+site_name = "myapp-staging"
+mode = "fm"
+python_version = "3.11"
+maintenance_mode = true
+backups = true
+verbose = true
+
+[[apps]]
+repo = "frappe/frappe"
+ref = "version-15"
+
+[[apps]]
+repo = "myorg/myapp"
+ref = "develop"
+```
+
+**production.toml**:
+```toml
+site_name = "myapp-production"  
+mode = "fm"
+python_version = "3.11"
+maintenance_mode = true
+backups = true
+releases_retain_limit = 5
+
+[[apps]]
+repo = "frappe/frappe"
+ref = "version-15"
+
+[[apps]]
+repo = "myorg/myapp"
+ref = "main"
+```
+
+### Migration from Manual Setup
+
+If you're currently copying deployment scripts to each repository, you can migrate by:
+
+1. **Remove copied files** from individual repos:
+   - `.github/deploy/addon.sh`
+   - `.github/deploy/helpers.sh`
+   - `.github/workflows/deploy-common.yml`
+
+2. **Replace with action usage**:
+   ```yaml
+   # Old way - using copied files
+   jobs:
+     deploy:
+       uses: ./.github/workflows/deploy-common.yml
+   
+   # New way - using action
+   jobs:
+     deploy:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v4
+         - uses: rtcamp/frappe-deployer@v1
+           with:
+             environment: 'production'
+             # ... other inputs
+   ```
+
+3. **Keep your TOML configs** - they work the same way
+
 ## License
 
 [License information]
