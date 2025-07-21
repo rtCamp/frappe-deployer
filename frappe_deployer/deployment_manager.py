@@ -45,6 +45,26 @@ from frappe_deployer.helpers import (
 from frappe_deployer.release_directory import BenchDirectory
 
 
+def log_execution_time(method):
+    import functools
+
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        import time
+
+        start_time = time.time()
+        result = method(self, *args, **kwargs)
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        if getattr(self, "config", None) and getattr(self.config, "verbose", False):
+            self.printer.print(
+                f"{method.__name__} Time Taken: {human_readable_time(elapsed_time)}", emoji_code=":robot_face:"
+            )
+        return result
+
+    return wrapper
+
+
 class DeploymentManager:
     apps: list[AppConfig]
     path: Path
@@ -62,7 +82,7 @@ class DeploymentManager:
         self.path = config.deploy_dir_path
         self.printer = richprint
         self.bench_cli = "bench"
-        self.fm_helper_cli = "/opt/user/.bin/fm-helper"
+        self.fmx = "/opt/user/.bin/fmx"
 
         self.current = BenchDirectory(config.bench_path)
 
@@ -82,8 +102,8 @@ class DeploymentManager:
         # Create a virtual environment in ~/.cache/frappe-deployer-venv
         venv_path = Path.home() / ".cache" / "frappe-deployer-venv"
 
-        if self.mode == 'fm':
-            venv_path =  Path("/workspace/.cache/frappe-deployer-venv")
+        if self.mode == "fm":
+            venv_path = Path("/workspace/.cache/frappe-deployer-venv")
 
         # Check if the virtual environment exists
         if not venv_path.exists() or not (venv_path / "bin" / "bench").exists():
@@ -91,20 +111,16 @@ class DeploymentManager:
 
             # Install bench and frappe from given GitHub tags link using uv
             bench_install_command = [
-                "uv", "pip",
+                "uv",
+                "pip",
                 "install",
                 "--python",
                 f"{str(venv_path)}/bin/python",
                 "git+https://github.com/frappe/bench.git",
-                "git+https://github.com/frappe/frappe.git"
+                "git+https://github.com/frappe/frappe.git",
             ]
 
-            self.host_run(
-                bench_install_command,
-                self.current,
-                container=self.mode == "fm",
-                capture_output=False
-            )
+            self.host_run(bench_install_command, self.current, container=self.mode == "fm", capture_output=False)
 
         # Use this bench from this venv in subsequent runs
         self.bench_cli = str((venv_path / "bin" / "bench").absolute())
@@ -151,27 +167,19 @@ class DeploymentManager:
 
         # common_site_config.json
         if not self.data.common_site_config.exists():
-            raise RuntimeError(
-                f"{self.data.common_site_config.absolute()} doesn't exist. Please Check"
-            )
+            raise RuntimeError(f"{self.data.common_site_config.absolute()} doesn't exist. Please Check")
 
         self.new.common_site_config.symlink_to(
-            get_relative_path(
-                self.new.common_site_config, self.data.common_site_config
-            ),
+            get_relative_path(self.new.common_site_config, self.data.common_site_config),
             True,
         )
         self.printer.print(f"Symlink [blue]{self.new.common_site_config.name}[/blue] ")
 
         # config
         if not self.data.config.exists():
-            raise RuntimeError(
-                f"{self.data.config.absolute()} doesn't exist. Please Check"
-            )
+            raise RuntimeError(f"{self.data.config.absolute()} doesn't exist. Please Check")
 
-        self.new.config.symlink_to(
-            get_relative_path(self.new.config, self.data.config), True
-        )
+        self.new.config.symlink_to(get_relative_path(self.new.config, self.data.config), True)
         self.printer.print(f"Symlink [blue]{self.new.config.name}[/blue] ")
 
         # logs
@@ -183,7 +191,6 @@ class DeploymentManager:
         self.printer.print(f"Symlink [blue]{self.new.logs.name}[/blue] ")
 
     def configure_data_dir(self):
-
         if not self.data.path.exists():
             self.printer.change_head(f"Creating {DATA_DIR_NAME} dir")
             self.data.path.mkdir()
@@ -198,16 +205,12 @@ class DeploymentManager:
 
         # common_site_config.json
         if self.current.common_site_config.exists():
-            self.printer.change_head(
-                "Moving common_site_config.json into data dir"
-            )
+            self.printer.change_head("Moving common_site_config.json into data dir")
             shutil.move(
                 str(self.current.common_site_config.absolute()),
                 str(self.data.common_site_config.absolute()),
             )
-            self.printer.print(
-                "Moved common_site_config.json and created symlink"
-            )
+            self.printer.print("Moved common_site_config.json and created symlink")
 
         # logs
         if self.current.logs.exists():
@@ -227,9 +230,8 @@ class DeploymentManager:
             )
             self.printer.print("Moved logs and created symlink")
 
-
     @staticmethod
-    def configure(config: Config, only_move: bool = False, backups: Optional[bool]=None):
+    def configure(config: Config, only_move: bool = False, backups: Optional[bool] = None):
         if not backups:
             backups = config.backups
 
@@ -241,11 +243,11 @@ class DeploymentManager:
         try:
             if backups:
                 release.printer.change_head("Creating backup")
-                shutil.copytree(config.bench_path, release.backup.path / 'configure' , symlinks=True)
+                shutil.copytree(config.bench_path, release.backup.path / "configure", symlinks=True)
                 release.bench_db_and_configs_backup()
                 release.printer.print("Backup completed")
             else:
-                release.printer.error('Taking backup is disabled.')
+                release.printer.error("Taking backup is disabled.")
 
             release.configure_data_dir()
 
@@ -254,65 +256,54 @@ class DeploymentManager:
 
             release.configure_symlinks()
 
-            # bench
-            release.printer.change_head(
-                "Moving bench directory, creating initial release"
-            )
-            shutil.move(
-                str(release.current.path.absolute()), str(release.new.path.absolute())
-            )
+            release.printer.change_head("Moving bench directory, creating initial release")
+            shutil.move(str(release.current.path.absolute()), str(release.new.path.absolute()))
 
             release.configure_uv(release.new)
             release.bench_setup_requiments(release.new)
-            release.bench_symlink_and_restart(release.new)
-
+            release.bench_symlink(release.new)
+            release.bench_restart(
+                release.new,
+                migrate=release.config.run_bench_migrate,
+                migrate_timeout=release.config.migrate_timeout,
+                wait_workers=release.config.wait_workers,
+                wait_workers_timeout=release.config.wait_workers_timeout,
+            )
             release.bench_build(release.new)
-            release.bench_install_and_migrate(release.current)
+            release.bench_install_apps(release.current)
 
         except Exception as e:
             if backups:
-                release.printer.print(f'Rollback\n{"--"*10} ')
-                release.printer.change_head(
-                    f"Deleting the {release.current.path.name} tangled deployment"
-                )
+                release.printer.print(f"Rollback\n{'--' * 10} ")
+                release.printer.change_head(f"Deleting the {release.current.path.name} tangled deployment")
                 if release.current.path.exists():
                     if release.current.path.is_symlink():
                         release.current.path.unlink()
                     else:
                         shutil.rmtree(release.current.path)
 
-                release.printer.print(
-                    f"Deleted the {release.current.path.name} tangled deployment"
-                )
+                release.printer.print(f"Deleted the {release.current.path.name} tangled deployment")
 
-                release.printer.change_head(
-                    f"Moving backup {release.backup.path.name} to {release.current.path}"
-                )
+                release.printer.change_head(f"Moving backup {release.backup.path.name} to {release.current.path}")
 
                 if release.backup.path.exists():
                     shutil.move(release.backup.path, release.current.path)
 
-                release.printer.print(
-                    f"Moved backup {release.backup.path.name} to {release.current.path}"
-                )
+                release.printer.print(f"Moved backup {release.backup.path.name} to {release.current.path}")
 
-                release.printer.change_head(
-                    f"Deleting the {release.data.path.name} tangled deployment"
-                )
+                release.printer.change_head(f"Deleting the {release.data.path.name} tangled deployment")
 
                 if release.data.path.exists():
-                   shutil.rmtree(release.data.path)
+                    shutil.rmtree(release.data.path)
 
-                release.printer.print(
-                    f"Deleted the {release.data.path.name} tangled deployment"
-                )
+                release.printer.print(f"Deleted the {release.data.path.name} tangled deployment")
 
             raise e
 
     def bench_db_and_configs_backup(self):
         if self.config.backups:
             self.printer.change_head("Backing up db, common_site_config and site_config.json")
-            (self.backup.sites/ self.site_name).mkdir(exist_ok=True,parents=True)
+            (self.backup.sites / self.site_name).mkdir(exist_ok=True, parents=True)
             shutil.copyfile(self.current.common_site_config, self.backup.common_site_config)
             self.bench_backup(self.site_name)
             self.printer.print("Backed up db, common_site_config and site_config.json")
@@ -320,13 +311,11 @@ class DeploymentManager:
     def create_new_release(self):
         if not self.bench_path.is_symlink():
             if not self.config.configure:
-                raise RuntimeError(
-                        "Provided bench is not configured. Please use `configure` subcommand for this."
-                    )
+                raise RuntimeError("Provided bench is not configured. Please use `configure` subcommand for this.")
         else:
             self.config.configure = False
 
-        self.printer.print(f'Bench: {self.config.bench_name} Site: {self.config.site_name}')
+        self.printer.print(f"Bench: {self.config.bench_name} Site: {self.config.site_name}")
 
         # create new release dirs
         self.printer.change_head("Configuring new release dirs")
@@ -338,110 +327,118 @@ class DeploymentManager:
             if self.config.fm.restore_db_from_site:
                 if not self.config.restore_db_file_path:
                     self.config.restore_db_file_path = self.bench_backup(
-                        self.config.fm.restore_db_from_site, using_bench_backup=False,compress=True,sql_delete_after_compress=False
+                        self.config.fm.restore_db_from_site,
+                        using_bench_backup=False,
+                        compress=True,
+                        sql_delete_after_compress=False,
                     )
-                    
+
         for dir in [self.new.path, self.new.apps, self.new.sites]:
             dir.mkdir(exist_ok=True)
             self.printer.print(f"Created dir [blue]{dir.name}[/blue] ")
 
-        self.config.to_toml(self.new.path / f'{self.config.site_name}.toml')
+        self.config.to_toml(self.new.path / f"{self.config.site_name}.toml")
 
         if self.config.configure:
-            if self.config.maintenance_mode:
-                start_time = time.time()
+            # if self.config.maintenance_mode:
+            #     start_time = time.time()
+            #     self.printer.print("Enabled maintenance mode")
+            #     self.current.maintenance_mode(self.site_name, True)
 
-                self.printer.print("Enabled maintenance mode")
-                self.current.maintenance_mode(self.site_name, True)
-
-            DeploymentManager.configure(config=self.config, only_move=True,backups=True)
-
-            self.printer.change_head(
-                "Moving bench directory, creating initial release"
-            )
-
-            shutil.move(
-                str(self.current.path.absolute()), str(self.path / 'prev_frappe_bench')
-            )
-
-            self.bench_path.symlink_to(
-                get_relative_path(self.bench_path, self.new.path), True
-            )
-
+            DeploymentManager.configure(config=self.config, only_move=True, backups=True)
+            self.printer.change_head("Moving bench directory, creating initial release")
+            shutil.move(str(self.current.path.absolute()), str(self.path / "prev_frappe_bench"))
+            self.bench_path.symlink_to(get_relative_path(self.bench_path, self.new.path), True)
 
         self.configure_symlinks()
-
         self.clone_apps(self.new)
-
         self.python_env_create(self.new)
-
         self.bench_setup_requiments(self.new)
         self.bench_build(self.new)
+        self.bench_clear_cache(self.current, True)
 
-        self.bench_clear_cache(self.current,True)
-
-        if self.config.maintenance_mode:
-            start_time = time.time()
-
-            self.printer.print("Enabled maintenance mode")
-            self.current.maintenance_mode(self.site_name, True)
+        # if self.config.maintenance_mode:
+        #     start_time = time.time()
+        #     self.printer.print("Enabled maintenance mode")
+        #     self.current.maintenance_mode(self.site_name, True)
 
         self.sync_configs_with_files(self.config.site_name)
 
         exception = None
 
         try:
-            self.bench_symlink_and_restart(self.new)
-
+            self.bench_symlink(self.new)
             if self.config.restore_db_file_path:
                 self.bench_restore(self.config.restore_db_file_path)
 
                 if self.config.fm:
                     if self.config.fm.restore_db_from_site:
-                        
                         if self.config.search_replace:
                             self.search_and_replace_in_database(self.config.fm.restore_db_from_site, self.site_name)
 
                         if self.config.restore_db_file_path.exists():
                             self.config.restore_db_file_path.unlink()
-                            self.printer.print(f'Deleted temporary exported db file {self.config.restore_db_file_path.name}')
+                            self.printer.print(
+                                f"Deleted temporary exported db file {self.config.restore_db_file_path.name}"
+                            )
 
                 if self.config.fm:
                     if self.config.fm.restore_db_from_site:
-                        self.sync_db_encryption_key_from_site(self.config.fm.restore_db_from_site,self.config.fm.restore_db_from_site)
+                        self.sync_db_encryption_key_from_site(
+                            self.config.fm.restore_db_from_site, self.config.fm.restore_db_from_site
+                        )
 
                 self.site_installed_apps = self.get_site_installed_apps(self.current)
 
-            self.bench_install_and_migrate(self.current)
+            self.bench_restart(
+                self.new,
+                migrate=self.config.run_bench_migrate,
+                migrate_timeout=self.config.migrate_timeout,
+                wait_workers=self.config.wait_workers,
+                wait_workers_timeout=self.config.wait_workers_timeout,
+            )
+            self.bench_install_apps(self.current)
 
         except Exception as e:
+            raise e
             if self.config.rollback:
                 exception = e
                 self.printer.error(f"Failed to create new release {self.new.path.name}")
-                self.printer.stdout.print(Rule(title=f"Rolling back to previous release: {self.previous_release_dir.name}"))
+                self.printer.stdout.print(
+                    Rule(title=f"Rolling back to previous release: {self.previous_release_dir.name}")
+                )
 
                 if self.bench_path.exists():
                     self.bench_path.unlink()
 
-                self.bench_symlink_and_restart(BenchDirectory(self.previous_release_dir))
+                self.bench_symlink(BenchDirectory(self.previous_release_dir))
+                self.bench_restart(
+                    BenchDirectory(self.previous_release_dir),
+                    migrate=self.config.run_bench_migrate,
+                    migrate_timeout=self.config.migrate_timeout,
+                    wait_workers=self.config.wait_workers,
+                    wait_workers_timeout=self.config.wait_workers_timeout,
+                )
                 self.printer.print("Symlinked previous deployment before new release")
 
-            self.bench_install_and_migrate(self.current)
+            self.bench_install_apps(self.current)
 
-        self.current.maintenance_mode(self.site_name, False)
+        # self.current.maintenance_mode(self.site_name, False)
 
-        if self.config.maintenance_mode:
-            self.printer.print("Disabled maintenance mode")
+        # if self.config.maintenance_mode:
+        #     self.printer.print("Disabled maintenance mode")
 
-            if self.config.verbose:
-                end_time = time.time()
-                elapsed_time = end_time - start_time
-                self.printer.print(f"Maintenance Mode Time: {elapsed_time:.2f} seconds",emoji_code=':robot_face:')
+        #     if self.config.verbose:
+        #         end_time = time.time()
+        #         elapsed_time = end_time - start_time
+        #         self.printer.print(f"Maintenance Mode Time: {elapsed_time:.2f} seconds", emoji_code=":robot_face:")
 
         self.cleanup_releases()
 
         if exception:
-            self.printer.error(f"The following error caused the script to rollback changes from {self.previous_release_dir} -> {self.new.path.name}")
+            self.printer.error(
+                f"The following error caused the script to rollback changes from {self.previous_release_dir} -> {self.new.path.name}"
+            )
             raise exception
 
     def cleanup_releases(self):
@@ -475,31 +472,29 @@ class DeploymentManager:
             shutil.rmtree(dir_to_remove)
 
         if releases_to_remove:
-            deleted_dir_names = ' '.join([d.name for d in releases_to_remove])
+            deleted_dir_names = " ".join([d.name for d in releases_to_remove])
             self.printer.print(f"Deleted releases [blue]{deleted_dir_names}[/blue]")
 
         self.printer.start("Working")
 
     def extract_timestamp(self, dir_name: str) -> int:
         try:
-            timestamp_str = dir_name.split('_')[-1]
+            timestamp_str = dir_name.split("_")[-1]
             return int(timestamp_str)
         except ValueError:
             return 0
 
-    def clone_apps(self, bench_directory: 'BenchDirectory'):
+    def clone_apps(self, bench_directory: "BenchDirectory"):
         for app in self.apps:
             self.printer.change_head(f"Cloning repo {app.repo}")
             bench_directory.clone_app(app)
 
-            app_name = bench_directory.get_app_python_module_name(
-                bench_directory.apps / app.dir_name
-            )
+            app_name = bench_directory.get_app_python_module_name(bench_directory.apps / app.dir_name)
 
             from_dir = bench_directory.apps / app.dir_name
             to_dir = bench_directory.apps / app_name
 
-            shutil.move(str(from_dir),str(to_dir))
+            shutil.move(str(from_dir), str(to_dir))
 
             self.printer.print(
                 f"{'Remote removed ' if app.remove_remote else ''}Cloned Repo: {app.repo}, Module Name: '{app_name}'"
@@ -510,16 +505,14 @@ class DeploymentManager:
         import os
 
         from rich.progress import Progress, SpinnerColumn, TextColumn
-        
+
         total_size = 0
-        
+
         with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True
+            SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True
         ) as progress:
             task = progress.add_task(f"Calculating size of {path.name}...", total=None)
-            
+
             for dirpath, dirnames, filenames in os.walk(path):
                 for f in filenames:
                     fp = Path(dirpath) / f
@@ -529,9 +522,9 @@ class DeploymentManager:
                             progress.update(task)
                         except (PermissionError, FileNotFoundError):
                             continue  # Skip files we can't access
-        
+
         # Convert to human readable format
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
             if total_size < 1024.0:
                 return f"{total_size:.1f} {unit}"
             total_size /= 1024.0
@@ -542,11 +535,11 @@ class DeploymentManager:
         backup_retain_limit: int = 0,
         release_retain_limit: int = 0,
         auto_approve: bool = False,
-        show_sizes: bool = False
+        show_sizes: bool = False,
     ):
         """Cleanup deployment backups, releases and cache directories with interactive prompts.
         Also reports on items that have already been cleaned.
-        
+
         Parameters
         ----------
         backup_retain_limit : int
@@ -562,7 +555,7 @@ class DeploymentManager:
         from rich.console import Console
         from rich.prompt import Confirm, Prompt
         from rich.table import Table
-        
+
         console = Console()
         self.printer.stop()  # Stop the "working" spinner
 
@@ -570,11 +563,11 @@ class DeploymentManager:
             """Create and print a table of items to be deleted"""
             table = Table(title=title)
             table.add_column("Index", justify="right", style="cyan")
-            table.add_column("Name", style="magenta") 
+            table.add_column("Name", style="magenta")
             if show_sizes:
                 table.add_column("Size", style="green")
             table.add_column("Path", style="blue")
-            
+
             for idx, item in enumerate(items, 1):
                 row = [str(idx), item.name]
                 if show_sizes:
@@ -582,7 +575,7 @@ class DeploymentManager:
                     row.append(size)
                 row.append(str(item.absolute()))
                 table.add_row(*row)
-            
+
             console.print(table)
             return table
 
@@ -590,26 +583,25 @@ class DeploymentManager:
             """Get user selection of items to delete"""
             if not items:
                 return []
-                
+
             if auto_approve:
                 return list(range(len(items)))
-                
+
             print_items_table(items, prompt_text)
-            
+
             while True:
                 selection = Prompt.ask(
-                    f"\nEnter indices to delete (1-{len(items)}, 'all' for all, or empty to skip)",
-                    default=""
+                    f"\nEnter indices to delete (1-{len(items)}, 'all' for all, or empty to skip)", default=""
                 )
-                
+
                 if not selection:
                     return []
-                
-                if selection.lower() == 'all':
+
+                if selection.lower() == "all":
                     return list(range(len(items)))
-                    
+
                 try:
-                    indices = [int(i.strip()) - 1 for i in selection.split(',')]
+                    indices = [int(i.strip()) - 1 for i in selection.split(",")]
                     if all(0 <= i < len(items) for i in indices):
                         return indices
                     console.print("[red]Invalid indices. Please try again.[/red]")
@@ -617,9 +609,9 @@ class DeploymentManager:
                     console.print("[red]Invalid input. Please enter numbers separated by commas or 'all'.[/red]")
 
         # Cleanup .cache directory
-        cache_dir = self.path / '.cache'
-        if self.mode == 'host':
-            cache_dir = Path.home() / '.cache'
+        cache_dir = self.path / ".cache"
+        if self.mode == "host":
+            cache_dir = Path.home() / ".cache"
 
         if not cache_dir.exists():
             console.print(f"\n[blue]Cache directory {cache_dir} doesn't exist - already clean[/blue]")
@@ -636,7 +628,7 @@ class DeploymentManager:
                 console.print(f"[red]Failed to remove {cache_dir.absolute()} directory: {str(e)}[/red]")
 
         # Cleanup prev_frappe_bench
-        prev_bench = self.path / 'prev_frappe_bench'
+        prev_bench = self.path / "prev_frappe_bench"
         if not prev_bench.exists():
             console.print("\n[blue]Previous bench directory doesn't exist - already clean[/blue]")
         else:
@@ -666,18 +658,20 @@ class DeploymentManager:
                 if backup_retain_limit > 0:
                     kept_backups = backup_dirs[:backup_retain_limit]
                     backups_to_remove = backup_dirs[backup_retain_limit:]
-                    
+
                     console.print(f"\n[green]Currently keeping {len(kept_backups)} recent backups:[/green]")
                     for backup in kept_backups:
                         console.print(f"[green]  • {backup.name}[/green]")
 
                     if not backups_to_remove:
-                        console.print(f"[blue]No backup directories to clean - already at {backup_retain_limit} limit[/blue]")
+                        console.print(
+                            f"[blue]No backup directories to clean - already at {backup_retain_limit} limit[/blue]"
+                        )
                     else:
                         console.print("\n[yellow]Backup directories that exceed retain limit:[/yellow]")
                         selected_indices = get_selected_indices(
                             backups_to_remove,
-                            f"Backup directories to clean (keeping {backup_retain_limit} most recent)"
+                            f"Backup directories to clean (keeping {backup_retain_limit} most recent)",
                         )
 
                         for idx in selected_indices:
@@ -692,8 +686,7 @@ class DeploymentManager:
                     # When retain_limit is 0, all backups can be selected for deletion
                     console.print("\n[yellow]All backup directories available for cleanup:[/yellow]")
                     selected_indices = get_selected_indices(
-                        backup_dirs,
-                        "Backup directories to clean (no retention limit)"
+                        backup_dirs, "Backup directories to clean (no retention limit)"
                     )
 
                     for idx in selected_indices:
@@ -709,8 +702,7 @@ class DeploymentManager:
 
         # Cleanup release directories
         current_release = self.bench_path.resolve()
-        release_dirs = [d for d in self.path.iterdir()
-                        if d.is_dir() and d.name.startswith(RELEASE_DIR_NAME)]
+        release_dirs = [d for d in self.path.iterdir() if d.is_dir() and d.name.startswith(RELEASE_DIR_NAME)]
 
         if not release_dirs:
             console.print("\n[blue]No release directories found - already clean[/blue]")
@@ -730,12 +722,13 @@ class DeploymentManager:
                     console.print(f"[green]  • {release.name}{suffix}[/green]")
 
                 if not releases_to_remove:
-                    console.print(f"[blue]No release directories to clean - already at {release_retain_limit} limit[/blue]")
+                    console.print(
+                        f"[blue]No release directories to clean - already at {release_retain_limit} limit[/blue]"
+                    )
                 else:
                     console.print("\n[yellow]Release directories that exceed retain limit:[/yellow]")
                     selected_indices = get_selected_indices(
-                        releases_to_remove,
-                        f"Release directories to clean (keeping {release_retain_limit} most recent)"
+                        releases_to_remove, f"Release directories to clean (keeping {release_retain_limit} most recent)"
                     )
 
                     if auto_approve:
@@ -745,7 +738,9 @@ class DeploymentManager:
                         for idx in selected_indices:
                             release_to_remove = releases_to_remove[idx]
                             try:
-                                if release_to_remove != current_release and Confirm.ask(f"Delete release directory: {release_to_remove.name}?"):
+                                if release_to_remove != current_release and Confirm.ask(
+                                    f"Delete release directory: {release_to_remove.name}?"
+                                ):
                                     shutil.rmtree(release_to_remove)
                                     console.print(f"[green]Removed release directory: {release_to_remove.name}[/green]")
                             except Exception as e:
@@ -754,12 +749,13 @@ class DeploymentManager:
                 # When retain_limit is 0, show all releases except current
                 available_releases = [d for d in release_dirs if d != current_release]
                 if not available_releases:
-                    console.print("\n[blue]No release directories available for cleanup (excluding current release)[/blue]")
+                    console.print(
+                        "\n[blue]No release directories available for cleanup (excluding current release)[/blue]"
+                    )
                 else:
                     console.print("\n[yellow]All release directories available for cleanup:[/yellow]")
                     selected_indices = get_selected_indices(
-                        available_releases,
-                        "Release directories to clean (no retention limit)"
+                        available_releases, "Release directories to clean (no retention limit)"
                     )
 
                     for idx in selected_indices:
@@ -771,21 +767,14 @@ class DeploymentManager:
                         except Exception as e:
                             console.print(f"[red]Failed to remove release {release_to_remove.name}: {str(e)}[/red]")
 
-
     def get_mariadb_bench_client(self):
         compose_file: ComposeFile = ComposeFile(self.path.parent / "docker-compose.yml")
-        compose_project: ComposeProject = ComposeProject(
-            compose_file_manager=compose_file
-        )
+        compose_project: ComposeProject = ComposeProject(compose_file_manager=compose_file)
 
-        services_manager: MigrationServicesManager = MigrationServicesManager(
-            services_path=CLI_DIR / "services"
-        )
+        services_manager: MigrationServicesManager = MigrationServicesManager(services_path=CLI_DIR / "services")
 
-        server_db_info: DatabaseServerServiceInfo = (
-            DatabaseServerServiceInfo.import_from_compose_file(
-                "global-db", services_manager.compose_project
-            )
+        server_db_info: DatabaseServerServiceInfo = DatabaseServerServiceInfo.import_from_compose_file(
+            "global-db", services_manager.compose_project
         )
         mariadb_client = MariaDBManager(
             database_server_info=server_db_info,
@@ -795,39 +784,48 @@ class DeploymentManager:
 
         return mariadb_client
 
-    def bench_backup(self, site_name: str, file_name: Optional[str] = None, using_bench_backup: bool = True, compress: bool = True, sql_delete_after_compress: bool = True) -> Optional[Path]:
+    def bench_backup(
+        self,
+        site_name: str,
+        file_name: Optional[str] = None,
+        using_bench_backup: bool = True,
+        compress: bool = True,
+        sql_delete_after_compress: bool = True,
+    ) -> Optional[Path]:
         """Return backup host path"""
 
         self.printer.change_head(f"Exporting {site_name} db")
 
         file_name = f"{site_name if file_name is None else file_name}.sql.gz"
 
-        host_backup_config_path = self.backup.path / 'site_config.json'
+        host_backup_config_path = self.backup.path / "site_config.json"
 
         host_backup_db_path = self.backup.path / file_name
 
         backup_config_path = str(host_backup_config_path.absolute())
         backup_db_path = str(host_backup_db_path.absolute())
 
-
-        if self.mode == 'fm':
-            backup_db_path = (
-                f"/workspace/{'/'.join(self.backup.path.parts[-2:])}/{file_name}"
-            )
-            backup_config_path = (
-                f"/workspace/{'/'.join(self.backup.path.parts[-2:])}/site_config.json"
-            )
-
+        if self.mode == "fm":
+            backup_db_path = f"/workspace/{'/'.join(self.backup.path.parts[-2:])}/{file_name}"
+            backup_config_path = f"/workspace/{'/'.join(self.backup.path.parts[-2:])}/site_config.json"
 
         if using_bench_backup:
-            db_export_command = [self.bench_cli,'backup','--backup-path-conf', backup_config_path, '--backup-path-db', backup_db_path ]
+            db_export_command = [
+                self.bench_cli,
+                "backup",
+                "--backup-path-conf",
+                backup_config_path,
+                "--backup-path-db",
+                backup_db_path,
+            ]
 
             output = self.host_run(
                 db_export_command,
                 self.current,
-                #stream=True,
+                # stream=True,
                 container=self.mode == "fm",
-                capture_output=True)
+                capture_output=True,
+            )
 
             return host_backup_db_path
 
@@ -837,11 +835,11 @@ class DeploymentManager:
         bench_db_name = backup_bench_db_info.get("name")
         mariadb_client = self.get_mariadb_bench_client()
 
-        host_backup_db_path = host_backup_db_path.parent / host_backup_db_path.name.rstrip('.gz')
+        host_backup_db_path = host_backup_db_path.parent / host_backup_db_path.name.rstrip(".gz")
 
-        self.backup.path.mkdir(exist_ok=True,parents=True)
+        self.backup.path.mkdir(exist_ok=True, parents=True)
 
-        backup_db_path = backup_db_path.rstrip('.gz')
+        backup_db_path = backup_db_path.rstrip(".gz")
 
         output = mariadb_client.db_export(bench_db_name, export_file_path=backup_db_path)
 
@@ -849,9 +847,10 @@ class DeploymentManager:
 
         if compress:
             self.printer.change_head(f"Compress {site_name} db")
-            with open(host_backup_db_path, 'rb') as f_in:
+            with open(host_backup_db_path, "rb") as f_in:
                 import gzip
-                with gzip.open(str(host_backup_db_path) + '.gz', 'wb') as f_out:
+
+                with gzip.open(str(host_backup_db_path) + ".gz", "wb") as f_out:
                     shutil.copyfileobj(f_in, f_out)
 
             if sql_delete_after_compress:
@@ -862,27 +861,23 @@ class DeploymentManager:
 
         return host_backup_db_path
 
-
     def bench_restore(self, db_file_path: Path):
-
-        if self.mode == 'host':
+        if self.mode == "host":
             self.printer.warning("db restore is not implemented in host mode")
             return
 
         # Check if the input file is a .gz file
-        if db_file_path.suffix == '.gz':
+        if db_file_path.suffix == ".gz":
             self.printer.change_head(f"Decompressing {db_file_path}")
-            with gzip.open(db_file_path, 'rb') as f_in:
-                decompressed_path = db_file_path.with_suffix('')  # Remove .gz suffix
-                with open(decompressed_path, 'wb') as f_out:
+            with gzip.open(db_file_path, "rb") as f_in:
+                decompressed_path = db_file_path.with_suffix("")  # Remove .gz suffix
+                with open(decompressed_path, "wb") as f_out:
                     shutil.copyfileobj(f_in, f_out)
             db_file_path = decompressed_path  # Update db_file_path to the decompressed file
 
         backup_bench = MigrationBench(name=self.site_name, path=self.path.parent)
 
-        self.printer.change_head(
-            f"Restoring {self.site_name} with db from {db_file_path}"
-        )
+        self.printer.change_head(f"Restoring {self.site_name} with db from {db_file_path}")
 
         backup_bench_db_info = backup_bench.get_db_connection_info()
 
@@ -890,9 +885,7 @@ class DeploymentManager:
 
         mariadb_client = self.get_mariadb_bench_client()
 
-        mariadb_client.db_import(
-            db_name=bench_db_name, host_db_file_path=db_file_path
-        )
+        mariadb_client.db_import(db_name=bench_db_name, host_db_file_path=db_file_path)
         self.printer.print(f"Restored {self.site_name} with db from {db_file_path}")
 
     def sync_db_encryption_key_from_site(self, from_bench_name: str, from_site_name: str):
@@ -908,23 +901,18 @@ class DeploymentManager:
             / "site_config.json"
         )
         site_config_data = get_json(site_config_path)
-        encryption_key = site_config_data.get('encryption_key', None)
+        encryption_key = site_config_data.get("encryption_key", None)
 
         if encryption_key:
-            current_site_config_path = self.current.sites / self.site_name / 'site_config.json'
-            update_json_keys_in_file_path(current_site_config_path,{"backup_encryption_key": encryption_key})
+            current_site_config_path = self.current.sites / self.site_name / "site_config.json"
+            update_json_keys_in_file_path(current_site_config_path, {"backup_encryption_key": encryption_key})
             self.printer.print(f"Copyied ncryption_key from {from_bench_name}")
-
 
     def sync_configs_with_files(self, site_name: str):
         self.printer.change_head("Updating common_site_config.json, site_config.json")
         common_site_config_path = self.current.sites / "common_site_config.json"
 
-        site_config_path = (
-            self.current.sites
-            / site_name
-            / "site_config.json"
-        )
+        site_config_path = self.current.sites / site_name / "site_config.json"
 
         if self.config.common_site_config:
             update_json_keys_in_file_path(common_site_config_path, self.config.common_site_config)
@@ -935,15 +923,15 @@ class DeploymentManager:
         self.printer.print("Updated common_site_config.json, site_config.json")
 
     def bench_clear_cache(self, bench_directory: BenchDirectory, website_cache: bool = False):
-        clear_cache_command = [self.bench_cli, 'clear-cache']
-        clear_website_cache_command = [self.bench_cli, 'clear-website-cache']
+        clear_cache_command = [self.bench_cli, "clear-cache"]
+        clear_website_cache_command = [self.bench_cli, "clear-website-cache"]
 
         self.printer.change_head(f"Clearing cache{' and website cache' if website_cache else ''}")
-        for command in [clear_cache_command,clear_website_cache_command]:
+        for command in [clear_cache_command, clear_website_cache_command]:
             self.host_run(
                 command,
                 bench_directory,
-                #stream=True,
+                # stream=True,
                 container=self.mode == "fm",
                 capture_output=False,
             )
@@ -959,16 +947,20 @@ class DeploymentManager:
             "BENCH_PATH": str(self.bench_path),
             "MODE": self.mode,
             "DEPLOY_PATH": str(self.config.deploy_dir_path),
-            "APPS": ",".join(d.name for d in self.current.apps.iterdir() if d.is_dir())
+            "APPS": ",".join(d.name for d in self.current.apps.iterdir() if d.is_dir()),
         }
-        
+
         # Add app-specific environment variables if an app name is provided
         if app_name:
-            computed_props.update({
-                "APP_NAME": app_name,
-                "APP_PATH": f"/workspace/{self.bench_path.name}/apps/{app_name}" if self.mode == "fm" else str(self.bench_path / "apps" / app_name)
-            })
-            
+            computed_props.update(
+                {
+                    "APP_NAME": app_name,
+                    "APP_PATH": f"/workspace/{self.bench_path.name}/apps/{app_name}"
+                    if self.mode == "fm"
+                    else str(self.bench_path / "apps" / app_name),
+                }
+            )
+
         env.update(computed_props)
 
         # Get all fields from Config class
@@ -979,14 +971,16 @@ class DeploymentManager:
             value = getattr(self.config, field_name, None)
             if value is not None:  # Skip None values
                 env_key = field_name.upper()
-                
+
                 # Handle different types of values
                 if isinstance(value, list) and value and isinstance(value[0], BaseModel):
                     # Handle list of Pydantic models
                     import json
+
                     env[env_key] = json.dumps([item.model_dump() for item in value])
                 elif isinstance(value, dict):
                     import json
+
                     env[env_key] = json.dumps(value)
                 elif isinstance(value, Path):
                     env[env_key] = str(value)
@@ -995,34 +989,41 @@ class DeploymentManager:
                 elif isinstance(value, (BaseModel, AppConfig, FMConfig, HostConfig)):
                     # Handle single Pydantic model
                     import json
+
                     env[env_key] = json.dumps(value.model_dump())
                 else:
                     env[env_key] = str(value)
 
         return env
 
-    def _run_script(self, script_content: str, bench_directory: BenchDirectory, 
-                   script_type: str, container: bool = False, app_name: Optional[str] = None, 
-                   custom_workdir: Optional[str] = None) -> None:
+    def _run_script(
+        self,
+        script_content: str,
+        bench_directory: BenchDirectory,
+        script_type: str,
+        container: bool = False,
+        app_name: Optional[str] = None,
+        custom_workdir: Optional[str] = None,
+    ) -> None:
         """Execute a shell script with proper setup and cleanup."""
         self.printer.change_head(f"Running {script_type}")
-        
+
         # Create deployment_tmp directory in bench directory
         script_dir = self.current.path.parent / "deployment_tmp"
         script_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Create unique script name
         script_name = f"temp_script_{int(time.time())}.sh"
         script_path = script_dir / script_name
-        
+
         try:
             # Write script content
-            with open(script_path, 'w') as script_file:
+            with open(script_path, "w") as script_file:
                 script_file.write("set -e\n")  # Remove shebang, just keep error handling
                 script_file.write(script_content)
-            
+
             script_path.chmod(0o755)
-            
+
             # Adjust script path for container execution
             if container:
                 container_script_path = f"/workspace/deployment_tmp/{script_name}"
@@ -1038,10 +1039,10 @@ class DeploymentManager:
                     workdir = custom_workdir
                 else:
                     workdir = str(script_dir)
-            
+
             # Get script environment variables with optional app name
             script_env = self.get_script_env(app_name)
-            
+
             # Execute script using bash explicitly
             output = self.host_run(
                 ["bash", container_script_path],
@@ -1049,9 +1050,9 @@ class DeploymentManager:
                 container=container,
                 capture_output=True,
                 workdir=workdir,
-                env=script_env
+                env=script_env,
             )
-            
+
             # Print output
             if output and output.combined:
                 for line in output.combined:
@@ -1087,16 +1088,14 @@ class DeploymentManager:
     def _install_app(self, app_path: Path, bench_directory: BenchDirectory) -> None:
         """Install a single app if not already installed."""
         app_python_module_name = bench_directory.get_app_python_module_name(app_path)
-        
+
         if self.is_app_installed_in_site(self.site_name, app_python_module_name):
             self.printer.print(f"App {app_python_module_name} is already installed.")
             return
 
         self.printer.change_head(f"Installing app {app_python_module_name} in {self.site_name}")
-        install_command = [
-            self.bench_cli, "--site", self.site_name, "install-app", app_python_module_name
-        ]
-        
+        install_command = [self.bench_cli, "--site", self.site_name, "install-app", app_python_module_name]
+
         output = self.host_run(
             install_command,
             bench_directory,
@@ -1109,27 +1108,8 @@ class DeploymentManager:
         else:
             self.printer.print(f"Installed app {app_python_module_name} in {self.site_name}")
 
-    def bench_install_and_migrate(self, bench_directory: BenchDirectory) -> None:
+    def bench_install_apps(self, bench_directory: BenchDirectory) -> None:
         """Main function to handle installation and migration process."""
-
-        # Run pre-scripts
-        if self.config.host_pre_script:
-            self._run_script(self.config.host_pre_script, bench_directory, "host pre-script")
-        
-        if self.mode == "fm" and self.config.fm_pre_script:
-            self._run_script(self.config.fm_pre_script, bench_directory, "FM pre-script", container=True)
-
-        # Run bench migrate
-        self._run_bench_migrate(bench_directory)
-
-        # Run post-scripts
-        if self.mode == "fm" and self.config.fm_post_script:
-            self._run_script(self.config.fm_post_script, bench_directory, "FM post-script", container=True)
-        
-        if self.config.host_post_script:
-            self._run_script(self.config.host_post_script, bench_directory, "host post-script")
-
-        # Install apps
         apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
         for app in apps:
             self._install_app(bench_directory.apps / app.name, bench_directory)
@@ -1142,6 +1122,7 @@ class DeploymentManager:
         container_service: str = "frappe",
         container_user: str = "frappe",
         capture_output: bool = True,
+        live_lines: int = 4,
         workdir: Optional[str] = None,
         env: Optional[dict[str, str]] = None,
     ) -> Union[Iterable[Tuple[str, bytes]], SubprocessOutput]:
@@ -1150,6 +1131,7 @@ class DeploymentManager:
 
         # Prepare environment variables
         import os
+
         base_env = os.environ.copy()
         if env:
             base_env.update(env)
@@ -1166,15 +1148,14 @@ class DeploymentManager:
                     stream=not capture_output,
                     capture_output=capture_output,
                     cwd=str(bench_directory.path.absolute()),
-                    env=base_env  # Pass merged environment for host execution
+                    env=base_env,  # Pass merged environment for host execution
                 )
 
                 if self.verbose:
                     end_time = time.time()
                     elapsed_time = end_time - start_time
                     self.printer.print(
-                        f"Time Taken: {elapsed_time:.2f} sec, Command: '{' '.join(command)}'",
-                        emoji_code=":robot_face:"
+                        f"Time Taken: {elapsed_time:.2f} sec, Command: '{' '.join(command)}'", emoji_code=":robot_face:"
                     )
                 return output
 
@@ -1186,14 +1167,13 @@ class DeploymentManager:
                     cwd=str(bench_directory.path.absolute()),
                 )
 
-                self.printer.live_lines(output,lines=10)
+                self.printer.live_lines(output, lines=10)
 
                 if self.verbose:
                     end_time = time.time()
                     elapsed_time = end_time - start_time
                     self.printer.print(
-                        f"Time Taken: {elapsed_time:.2f} sec, Command: '{' '.join(command)}'",
-                        emoji_code=":robot_face:"
+                        f"Time Taken: {elapsed_time:.2f} sec, Command: '{' '.join(command)}'", emoji_code=":robot_face:"
                     )
                 return None
 
@@ -1202,9 +1182,7 @@ class DeploymentManager:
         workdir = workdir or f"/workspace/{bench_directory.path.name}"
 
         compose_file: ComposeFile = ComposeFile(self.path.parent / "docker-compose.yml")
-        compose_project: ComposeProject = ComposeProject(
-            compose_file_manager=compose_file
-        )
+        compose_project: ComposeProject = ComposeProject(compose_file_manager=compose_file)
 
         if capture_output:
             output: SubprocessOutput = compose_project.docker.compose.exec(
@@ -1213,7 +1191,7 @@ class DeploymentManager:
                 user=container_user,
                 workdir=workdir,
                 stream=not capture_output,
-                env=formatted_env  # Pass formatted list for docker execution
+                env=formatted_env,  # Pass formatted list for docker execution
             )
 
             if self.verbose:
@@ -1233,10 +1211,9 @@ class DeploymentManager:
                 user=container_user,
                 workdir=workdir,
                 stream=not capture_output,
-                env=formatted_env  # Pass formatted list for docker execution
+                env=formatted_env,  # Pass formatted list for docker execution
             )
-            self.printer.live_lines(output)
-
+            self.printer.live_lines(output, lines=live_lines)
             if self.verbose:
                 end_time = time.time()
                 elapsed_time = end_time - start_time
@@ -1256,7 +1233,6 @@ class DeploymentManager:
                         bench_directory,
                         container=self.mode == "fm",
                         capture_output=True,
-
                     )
                 except DockerException:
                     pass
@@ -1274,15 +1250,13 @@ class DeploymentManager:
                 self.python_env_create(bench_directory)
 
     def python_env_create(
-            self, bench_directory: BenchDirectory, venv_path: str = 'env', python_version: Optional[str] = None
+        self, bench_directory: BenchDirectory, venv_path: str = "env", python_version: Optional[str] = None
     ):
         python_version = self.config.python_version if self.config.python_version else "3"
 
         venv_create_command = [f"python{python_version}", "-m", "venv", venv_path]
 
-        self.printer.change_head(
-            f"Creating python venv {'using uv' if self.config.uv else ''}"
-        )
+        self.printer.change_head(f"Creating python venv {'using uv' if self.config.uv else ''}")
 
         if self.config.uv:
             # First check if uv is already installed
@@ -1293,7 +1267,6 @@ class DeploymentManager:
                     bench_directory,
                     container=self.mode == "fm",
                     capture_output=True,
-
                 )
             except DockerException:
                 pass
@@ -1318,7 +1291,7 @@ class DeploymentManager:
         output = self.host_run(
             venv_create_command,
             bench_directory,
-            #stream=False,
+            # stream=False,
             container=self.mode == "fm",
             capture_output=True,
         )
@@ -1339,25 +1312,21 @@ class DeploymentManager:
         output = self.host_run(
             pkg_install,
             bench_directory,
-            #stream=False,
+            # stream=False,
             container=self.mode == "fm",
             capture_output=True,
         )
         output = self.host_run(
             [f"{venv_path}/bin/python", "--version"],
             bench_directory,
-            #stream=False,
+            # stream=False,
             container=self.mode == "fm",
             capture_output=True,
         )
-        self.printer.print(
-            f"Created {output.combined[-1]} env {'using uv' if self.config.uv else ''}"
-        )
+        self.printer.print(f"Created {output.combined[-1]} env {'using uv' if self.config.uv else ''}")
 
     def bench_install_all_apps_in_python_env(self, bench_directory: BenchDirectory):
-        self.printer.change_head(
-            f"Installing all apps in python env {'using uv' if self.config.uv else ''}"
-        )
+        self.printer.change_head(f"Installing all apps in python env {'using uv' if self.config.uv else ''}")
 
         install_cmd = [self.bench_cli, "setup", "requirements", "--python"]
 
@@ -1376,7 +1345,7 @@ class DeploymentManager:
                 self.host_run(
                     install_cmd + [f"apps/{app.name}"],
                     bench_directory,
-                    #stream=False,
+                    # stream=False,
                     container=self.mode == "fm",
                     capture_output=False,
                 )
@@ -1384,7 +1353,7 @@ class DeploymentManager:
             self.host_run(
                 install_cmd,
                 bench_directory,
-                #stream=False,
+                # stream=False,
                 container=self.mode == "fm",
                 capture_output=False,
             )
@@ -1399,7 +1368,7 @@ class DeploymentManager:
         output = self.host_run(
             node_cmd,
             bench_directory,
-            #stream=True,
+            # stream=True,
             container=self.mode == "fm",
             capture_output=False,
         )
@@ -1421,26 +1390,22 @@ class DeploymentManager:
 
         # Save the list to bench_directory.sites / 'apps.txt'
         apps_txt_path = bench_directory.sites / "apps.txt"
-        apps_txt_path.parent.mkdir(
-            parents=True, exist_ok=True
-        )  # Ensure the directory exists
+        apps_txt_path.parent.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
 
         with apps_txt_path.open("w") as f:
             for app_name in app_names:
-                app_name = bench_directory.get_app_python_module_name(
-                    bench_directory.apps / app_name
-                )
+                app_name = bench_directory.get_app_python_module_name(bench_directory.apps / app_name)
                 f.write(f"{app_name}\n")
         self.printer.print("Configured apps.txt")
 
     def bench_build(self, bench_directory: BenchDirectory):
-        #apps: list[Union[AppConfig, Path]] = self.apps
+        # apps: list[Union[AppConfig, Path]] = self.apps
 
         apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
 
         for app in apps:
             self.printer.change_head(f"Building app {app.name}")
-            
+
             # Find corresponding AppConfig for the app to check for pre/post build commands
             app_config = None
             for config in self.apps:
@@ -1448,14 +1413,14 @@ class DeploymentManager:
                 if app_name == app.name:
                     app_config = config
                     break
-            
+
             # Define app directory path for container
             app_dir_path = f"/workspace/{bench_directory.path.name}/apps/{app.name}"
-            
+
             # Run pre-build command if configured and in FM mode
             if self.mode == "fm" and app_config and app_config.fm_pre_build:
                 self.printer.print(f"Running pre-build command for {app.name} in app directory")
-                
+
                 # Use _run_script method which handles script execution properly
                 self._run_script(
                     app_config.fm_pre_build,
@@ -1463,23 +1428,23 @@ class DeploymentManager:
                     f"pre-build script for {app.name}",
                     container=True,
                     app_name=app.name,
-                    custom_workdir=app_dir_path
+                    custom_workdir=app_dir_path,
                 )
-            
+
             # Run the regular build command
             build_cmd = [self.bench_cli, "build", "--app", app.name]
             self.host_run(
                 build_cmd,
                 bench_directory,
-                #stream=False,
+                # stream=False,
                 container=self.mode == "fm",
                 capture_output=False,
             )
-            
+
             # Run post-build command if configured and in FM mode
             if self.mode == "fm" and app_config and app_config.fm_post_build:
                 self.printer.print(f"Running post-build command for {app.name} in app directory")
-                
+
                 # Use _run_script method which handles script execution properly
                 self._run_script(
                     app_config.fm_post_build,
@@ -1487,23 +1452,19 @@ class DeploymentManager:
                     f"post-build script for {app.name}",
                     container=True,
                     app_name=app.name,
-                    custom_workdir=app_dir_path
+                    custom_workdir=app_dir_path,
                 )
-            
+
             self.printer.print(f"Built app {app.name}")
-        
+
         self.printer.print("Built all apps")
 
     def search_and_replace_in_database(
-        self,
-        search: str,
-        replace: str,
-        dry_run: bool = False,
-        verbose: bool = False
+        self, search: str, replace: str, dry_run: bool = False, verbose: bool = False
     ) -> None:
         """
         Search and replace text across all text fields in the database.
-        
+
         Args:
             search: Text to search for
             replace: Text to replace with
@@ -1512,80 +1473,142 @@ class DeploymentManager:
         """
         try:
             # Copy search_replace.py to bench sites directory
-            search_replace_script = Path(__file__).parent / 'search_replace.py'
+            search_replace_script = Path(__file__).parent / "search_replace.py"
             if not search_replace_script.exists():
                 self.printer.exit(f"Search/replace script not found at {search_replace_script}")
-                
-            bench_script_path = self.current.sites / 'search_replace.py'
+
+            bench_script_path = self.current.sites / "search_replace.py"
             shutil.copy2(search_replace_script, bench_script_path)
-            
+
             try:
                 # Build command for search/replace operation
                 python_path = "../env/bin/python"
-                search_replace_cmd = [
-                    python_path,
-                    "search_replace.py",
-                    self.site_name,
-                    search,
-                    replace
-                ]
+                search_replace_cmd = [python_path, "search_replace.py", self.site_name, search, replace]
                 if dry_run:
-                    search_replace_cmd.append('--dry-run')
+                    search_replace_cmd.append("--dry-run")
                 if verbose or self.config.verbose:
-                    search_replace_cmd.append('--verbose')
-                    
+                    search_replace_cmd.append("--verbose")
+
                 # Run the command using host_run and capture output
                 result = self.host_run(
                     search_replace_cmd,
                     self.current,
                     container=self.mode == "fm",
                     capture_output=True,
-                    workdir=f"/workspace/{self.current.path.name}/sites" if self.mode == "fm" else str(self.current.sites.absolute())
+                    workdir=f"/workspace/{self.current.path.name}/sites"
+                    if self.mode == "fm"
+                    else str(self.current.sites.absolute()),
                 )
-                
+
                 # Print the output with proper formatting
                 if result.combined:
                     for line in result.combined:
                         if line.strip():
                             self.printer.print(line.strip())
-                
+
             finally:
                 # Cleanup - remove the copied script
                 if bench_script_path.exists():
                     bench_script_path.unlink()
-                    
+
         except Exception as e:
             self.printer.warning(f"Failed to perform search and replace: {str(e)}")
 
-    def bench_symlink_and_restart(self, bench_directory: BenchDirectory):
-        self.printer.change_head("Symlinking and restarting")
+    def bench_symlink(self, bench_directory: BenchDirectory):
+        self.printer.change_head("Symlinking")
 
         if self.bench_path.exists():
             self.bench_path.unlink()
 
-        self.bench_path.symlink_to(
-            get_relative_path(self.bench_path, bench_directory.path), True
-        )
+        self.bench_path.symlink_to(get_relative_path(self.bench_path, bench_directory.path), True)
 
+    # def bench_symlink_and_restart(self, bench_directory: BenchDirectory):
+    #     self.printer.change_head("Symlinking")
+
+    #     if self.bench_path.exists():
+    #         self.bench_path.unlink()
+
+    #     self.bench_path.symlink_to(get_relative_path(self.bench_path, bench_directory.path), True)
+
+    #     start_time = time.time()
+
+    #     if self.mode == "fm":
+    #         restart_cmd = [self.fmx, "restart"]
+    #         self.host_run(
+    #             restart_cmd,
+    #             bench_directory,
+    #             container=True,
+    #             capture_output=False,
+    #         )
+    #     else:
+    #         services_to_restart = ["workers", "web"]
+    #         for service in services_to_restart:
+    #             command = ["sudo", "supervisorctl", "restart", f"frappe-bench-{service}:"]
+    #             self.host_run(
+    #                 command,
+    #                 bench_directory,
+    #                 # stream=False,
+    #                 container=False,
+    #                 capture_output=False,
+    #             )
+
+
+    #     self.printer.start("Working")
+    #     self.printer.print("Symlinked and restarted")
+
+    def bench_restart(
+        self,
+        bench_directory: BenchDirectory,
+        migrate=False,
+        migrate_timeout=1200,
+        wait_workers=False,
+        wait_workers_timeout=600,
+        maintenance=False,
+        maintenance_phases=["migrate", "start"],
+    ):
+        self.printer.change_head("Restart and Migrate")
+
+        args = []
+
+        if migrate:
+            args += ["--migrate"]
+            if migrate_timeout:
+                args += ["--migrate-timeout", str(migrate_timeout)]
+
+        if wait_workers:
+            args += ["--wait-workers"]
+            if wait_workers_timeout:
+                args += ["--wait-workers-timeout", str(wait_workers_timeout)]
+
+        if maintenance:
+            args += ["--maintenance-mode"] + maintenance_phases
+
+        # Run pre-scripts
+        if self.config.host_pre_script:
+            self._run_script(self.config.host_pre_script, bench_directory, "host pre-script")
+
+        if self.mode == "fm" and self.config.fm_pre_script:
+            self._run_script(self.config.fm_pre_script, bench_directory, "FM pre-script", container=True)
 
         start_time = time.time()
 
         if self.mode == "fm":
-            restart_cmd = [self.fm_helper_cli, "restart"]
+            restart_cmd = [self.fmx, "restart"] + args
             self.host_run(
                 restart_cmd,
                 bench_directory,
                 container=True,
                 capture_output=False,
+                live_lines=50
             )
         else:
-            services_to_restart = ['workers', 'web']
+            services_to_restart = ["workers", "web"]
             for service in services_to_restart:
                 command = ["sudo", "supervisorctl", "restart", f"frappe-bench-{service}:"]
                 self.host_run(
                     command,
                     bench_directory,
-                    #stream=False,
+                    # stream=False,
                     container=False,
                     capture_output=False,
                 )
@@ -1593,10 +1616,18 @@ class DeploymentManager:
         if self.config.verbose:
             end_time = time.time()
             elapsed_time = end_time - start_time
-            self.printer.print(f"Frappe Services Restart Time Taken: {human_readable_time(elapsed_time)}", emoji_code = ":robot_face:")
-
+            self.printer.print(
+                f"Frappe Services Restart Time Taken: {human_readable_time(elapsed_time)}", emoji_code=":robot_face:"
+            )
         self.printer.start("Working")
         self.printer.print("Symlinked and restarted")
+
+        # Run post-scripts
+        if self.mode == "fm" and self.config.fm_post_script:
+            self._run_script(self.config.fm_post_script, bench_directory, "FM post-script", container=True)
+
+        if self.config.host_post_script:
+            self._run_script(self.config.host_post_script, bench_directory, "host post-script")
 
     def get_site_installed_apps(self, bench_directory: BenchDirectory):
         command = [self.bench_cli, "list-apps", "-f", "json"]
@@ -1604,14 +1635,12 @@ class DeploymentManager:
             output = self.host_run(
                 command,
                 bench_directory,
-                #stream=False,
+                # stream=False,
                 container=self.mode == "fm",
                 capture_output=True,
             )
         except DockerException:
-            self.printer.warning(
-                f"Not able to get current list of apps installed in {self.site_name}"
-            )
+            self.printer.warning(f"Not able to get current list of apps installed in {self.site_name}")
             return {self.site_name: []}
         return json.loads("".join(output.combined))
 
