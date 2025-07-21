@@ -1,8 +1,16 @@
 import gzip
 import shutil
 import time
+import os
+import sys
 from pathlib import Path
 from typing import Iterable, Literal, Optional, Tuple, Union
+
+def is_ci():
+    return os.environ.get("CI", "").lower() == "true"
+
+def is_tty():
+    return sys.stdout.isatty()
 
 from frappe_manager import CLI_DIR
 from frappe_manager.compose_manager.ComposeFile import ComposeFile
@@ -1167,7 +1175,15 @@ class DeploymentManager:
                     cwd=str(bench_directory.path.absolute()),
                 )
 
-                self.printer.live_lines(output, lines=10)
+                # Use live_lines only if not in CI and is a TTY, else print lines directly
+                if not is_ci() and is_tty():
+                    self.printer.live_lines(output, lines=live_lines)
+                else:
+                    for source, line in output:
+                        # line may be bytes, decode if needed
+                        if isinstance(line, bytes):
+                            line = line.decode(errors="replace")
+                        self.printer.print(line.rstrip())
 
                 if self.verbose:
                     end_time = time.time()
@@ -1213,7 +1229,15 @@ class DeploymentManager:
                 stream=not capture_output,
                 env=formatted_env,  # Pass formatted list for docker execution
             )
-            self.printer.live_lines(output, lines=live_lines)
+
+            if not is_ci() and is_tty():
+                self.printer.live_lines(output, lines=live_lines)
+            else:
+                for source, line in output:
+                    if isinstance(line, bytes):
+                        line = line.decode(errors="replace")
+                    self.printer.print(line.rstrip())
+
             if self.verbose:
                 end_time = time.time()
                 elapsed_time = end_time - start_time
