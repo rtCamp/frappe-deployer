@@ -192,10 +192,10 @@ def pull(
         Optional[int], typer.Option(help="Migrate timeout", show_default=False)
     ] = None,
     wait_workers: Annotated[
-        Optional[bool], typer.Option(help="Whether to enable waiting for workers", show_default=False)
+        Optional[bool], typer.Option(help="Whether to enable waiting for workers", show_default=False, rich_help_panel="FM Mode")
     ] = None,
     wait_workers_timeout: Annotated[
-        Optional[int], typer.Option(help="Wait workers timeout", show_default=False)
+        Optional[int], typer.Option(help="Wait workers timeout", show_default=False, rich_help_panel="FM Mode")
     ] = None,
     backups: Annotated[Optional[bool], typer.Option(help="Enable/Disable taking backups")] = None,
     uv: Annotated[
