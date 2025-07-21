@@ -1175,15 +1175,13 @@ class DeploymentManager:
                     cwd=str(bench_directory.path.absolute()),
                 )
 
-                # Use live_lines only if not in CI and is a TTY, else print lines directly
                 if not is_ci() and is_tty():
                     self.printer.live_lines(output, lines=live_lines)
                 else:
                     for source, line in output:
-                        # line may be bytes, decode if needed
                         if isinstance(line, bytes):
                             line = line.decode(errors="replace")
-                        self.printer.print(line.rstrip())
+                        self.printer.print(line.rstrip(), emoji_code="")
 
                 if self.verbose:
                     end_time = time.time()
@@ -1236,7 +1234,7 @@ class DeploymentManager:
                 for source, line in output:
                     if isinstance(line, bytes):
                         line = line.decode(errors="replace")
-                    self.printer.print(line.rstrip())
+                    self.printer.print(line.rstrip(), emoji_code="")
 
             if self.verbose:
                 end_time = time.time()
