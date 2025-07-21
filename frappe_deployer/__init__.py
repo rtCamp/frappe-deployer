@@ -1,12 +1,10 @@
 from enum import Enum
 from pathlib import Path
-import shutil
 import time
-from typing import Annotated, Any, Literal, Optional, Union
+from typing import Annotated, Any, List, Optional, Union
 from unittest.mock import patch
 
 from frappe_deployer.config.config import Config
-from frappe_deployer.config.remote_worker import RemoteWorkerConfig
 from frappe_deployer.consts import BYPASS_TOKEN, LOG_FILE_NAME, MAINTENANCE_MODE_CONFIG
 from frappe_deployer.deployment_manager import DeploymentManager
 from frappe_deployer.exceptions import ConfigPathDoesntExist
@@ -16,7 +14,6 @@ from frappe_deployer.remote_worker import (
     enable_remote_worker,
     link_worker_configs,
     only_start_workers_compose_services,
-    parse_included_paths,
     rsync_workspace,
     stop_all_compose_services,
 )
@@ -28,7 +25,7 @@ from frappe_manager import (
 from frappe_manager.logger.log import richprint
 import typer
 
-__version__ = "0.8.2"
+__version__ = "0.8.3"
 
 
 def version_callback(value: bool):
@@ -182,11 +179,23 @@ def pull(
     maintenance_mode: Annotated[
         Optional[bool], typer.Option(help="Enable/Disable maintenance mode", show_default=False)
     ] = None,
+    maintenance_mode_phases: Annotated[
+        Optional[List[str]], typer.Option(help="For which phases maintenance mode will be enabled.", show_default=False)
+    ] = None,
     search_replace: Annotated[
         Optional[bool], typer.Option(help="Enable search and replace in database.", show_default=False)
     ] = None,
     run_bench_migrate: Annotated[
         Optional[bool], typer.Option(help="Enable/Disable 'bench migrate' run", show_default=False)
+    ] = None,
+    migrate_timeout: Annotated[
+        Optional[int], typer.Option(help="Migrate timeout", show_default=False)
+    ] = None,
+    wait_workers: Annotated[
+        Optional[bool], typer.Option(help="Whether to enable waiting for workers", show_default=False)
+    ] = None,
+    wait_workers_timeout: Annotated[
+        Optional[int], typer.Option(help="Wait workers timeout", show_default=False)
     ] = None,
     backups: Annotated[Optional[bool], typer.Option(help="Enable/Disable taking backups")] = None,
     uv: Annotated[
