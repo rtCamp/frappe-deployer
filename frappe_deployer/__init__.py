@@ -620,6 +620,24 @@ def clone(
             show_default=False,
         ),
     ] = [],
+    overwrite: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite",
+            "-o",
+            help="Overwrite existing app directories if they exist.",
+            show_default=True,
+        ),
+    ] = False,
+    backup: Annotated[
+        bool,
+        typer.Option(
+            "--backup",
+            "-b",
+            help="Backup overwritten app directories before replacing.",
+            show_default=True,
+        ),
+    ] = True,
 ):
     """
     Search and replace text across all text fields in the Frappe database
@@ -636,6 +654,6 @@ def clone(
         from frappe_deployer.config.config import Config
         config = Config(site_name=site_name, bench_path=site_config_path / "workspace/frappe-bench", apps=apps, mode="fm")
         manager = DeploymentManager(config)
-        manager.clone_apps(manager.current)
+        manager.clone_apps(manager.current, overwrite=overwrite, backup=backup)
     except Exception as e:
         richprint.warning(f"Failed : {str(e)}")

@@ -492,18 +492,35 @@ class DeploymentManager:
         except ValueError:
             return 0
 
-    def clone_apps(self, bench_directory: "BenchDirectory"):
+    def clone_apps(self, bench_directory: "BenchDirectory", overwrite: bool = False, backup = True):
 
         for app in self.apps:
             self.printer.change_head(f"Cloning repo {app.repo}")
 
-            bench_directory.clone_app(app)
-
             app_path = bench_directory.apps / app.dir_name
-            app_name = bench_directory.get_app_python_module_name(bench_directory.apps / app.dir_name)
-
             from_dir = app_path
+            app_name = bench_directory.get_app_python_module_name(bench_directory.apps / app.dir_name)
             to_dir = bench_directory.apps / app_name
+
+            import datetime
+
+            if to_dir.exists():
+
+                if not overwrite:
+                    raise FileExistsError(f"App directory '{to_dir}' already exists. Use \"--overwrite\" to overwrite it.")
+
+                archive_base = bench_directory.path / "archived" / "apps"
+                archive_base.mkdir(parents=True, exist_ok=True)
+                date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+                archive_path = archive_base / f"{to_dir.name}-{date_str}"
+                shutil.move(str(to_dir), str(archive_path))
+                self.printer.print(f"Archived existing app to {archive_path}")
+
+                if not backup:
+                    shutil.rmtree(str(archive_path))
+
+
+            bench_directory.clone_app(app)
 
             shutil.move(str(from_dir), str(to_dir))
 
