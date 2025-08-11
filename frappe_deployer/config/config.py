@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Any, List, Literal, Optional, Union
 
@@ -143,7 +144,30 @@ class Config(BaseModel):
         if config.fc:
             client = FrappeCloudClient(config.fc.team_name,config.fc.api_key,config.fc.api_secret)
 
-            client.get_latest_backup_download_urls(config.fc.site_name)
+            urls = client.get_latest_backup_download_urls(config.fc.site_name)
+            if urls:
+                from frappe_deployer.utils.download import download_file_with_progress
+                download_status = download_file_with_progress(urls, dest_dir=Path("/tmp"))
+
+                db = download_status.get("database",None)
+                site_config = download_status.get("config",None)
+
+                if config:
+                    if not config.site_config or not config.site_config.get("encryption_key", None):
+
+                        if site_config:
+                            site_config= site_config.get("absolute_path", None)
+
+                            if site_config and Path(site_config).exists():
+                                config.site_config = json.loads(Path(site_config).read_text())
+                                richprint.print(f"Appended FC site_config.json keys")
+
+                if db:
+                    if not config.restore_db_file_path:
+                        db_path  = Path(db.get("absolute_path", None))
+                        if db_path and db_path.exists():
+                            config.restore_db_file_path = db_path
+                            richprint.print(f"FC db backup path: {db_path}")
 
             if config.fc.use_deps:
                 deps = client.get_dependencies(config.fc.site_name)
@@ -170,20 +194,21 @@ class Config(BaseModel):
                 all_repos = set(config_apps_map.keys()) | set(fc_apps_map.keys())
 
                 for repo in all_repos:
-                    if repo in config_apps_map:
+                    if repo in config_apps_map and repo in fc_apps_map:
+                        # Merge: config_apps_map[repo] overwrites fc_apps_map[repo]
+                        merged_app_dict = fc_apps_map[repo].model_dump()
+                        merged_app_dict.update(config_apps_map[repo].model_dump(exclude_unset=True))
+                        merged_apps.append(AppConfig(**merged_app_dict))
+                    elif repo in config_apps_map:
                         merged_apps.append(config_apps_map[repo])
                     else:
                         merged_apps.append(fc_apps_map[repo])
 
                 config.apps = merged_apps
 
-            print(config)
-            exit()
-
         app: AppConfig
 
         for app in config.apps:
-            # Pass GitHub token and remote removal setting
             app.configure_app(
                 token=config.github_token, 
                 remove_remote=config.remove_remote,
@@ -202,9 +227,6 @@ class Config(BaseModel):
 
         if not all_apps_exists:
             raise RuntimeError("Please ensure all apps repo's are accessible.")
-
-        print(config.apps)
-        exit()
 
         return config
 

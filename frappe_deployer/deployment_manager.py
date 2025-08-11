@@ -933,7 +933,7 @@ class DeploymentManager:
 
         if encryption_key:
             current_site_config_path = self.current.sites / self.site_name / "site_config.json"
-            update_json_keys_in_file_path(current_site_config_path, {"backup_encryption_key": encryption_key})
+            update_json_keys_in_file_path(current_site_config_path, {"encryption_key": encryption_key})
             self.printer.print(f"Copyied ncryption_key from {from_bench_name}")
 
     def sync_configs_with_files(self, site_name: str):
@@ -946,7 +946,7 @@ class DeploymentManager:
             update_json_keys_in_file_path(common_site_config_path, self.config.common_site_config)
 
         if self.config.site_config:
-            update_json_keys_in_file_path(site_config_path, self.config.site_config)
+            update_json_keys_in_file_path(site_config_path, self.config.site_config, merge_data= True if self.config.fc else False)
 
         self.printer.print("Updated common_site_config.json, site_config.json")
 
