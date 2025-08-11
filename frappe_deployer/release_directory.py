@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import json
 import re
+from typing import Optional
 import git
 from pathlib import Path
 
@@ -62,35 +63,46 @@ class BenchDirectory:
         git.Repo.clone_from(**kwargs)
 
     def clone_app(self, app: AppConfig):
-        """
-        Clone a specific ref (tag/branch/commit) from a GitHub repository.
+        import shutil
 
-        :param repo: The repository in the format <owner>/<repo>, e.g., frappe/frappe.
-        :param ref: The ref to checkout, can be a tag, branch, or commit.
-        :param clone_path: The path where the repository should be cloned.
-        :param token: Optional GitHub user token for HTTPS authentication.
-        """
+        clone_path = self.get_frappe_bench_app_path(app)
+        clone_path_tmp = self.get_frappe_bench_app_path(app,suffix = "_tmp")
 
-        clone_path = self.get_app_path(app)
+        # Clean up if the directory exists
+        if clone_path_tmp.exists():
+            shutil.rmtree(clone_path_tmp)
 
-        #TODO: Check moving the directory to the app's python modoule name
+        clone_path_tmp.mkdir(parents=True, exist_ok=True)
 
-        depth = 1
-
-        if not app.shallow_clone:
-            depth = None
+        depth = 1 if app.shallow_clone else None
 
         if not app.is_ref_commit:
-            cloned_repo = git.Repo.clone_from(app.repo_url, clone_path, depth=depth, origin=app.remote_name, branch=app.ref)
+            cloned_repo = git.Repo.clone_from(
+                app.repo_url, clone_path_tmp, depth=depth, origin=app.remote_name, branch=app.ref
+            )
         else:
-            cloned_repo = git.Repo.clone_from(app.repo_url, clone_path, depth=depth, origin=app.remote_name)
+            cloned_repo = git.Repo.clone_from(
+                app.repo_url, clone_path_tmp, depth=depth, origin=app.remote_name
+            )
+
             if app.shallow_clone:
                 cloned_repo.git.fetch('--depth', '1', app.remote_name, app.ref)
 
             cloned_repo.git.checkout(app.ref)
 
+        move_path = clone_path_tmp
+
         if app.remove_remote:
             cloned_repo.delete_remote(cloned_repo.remote(app.remote_name))
+
+        if app.subdir_path:
+            move_path = clone_path_tmp / app.subdir_path
+
+        shutil.move(move_path, clone_path)
+
+        if app.subdir_path:
+            shutil.rmtree(clone_path_tmp)
+
 
     def maintenance_mode(self, site_name: str, value: bool = True):
         site_config = self.sites / site_name  / 'site_config.json'
@@ -98,8 +110,8 @@ class BenchDirectory:
         json_site_config['maintenance_mode'] = int(value)
         site_config.write_text(json.dumps(json_site_config, indent=4))
 
-    def get_app_path(self, app: AppConfig) -> Path:
-        return self.apps / app.dir_name
+    def get_frappe_bench_app_path(self, app: AppConfig, suffix: Optional[str] = None) -> Path:
+        return self.apps / (app.dir_name + suffix if suffix else app.dir_name)
 
     def get_app_python_module_name(self, app_path: Path):
 
