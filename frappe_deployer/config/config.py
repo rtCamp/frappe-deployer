@@ -8,9 +8,11 @@ from unittest.mock import patch
 import toml
 
 from frappe_deployer.config.app import AppConfig
+from frappe_deployer.config.fc import FCConfig
 from frappe_deployer.config.fm import FMConfig
 from frappe_deployer.config.host import HostConfig
 from frappe_deployer.config.remote_worker import RemoteWorkerConfig
+from frappe_deployer.fc import FrappeCloudClient, fc_apps_list_to_appconfig_list
 
 def patched_change_head(original_function):
     def wrapper(*args, **kwargs):
@@ -66,6 +68,7 @@ class Config(BaseModel):
     remote_name: Optional[str] = Field("upstream", description="Name of the remote to use during cloning")
     apps: List[AppConfig] = Field(..., description="List of application configurations.")
     python_version: Optional[str] = Field(None, description="Python Version to for venv creation.")
+    node_version: Optional[str] = Field(None, description="Node.js Version to use.")
     run_bench_migrate: bool = Field(True, description="Flag to run bench migrate.")
     migrate_timeout: int = Field(600, description="Migrate timeout")
     wait_workers: bool = Field(False, description="Wait workers")
@@ -92,6 +95,7 @@ class Config(BaseModel):
     fm_post_build: Optional[str] = Field(None, description="Script to run after building each app in FM mode")
     host: Optional[HostConfig] = Field(None, description="Host configuration.")
     fm: Optional[FMConfig] = Field(None, description="FM configuration.")
+    fc: Optional[FCConfig] = Field(None, description="FC configuration.")
     remote_worker: Optional[RemoteWorkerConfig] = Field(None, description="Remote worker configuration.")
 
     @field_validator('restore_db_file_path',mode='before')
@@ -134,6 +138,48 @@ class Config(BaseModel):
     @model_validator(mode='after')
     def configure_config(cls, config: Any) -> Any:
 
+
+        # add apps from fc
+        if config.fc:
+            client = FrappeCloudClient(config.fc.team_name,config.fc.api_key,config.fc.api_secret)
+
+            client.get_latest_backup_download_urls(config.fc.site_name)
+
+            if config.fc.use_deps:
+                deps = client.get_dependencies(config.fc.site_name)
+                # Extract versions from deps
+                python_version = next((d["version"] for d in deps if d["dependency"] == "PYTHON_VERSION"), None)
+                # node_version = next((d["version"] for d in deps if d["dependency"] == "NODE_VERSION"), None)
+
+                # Set config values if not already set
+                if not getattr(config, "python_version", None) and python_version:
+                    config.python_version = python_version
+
+                # if not getattr(config, "node_version", None) and node_version:
+                #     config.node_version = node_version
+
+            if config.fc.use_apps:
+                fc_apps = fc_apps_list_to_appconfig_list(client.get_apps_list(config.fc.site_name))
+
+                # Create a mapping from repo (lowercase) to AppConfig for config.apps
+                config_apps_map = {app.repo.lower(): app for app in config.apps}
+
+                # Merge: if app exists in config.apps, use it; else, use from fc_apps
+                merged_apps = []
+                fc_apps_map = {app.repo.lower(): app for app in fc_apps}
+                all_repos = set(config_apps_map.keys()) | set(fc_apps_map.keys())
+
+                for repo in all_repos:
+                    if repo in config_apps_map:
+                        merged_apps.append(config_apps_map[repo])
+                    else:
+                        merged_apps.append(fc_apps_map[repo])
+
+                config.apps = merged_apps
+
+            print(config)
+            exit()
+
         app: AppConfig
 
         for app in config.apps:
@@ -156,6 +202,9 @@ class Config(BaseModel):
 
         if not all_apps_exists:
             raise RuntimeError("Please ensure all apps repo's are accessible.")
+
+        print(config.apps)
+        exit()
 
         return config
 
