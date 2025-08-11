@@ -238,6 +238,30 @@ def pull(
         Optional[str], 
         typer.Option("--remote-name", help="Name of the remote to use during cloning (default: upstream)", show_default=False)
     ] = None,
+    fc_key: Annotated[
+        Optional[str],
+        typer.Option("--fc-key", help="Frappe Cloud API key", show_default=False, rich_help_panel="Frappe Cloud")
+    ] = None,
+    fc_secret: Annotated[
+        Optional[str],
+        typer.Option("--fc-secret", help="Frappe Cloud API secret", show_default=False, rich_help_panel ="Frappe Cloud")
+    ] = None,
+    fc_site_name: Annotated[
+        Optional[str],
+        typer.Option("--fc-site-name", help="Frappe Cloud Site Name", show_default=False, rich_help_panel="Frappe Cloud")
+    ] = None,
+    fc_team_name: Annotated[
+        Optional[str],
+        typer.Option("--fc-team-name", help="Frappe Cloud Team Name", show_default=False, rich_help_panel="Frappe Cloud")
+    ] = None,
+    fc_use_deps: Annotated[
+        Optional[bool],
+        typer.Option("--fc-use-deps", help="Use Frappe Cloud dependencies list i.e python version, node version", show_default=False, rich_help_panel ="Frappe Cloud")
+    ] = None,
+    fc_use_db: Annotated[
+        Optional[str],
+        typer.Option("--fc-use-db", help="Frappe Cloud Site Name", show_default=False, rich_help_panel="Frappe Cloud")
+    ] = None,
 ):
     """
     Pulls the current set of frappe apps and setup new release based on provided config file/flags.
@@ -256,6 +280,10 @@ def pull(
 
     richprint.start("working")
     config: Config = Config.from_toml(config_path, config_content, get_config_overrides(locals=current_locals))
+
+    print(config.apps)
+
+    exit()
 
     if len(config.apps) == 0:
         raise RuntimeError("Apps list cannot be empty in [code]pull[/code] command.")
