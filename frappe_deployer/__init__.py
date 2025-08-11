@@ -85,8 +85,13 @@ def parse_apps(apps_list: list[str]):
     for repo_with_branch_name in apps_list:
         app_parts = repo_with_branch_name.split(":")
         app = {"repo": app_parts[0]}
+
         if len(app_parts) >= 2:
             app["ref"] = app_parts[1]
+
+        if len(app_parts) >= 3:
+            app["subdir_path"] = app_parts[2]
+
         apps.append(app)
     return apps
 
@@ -600,3 +605,37 @@ def configure_basic_deployment_config(site_name: str) -> dict:
     data["apps"] = []
 
     return data
+
+@cli.command(no_args_is_help=True)
+def clone(
+    ctx: typer.Context,
+    site_name: Annotated[str, typer.Argument(help="The name of the site.")],
+    apps: Annotated[
+        list[str],
+        typer.Option(
+            "--apps",
+            "-a",
+            help="List of apps in the format [underline]org_name/repo_name:branch:subdir_path[/underline]",
+            callback=parse_apps,
+            show_default=False,
+        ),
+    ] = [],
+):
+    """
+    Search and replace text across all text fields in the Frappe database
+    """
+    richprint.start("working")
+
+    # Check if site exists
+    site_config_path: Path = CLI_BENCHES_DIRECTORY / f"{site_name}"
+
+    if not site_config_path.exists():
+        richprint.exit(f"Site {site_name} does not exist")
+
+    try:
+        from frappe_deployer.config.config import Config
+        config = Config(site_name=site_name, bench_path=site_config_path / "workspace/frappe-bench", apps=apps, mode="fm")
+        manager = DeploymentManager(config)
+        manager.clone_apps(manager.current)
+    except Exception as e:
+        richprint.warning(f"Failed : {str(e)}")

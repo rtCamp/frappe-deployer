@@ -493,13 +493,16 @@ class DeploymentManager:
             return 0
 
     def clone_apps(self, bench_directory: "BenchDirectory"):
+
         for app in self.apps:
             self.printer.change_head(f"Cloning repo {app.repo}")
+
             bench_directory.clone_app(app)
 
+            app_path = bench_directory.apps / app.dir_name
             app_name = bench_directory.get_app_python_module_name(bench_directory.apps / app.dir_name)
 
-            from_dir = bench_directory.apps / app.dir_name
+            from_dir = app_path
             to_dir = bench_directory.apps / app_name
 
             shutil.move(str(from_dir), str(to_dir))
