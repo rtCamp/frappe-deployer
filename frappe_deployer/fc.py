@@ -92,7 +92,7 @@ class FrappeCloudClient:
 
         return filtered_apps
 
-    def get_latest_backup_download_urls(self, site_name: str, files: list[str] = ["database"]) -> dict[str, str]:
+    def get_latest_backup_download_urls(self, site_name: str, files: list[str] = ["database", "config"]) -> dict[str, str]:
         """
         Get download URLs for the latest backup files for the given site and file types.
 

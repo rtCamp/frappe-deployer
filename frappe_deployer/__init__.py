@@ -281,10 +281,6 @@ def pull(
     richprint.start("working")
     config: Config = Config.from_toml(config_path, config_content, get_config_overrides(locals=current_locals))
 
-    print(config.apps)
-
-    exit()
-
     if len(config.apps) == 0:
         raise RuntimeError("Apps list cannot be empty in [code]pull[/code] command.")
 
