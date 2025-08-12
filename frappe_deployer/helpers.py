@@ -53,11 +53,12 @@ def get_json(file_path:Path) -> dict[Any,Any]:
     return data
 
 def update_json_keys_in_file_path(file_path: Path, data_to_update: dict[Any,Any], merge_data:bool =  False) -> bool:
-    # Update the existing content with the new data
     json_data = get_json(file_path)
     if merge_data:
-        json_data = data_to_update.update(json_data)
-    file_path.write_text(json.dumps(json_data, ensure_ascii=False, indent=4))
+        result = data_to_update.update(json_data)
+    else:
+        result = json_data.update(data_to_update)
+    file_path.write_text(json.dumps(result, ensure_ascii=False, indent=4))
     return True
 
 def human_readable_time(seconds: float) -> str:

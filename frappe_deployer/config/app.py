@@ -12,6 +12,7 @@ class AppConfig(BaseModel):
     repo: str
     repo_url: Optional[str] = None
     ref: Optional[str] = None
+    app_name: Optional[str] = None
     subdir_path: Optional[str] = None
     shallow_clone: bool = Field(True)
     is_ref_commit: bool = Field(False)
@@ -23,6 +24,9 @@ class AppConfig(BaseModel):
 
     @property
     def dir_name(self):
+        if self.app_name:
+            return self.app_name
+
         if self.subdir_path:
             return self.subdir_path.split('/')[-1]
 
