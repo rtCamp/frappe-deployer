@@ -138,8 +138,6 @@ class Config(BaseModel):
 
     @model_validator(mode='after')
     def configure_config(cls, config: Any) -> Any:
-
-
         # add apps from fc
         if config.fc:
             client = FrappeCloudClient(config.fc.team_name,config.fc.api_key,config.fc.api_secret)
@@ -156,10 +154,10 @@ class Config(BaseModel):
                     if not config.site_config or not config.site_config.get("encryption_key", None):
 
                         if site_config:
-                            site_config= site_config.get("absolute_path", None)
+                            site_config_path = site_config.get("absolute_path", None)
 
-                            if site_config and Path(site_config).exists():
-                                config.site_config = json.loads(Path(site_config).read_text())
+                            if site_config_path and Path(site_config_path).exists():
+                                config.site_config = json.loads(Path(site_config_path).read_text())
                                 richprint.print(f"Appended FC site_config.json keys")
 
                 if db:
