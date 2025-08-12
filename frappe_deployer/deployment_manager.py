@@ -369,9 +369,7 @@ class DeploymentManager:
         #     start_time = time.time()
         #     self.printer.print("Enabled maintenance mode")
         #     self.current.maintenance_mode(self.site_name, True)
-
         self.sync_configs_with_files(self.config.site_name)
-
         exception = None
 
         try:
@@ -497,9 +495,12 @@ class DeploymentManager:
         for app in self.apps:
             self.printer.change_head(f"Cloning repo {app.repo}")
 
-            app_path = bench_directory.apps / app.dir_name
-            from_dir = app_path
-            app_name = bench_directory.get_app_python_module_name(bench_directory.apps / app.dir_name)
+            app_path = bench_directory.apps / f'{app.dir_name}_clone'
+            from_dir = app_path 
+
+            bench_directory.clone_app(app)
+
+            app_name = app.app_name if app.app_name else bench_directory.get_app_python_module_name(from_dir)
             to_dir = bench_directory.apps / app_name
 
             import datetime
@@ -520,7 +521,6 @@ class DeploymentManager:
                     shutil.rmtree(str(archive_path))
 
 
-            bench_directory.clone_app(app)
 
             shutil.move(str(from_dir), str(to_dir))
 

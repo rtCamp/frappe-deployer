@@ -65,7 +65,7 @@ class BenchDirectory:
     def clone_app(self, app: AppConfig):
         import shutil
 
-        clone_path = self.get_frappe_bench_app_path(app)
+        clone_path = self.get_frappe_bench_app_path(app, suffix= "_clone")
         clone_path_tmp = self.get_frappe_bench_app_path(app,suffix = "_tmp")
 
         # Clean up if the directory exists
