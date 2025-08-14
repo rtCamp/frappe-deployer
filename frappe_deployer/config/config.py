@@ -138,6 +138,7 @@ class Config(BaseModel):
 
     @model_validator(mode='after')
     def configure_config(cls, config: Any) -> Any:
+        FC_SPECIFIC_CONFIG_NAMES_TO_REMOVE = ["host_name", "plan_limit", "rate_limit", "ic_api_secret", "domains"]
         # add apps from fc
         if config.fc:
             client = FrappeCloudClient(config.fc.team_name,config.fc.api_key,config.fc.api_secret)
@@ -157,7 +158,14 @@ class Config(BaseModel):
                             site_config_path = site_config.get("absolute_path", None)
 
                             if site_config_path and Path(site_config_path).exists():
-                                config.site_config = json.loads(Path(site_config_path).read_text())
+                                fc_site_config = json.loads(Path(site_config_path).read_text())
+
+                                for name in FC_SPECIFIC_CONFIG_NAMES_TO_REMOVE:
+                                    fc_site_config.pop(name)
+
+                                config.site_config = fc_site_config
+
+
                                 richprint.print(f"Appended FC site_config.json keys")
 
                 if db:
