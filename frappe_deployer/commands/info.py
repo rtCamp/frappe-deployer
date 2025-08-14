@@ -50,21 +50,17 @@ def info(
         remote = run_git(["remote", "get-url", "origin"])
         branch = run_git(["rev-parse", "--abbrev-ref", "HEAD"])
         commit = run_git(["rev-parse", "HEAD"])
-
         tag = run_git(["describe", "--tags", "--exact-match"])
+        latest_commit_msg = run_git(["log", "-1", "--pretty=%B"])
 
         if not tag:
             tag = None
-
         remote_name = run_git(["remote"])
-
         if remote_name:
-            # If multiple remotes, pick the one that matches the URL, else first
             remote_names = remote_name.splitlines()
             if len(remote_names) == 1:
                 remote_name = remote_names[0]
             elif remote and remote_names:
-                # Try to find the remote whose URL matches
                 for rn in remote_names:
                     url = run_git(["remote", "get-url", rn])
                     if url == remote:
@@ -75,12 +71,14 @@ def info(
         else:
             remote_name = None
 
+
         app_dict = {
             "repo": remote if remote else app_dir.name,
             "ref": commit if commit else branch if branch else None,
             "app_name": app_dir.name,
             "remote_name": remote_name,
             "tag": tag,
+            "latest_commit_msg": latest_commit_msg,
         }
         apps_list.append(app_dict)
 
