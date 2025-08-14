@@ -11,9 +11,8 @@ from frappe_manager.utils.helpers import (
 )
 from rich.traceback import Traceback
 import typer
-
-import frappe_deployer
 from frappe_deployer.consts import LOG_FILE_NAME
+from frappe_deployer.commands import app
 
 def mask_sensitive_value(value: str) -> str:
     """Mask potentially sensitive values."""
@@ -53,7 +52,7 @@ def capture_and_format_exception(traceback_max_frames: int = 100) -> str:
 
 def cli_entrypoint():
     try:
-        frappe_deployer.commands.app()
+        app()
     except Exception as e:
         logger = log.get_logger()
         richprint.stop()

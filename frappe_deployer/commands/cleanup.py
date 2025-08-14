@@ -1,11 +1,10 @@
 from pathlib import Path
 from typing import Annotated, Optional
-from frappe_deployer import get_config_overrides
 from frappe_deployer.config.config import Config
 from frappe_deployer.deployment_manager import DeploymentManager
 from frappe_manager.logger.log import richprint
 import typer
-from frappe_deployer.commands import app, configure_basic_deployment_config, validate_cofig_path
+from frappe_deployer.commands import app, configure_basic_deployment_config, validate_cofig_path, get_config_overrides
 
 @app.command()
 def cleanup(

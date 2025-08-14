@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Annotated, Any, Optional, Union
 from frappe_deployer import version_callback
 from frappe_deployer.exceptions import ConfigPathDoesntExist
-from frappe_manager import CLI_BENCHES_DIRECTORY)
+from frappe_manager import CLI_BENCHES_DIRECTORY
 from frappe_manager.logger.log import richprint
 import typer
 
@@ -11,15 +11,12 @@ class ModeEnum(str, Enum):
     fm = "fm"
     host = "host"
 
+COMMAND_MODULES = ["callback",'pull', 'cleanup', 'clone', 'maintenance', 'remote_worker', "search_replace", "info"]
+
 app = typer.Typer(no_args_is_help=True, rich_markup_mode="rich")
 # remote_worker = typer.Typer(help="Remote worker management commands")
 # app.add_typer(remote_worker, name="remote-worker")
 
-@app.callback()
-def main(version: Annotated[bool, typer.Option("--version", "-V", callback=version_callback, is_eager=True)] = False):
-    """Frappe Deployer CLI tool"""
-    if not version:
-        version_callback(True)
 
 def validate_cofig_path(configpath: Optional[Union[str, Path]]):
     if configpath:
@@ -65,12 +62,8 @@ def load_commands():
     Dynamically load all command modules and register them with the app.
     This is done after app initialization to avoid circular imports.
     """
-    command_modules = [
-        'pull','delete', 'info', 'list',
-    ]
-
-    for module_name in command_modules:
-        __import__(f'frappe_manager.commands.{module_name}')
+    for module_name in COMMAND_MODULES:
+        __import__(f'frappe_deployer.commands.{module_name}')
 
 def configure_basic_deployment_config(site_name: str) -> dict:
     """Create a minimal deployment manager for syncing operations.
@@ -90,4 +83,5 @@ def configure_basic_deployment_config(site_name: str) -> dict:
 
     return data
 
+# version_callback(show=True)
 load_commands()
