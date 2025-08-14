@@ -52,7 +52,7 @@ def enable_maintenance(
         richprint.exit(f"Failed to enable maintenance mode: {str(e)}")
 
 
-@cli.command(no_args_is_help=True)
+@app.command(no_args_is_help=True)
 def disable_maintenance(
     ctx: typer.Context,
     site_name: Annotated[

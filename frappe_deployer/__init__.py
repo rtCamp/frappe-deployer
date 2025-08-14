@@ -2,11 +2,12 @@ from unittest.mock import patch
 from frappe_deployer.consts import LOG_FILE_NAME
 import typer
 
-__version__ = "0.11.0"
+VERSION = "0.11.0"
 
 def version_callback(show: bool):
+
     if show:
-        typer.echo(f"frappe-deployer version: {__version__}")
+        typer.echo(f"frappe-deployer version: {VERSION}")
         raise typer.Exit()
 
 class CustomLogger:

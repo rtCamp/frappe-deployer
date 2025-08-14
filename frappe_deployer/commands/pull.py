@@ -3,13 +3,11 @@ import time
 from typing import Annotated, List, Optional
 from frappe_manager.logger.log import richprint
 import typer
-from frappe_deployer import validate_cofig_path
 from frappe_deployer.config.config import Config
 from frappe_deployer.deployment_manager import DeploymentManager
 from frappe_deployer.helpers import human_readable_time
 
-from frappe_deployer.commands import app, get_config_overrides, validate_db_file_path
-
+from frappe_deployer.commands import app, get_config_overrides, parse_apps, validate_cofig_path, validate_db_file_path
 
 @app.command(no_args_is_help=True)
 def pull(
