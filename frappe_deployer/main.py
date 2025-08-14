@@ -44,13 +44,8 @@ def capture_and_format_exception(traceback_max_frames: int = 100) -> str:
         exc_type, exc_value, exc_traceback, 
         show_locals=True, 
         max_frames=traceback_max_frames,
-        locals_max_string=None  # Prevent full string display of local variables
     )
-
-    # Convert the Traceback object to a formatted string
     formatted_traceback = rich_object_to_string(traceback)
-    
-    # Additional masking of the formatted traceback
     formatted_traceback = mask_sensitive_value(formatted_traceback)
 
     return formatted_traceback
@@ -58,10 +53,9 @@ def capture_and_format_exception(traceback_max_frames: int = 100) -> str:
 
 def cli_entrypoint():
     try:
-        frappe_deployer.cli()
+        frappe_deployer.commands.app()
     except Exception as e:
         logger = log.get_logger()
-
         richprint.stop()
 
         richprint.error(f'[red]Error Occured[/red]  {str(e).strip()}', emoji_code="\n:red_square:")

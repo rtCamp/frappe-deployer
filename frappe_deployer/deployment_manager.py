@@ -408,7 +408,6 @@ class DeploymentManager:
             self.bench_install_apps(self.current)
 
         except Exception as e:
-            raise e
             if self.config.rollback:
                 exception = e
                 self.printer.error(f"Failed to create new release {self.new.path.name}")
