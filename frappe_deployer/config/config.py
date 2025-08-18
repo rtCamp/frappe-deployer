@@ -74,6 +74,10 @@ class Config(BaseModel):
     migrate_timeout: int = Field(600, description="Migrate timeout")
     wait_workers: bool = Field(False, description="Wait workers")
     wait_workers_timeout: int = Field(600, description="Wait workers timout")
+    symlink_subdir_apps: bool = Field(
+        False,
+        description="Allow symlinking for all apps with subdirectory configuration; can be overridden by per-app symlink setting."
+    )
     rollback: bool = Field(False, description="Allow rollback")
     maintenance_mode: bool = Field(True, description='Flag to use maintenance mode while restart and bench migrate and bench install-app.')
     maintenance_mode_phases: List[str] = Field(["migrate","start"], description='Phases in which maintenance mode will be active')
@@ -215,6 +219,10 @@ class Config(BaseModel):
         app: AppConfig
 
         for app in config.apps:
+            if getattr(app, "subdir_path", None):
+                app.symlink = getattr(app, "symlink", False) or getattr(config, "symlink_subdir_apps", False)
+
+        for app in config.apps:
             app.configure_app(
                 token=config.github_token, 
                 remove_remote=config.remove_remote,
@@ -295,21 +303,26 @@ class Config(BaseModel):
                 config_data = toml.load(f)
 
         if overrides:
-            # Merge overrides into config_data only if the keys are data members of Config
             for key, value in overrides.items():
                 if key == 'apps':
-                    # Handle the merging of apps
-                    existing_apps = {app['repo'].lower(): app for app in config_data.get('apps', [])}
-                    
+                    # Use (repo.lower(), ref, subdir_path or None) as the unique key
+                    def app_key(app):
+                        return (
+                            app.get('repo', '').lower(),
+                            app.get('ref', None),
+                            app.get('subdir_path', None)
+                        )
+
+                    existing_apps = {app_key(app): app for app in config_data.get('apps', [])}
+
                     for app in value:
-                        app_repo = app['repo'].lower()
-                        if app_repo in existing_apps:
-                            # Update existing app with new values while preserving old values
-                            merged_app = existing_apps[app_repo].copy()
+                        k = app_key(app)
+                        if k in existing_apps:
+                            merged_app = existing_apps[k].copy()
                             merged_app.update(app)
-                            existing_apps[app_repo] = merged_app
+                            existing_apps[k] = merged_app
                         else:
-                            existing_apps[app_repo] = app
+                            existing_apps[k] = app
 
                     config_data['apps'] = list(existing_apps.values())
                     continue
