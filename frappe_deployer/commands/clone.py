@@ -40,6 +40,15 @@ def clone(
             show_default=True,
         ),
     ] = True,
+    symlink_subdir_apps: Annotated[
+        bool,
+        typer.Option(
+            "--symlink-subdir-apps",
+            "-s",
+            help="For subdir apps use symlink, useful for local dev.",
+            show_default=True,
+        ),
+    ] = False,
 ):
     """
     Search and replace text across all text fields in the Frappe database
@@ -54,7 +63,7 @@ def clone(
 
     try:
         from frappe_deployer.config.config import Config
-        config = Config(site_name=site_name, bench_path=site_config_path / "workspace/frappe-bench", apps=apps, mode="fm")
+        config = Config(site_name=site_name, bench_path=site_config_path / "workspace/frappe-bench", apps=apps, mode="fm", symlink_subdir_apps=symlink_subdir_apps)
         manager = DeploymentManager(config)
         manager.clone_apps(manager.current, overwrite=overwrite, backup=backup)
     except Exception as e:

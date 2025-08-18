@@ -62,11 +62,10 @@ class BenchDirectory:
     def clone(**kwargs):
         git.Repo.clone_from(**kwargs)
 
-    def clone_app(self, app: AppConfig):
+    def clone_app(self, app: AppConfig, clone_path: Path, move_to_subdir: bool = True) -> Path:
         import shutil
 
-        clone_path = self.get_frappe_bench_app_path(app, suffix= "_clone")
-        clone_path_tmp = self.get_frappe_bench_app_path(app,suffix = "_tmp")
+        clone_path_tmp = Path(str(clone_path) + "_tmp")
 
         # Clean up if the directory exists
         if clone_path_tmp.exists():
@@ -96,13 +95,16 @@ class BenchDirectory:
             cloned_repo.delete_remote(cloned_repo.remote(app.remote_name))
 
         if app.subdir_path:
-            move_path = clone_path_tmp / app.subdir_path
+            if move_to_subdir:
+                move_path = clone_path_tmp / app.subdir_path
 
         shutil.move(move_path, clone_path)
 
         if app.subdir_path:
-            shutil.rmtree(clone_path_tmp)
+            if move_to_subdir:
+                shutil.rmtree(clone_path_tmp)
 
+        return clone_path
 
     def maintenance_mode(self, site_name: str, value: bool = True):
         site_config = self.sites / site_name  / 'site_config.json'
@@ -110,8 +112,14 @@ class BenchDirectory:
         json_site_config['maintenance_mode'] = int(value)
         site_config.write_text(json.dumps(json_site_config, indent=4))
 
-    def get_frappe_bench_app_path(self, app: AppConfig, suffix: Optional[str] = None) -> Path:
-        return self.apps / (app.dir_name + suffix if suffix else app.dir_name)
+    def get_frappe_bench_app_path(self, app: AppConfig, suffix: Optional[str] = None, append_release_name: Optional[str] = None) -> Path:
+        app_path = self.apps
+
+        if append_release_name:
+            app_path = app_path / append_release_name
+
+        return app_path / (app.dir_name + suffix if suffix else app.dir_name)
+
 
     def get_app_python_module_name(self, app_path: Path):
 

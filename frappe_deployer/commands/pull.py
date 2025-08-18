@@ -146,6 +146,14 @@ def pull(
         Optional[str],
         typer.Option("--fc-use-db", help="Frappe Cloud Site Name", show_default=False, rich_help_panel="Frappe Cloud"),
     ] = None,
+    symlink_subdir_apps: Annotated[
+        bool,
+        typer.Option(
+            "--symlink-subdir-apps",
+            help="For subdir apps use symlink, useful for local dev.",
+            show_default=True,
+        ),
+    ] = False,
 ):
     """
     Pulls the current set of frappe apps and setup new release based on provided config file/flags.
@@ -163,6 +171,7 @@ def pull(
         current_locals["fm"] = {"restore_db_from_site": fm_restore_db_from_site}
 
     richprint.start("working")
+
     config: Config = Config.from_toml(config_path, config_content, get_config_overrides(locals=current_locals))
 
     if len(config.apps) == 0:

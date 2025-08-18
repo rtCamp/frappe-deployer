@@ -18,6 +18,10 @@ class AppConfig(BaseModel):
     is_ref_commit: bool = Field(False)
     exists: bool = Field(False)
     remove_remote: bool = Field(False)
+    symlink: bool = Field(
+        False,
+        description="If True, symlink this app's directory instead of copying it. For subdirectory apps, this can be set globally via symlink_subdir_apps or per-app."
+    )
     remote_name: str = Field("upstream", description="Name of the remote to use during cloning")
     fm_pre_build: Optional[str] = Field(None, description="Command to run before build in FM mode")
     fm_post_build: Optional[str] = Field(None, description="Command to run after build in FM mode")

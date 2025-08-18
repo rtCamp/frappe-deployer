@@ -313,8 +313,12 @@ class DeploymentManager:
             self.printer.change_head("Backing up db, common_site_config and site_config.json")
             (self.backup.sites / self.site_name).mkdir(exist_ok=True, parents=True)
             shutil.copyfile(self.current.common_site_config, self.backup.common_site_config)
-            self.bench_backup(self.site_name)
-            self.printer.print("Backed up db, common_site_config and site_config.json")
+            frappe_app_dir = self.current.apps / "frappe"
+            if frappe_app_dir.exists():
+                self.bench_backup(self.site_name)
+                self.printer.print("Backed up db, common_site_config and site_config.json")
+            else:
+                self.printer.print("Skipped DB backup: apps/frappe does not exist in current bench.")
 
     def create_new_release(self):
         if not self.bench_path.is_symlink():
@@ -492,14 +496,29 @@ class DeploymentManager:
             return 0
 
     def clone_apps(self, bench_directory: "BenchDirectory", overwrite: bool = False, backup = True):
+        clone_map = {}  # (repo, ref) -> clone_path
 
         for app in self.apps:
             self.printer.change_head(f"Cloning repo {app.repo}")
 
-            app_path = bench_directory.apps / f'{app.dir_name}_clone'
-            from_dir = app_path 
+            if app.symlink:
+                key = (app.repo, app.ref)
+                if key in clone_map:
+                    clone_path = clone_map[key]
+                    self.printer.print(f"Reusing clone for {app.repo}@{app.ref} subdir: {app.subdir_path}")
+                else:
+                    clone_path = self.data.get_frappe_bench_app_path(app, append_release_name=bench_directory.path.resolve().name, suffix="_clone")
+                    self.data.clone_app(app, clone_path=clone_path, move_to_subdir=False)
+                    clone_map[key] = clone_path
+            else:
+                clone_path = bench_directory.get_frappe_bench_app_path(app, suffix="_clone")
+                bench_directory.clone_app(app, clone_path=clone_path)
 
-            bench_directory.clone_app(app)
+            from_dir = clone_path
+
+            if app.symlink:
+                if app.subdir_path:
+                    from_dir = from_dir / app.subdir_path
 
             app_name = app.app_name if app.app_name else bench_directory.get_app_python_module_name(from_dir)
             to_dir = bench_directory.apps / app_name
@@ -507,7 +526,6 @@ class DeploymentManager:
             import datetime
 
             if to_dir.exists():
-
                 if not overwrite:
                     raise FileExistsError(f"App directory '{to_dir}' already exists. Use \"--overwrite\" to overwrite it.")
 
@@ -521,9 +539,11 @@ class DeploymentManager:
                 if not backup:
                     shutil.rmtree(str(archive_path))
 
-
-
-            shutil.move(str(from_dir), str(to_dir))
+            if app.symlink:
+                symlink_path = get_relative_path(to_dir, from_dir)
+                to_dir.symlink_to(symlink_path, True)
+            else:
+                shutil.move(str(from_dir), str(to_dir))
 
             self.printer.print(
                 f"{'Remote removed ' if app.remove_remote else ''}Cloned Repo: {app.repo}, Module Name: '{app_name}'"
