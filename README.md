@@ -14,7 +14,7 @@ A powerful CLI tool for managing and deploying Frappe applications with support 
 - **Maintenance Mode:** Built-in maintenance pages with developer bypass tokens
 - **Configuration Management:** TOML-based configuration with CLI overrides
 - **Frappe Cloud Integration:** Import backups and config directly from Frappe Cloud
-- **Python/Node Version Management:** Specify Python and Node.js versions; UV support for fast Python environments
+- **Python Version Management:** Specify Python versions; UV support for fast Python environments
 
 ## Quick Start
 
@@ -94,7 +94,6 @@ Create a `config.toml` file:
 site_name = "my-site"
 mode = "fm"  # or "host"
 python_version = "3.10"
-node_version = "18"
 github_token = "ghp_xxxxxxxxxxxx"  # Optional for private repos
 
 # Deployment settings
