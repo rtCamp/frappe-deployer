@@ -1197,7 +1197,7 @@ class DeploymentManager:
                     stream=not capture_output,
                     capture_output=capture_output,
                     cwd=str(bench_directory.path.absolute()),
-                    env=base_env,  # Pass merged environment for host execution
+                    env=base_env,
                 )
 
                 if self.verbose:
@@ -1233,6 +1233,7 @@ class DeploymentManager:
                 return None
 
         docker_command = " ".join(command)
+        docker_command = f"/bin/bash -c \'source /etc/bash.bashrc; {docker_command}\'"
 
         workdir = workdir or f"/workspace/{bench_directory.path.name}"
 
@@ -1496,6 +1497,7 @@ class DeploymentManager:
 
             # Run the regular build command
             build_cmd = [self.bench_cli, "build", "--app", app.name]
+
             self.host_run(
                 build_cmd,
                 bench_directory,
