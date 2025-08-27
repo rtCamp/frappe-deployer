@@ -45,6 +45,8 @@ def ssh_run(
     remote_config = deployment_manager.config.remote_worker
     ssh_command = [
         "ssh",
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "UserKnownHostsFile=/dev/null",
         "-p", str(remote_config.ssh_port),
         f"{remote_config.ssh_user}@{remote_config.server_ip}"
     ]
