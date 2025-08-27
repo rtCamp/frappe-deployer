@@ -382,8 +382,8 @@ def create_required_directories(deployment_manager: "DeploymentManager", remote_
         remote_base_path: Base path on remote server
     """
     dirs_which_should_always_be_there = [
-        f'deployment_data/sites/{deployment_manager.config.site_name}/private/files',
-        f'deployment_data/sites/{deployment_manager.config.site_name}/public/files',
+        f'deployment-data/sites/{deployment_manager.config.site_name}/private/files',
+        f'deployment-data/sites/{deployment_manager.config.site_name}/public/files',
         'frappe-bench/config/pids'
     ]
 
