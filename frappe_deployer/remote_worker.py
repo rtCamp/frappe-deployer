@@ -542,6 +542,9 @@ def get_base_rsync_dirs(deployment_manager: "DeploymentManager") -> list[dict]:
     site_name = deployment_manager.config.site_name
     return [
         {"src": deployment_manager.current.path, "exclude": [], "type": "d"},
+        {"src": deployment_manager.current.path.parent / ".pyenv", "exclude": [], "type": "d"},
+        {"src": deployment_manager.current.path.parent / ".nvm", "exclude": [], "type": "d"},
+        {"src": deployment_manager.current.path.parent / ".oh-my-zsh", "exclude": [], "type": "d"},
         {
             "src": deployment_manager.data.path,
             "type": 'd',
