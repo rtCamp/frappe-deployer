@@ -253,19 +253,18 @@ def create_worker_site_config(deployment_manager: "DeploymentManager", force: bo
         raise
 
 def stop_all_compose_services(deployment_manager: "DeploymentManager") -> None:
-    with ssh_run(deployment_manager) as ssh:
-        remote_bench_path = (
-            Path(deployment_manager.config.remote_worker.fm_benches_path) / deployment_manager.config.site_name
-        )
+    remote_bench_path = (
+        Path(deployment_manager.config.remote_worker.fm_benches_path) / deployment_manager.config.site_name
+    )
+    richprint.change_head("Stop all remote-worker services")
 
-        richprint.change_head("Stop all remote-worker services")
-
-        # Stop regular compose services
-        ssh.run(
-            ["docker", "compose", "-f", "docker-compose.yml", "-f", "docker-compose.workers.yml", "down", "--timeout" , "10"],
-            workdir=str(remote_bench_path),
-            capture_output=True,
-        )
+    # Stop regular compose services
+    ssh_run(
+        deployment_manager,
+        ["docker", "compose", "-f", "docker-compose.yml", "-f", "docker-compose.workers.yml", "down", "--timeout" , "10"],
+        workdir=str(remote_bench_path),
+        capture_output=True,
+    )
 
     richprint.print("Stoped all remote-worker services")
 

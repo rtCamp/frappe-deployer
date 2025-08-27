@@ -91,7 +91,7 @@ def sync(
         Optional[Path], typer.Option(help="TOML config path", callback=validate_cofig_path, show_default=False)
     ] = None,
     server: Annotated[
-        Optional[str], typer.Option("--server", "-s", help="Remote server IP address or domain name")
+        Optional[str], typer.Option("--server-ip", "-s", help="Remote server IP address or domain name")
     ] = None,
     ssh_user: Annotated[
         Optional[str], typer.Option("--ssh-user", "-u", help="SSH username for the remote server")
