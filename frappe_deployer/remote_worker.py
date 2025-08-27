@@ -111,6 +111,34 @@ def find_available_port(start_port: int = 11000) -> Optional[int]:
     return None
 
 
+def is_remote_worker_enabled(site_name: str) -> bool:
+    """Check if remote worker is already enabled for a site."""
+    import frappe_manager
+    from .fmbench import FMServicesManager, FMBench
+
+    # Check global-db configuration
+    services_manager = FMServicesManager()
+    global_db_config = services_manager.compose_project.compose_file_manager.yml.get("services", {}).get("global-db", {})
+    if not global_db_config.get("ports"):
+        return False
+
+    db_port_exposed = any("3306:3306" in port for port in global_db_config["ports"])
+    if not db_port_exposed:
+        return False
+
+    # Check redis-queue configuration for the site
+    bench_path = frappe_manager.CLI_BENCHES_DIRECTORY / site_name
+    if not bench_path.exists():
+        return False
+
+    bench = FMBench(name=site_name, path=bench_path)
+    redis_queue_config = bench.compose_project.compose_file_manager.yml.get("services", {}).get("redis-queue", {})
+    if not redis_queue_config.get("ports"):
+        return False
+
+    return True
+
+
 def enable_remote_worker(site_name: str) -> None:
     """Enable remote worker for a site by configuring ports"""
     # Find available port for redis-queue
@@ -225,19 +253,19 @@ def create_worker_site_config(deployment_manager: "DeploymentManager", force: bo
         raise
 
 def stop_all_compose_services(deployment_manager: "DeploymentManager") -> None:
-    remote_bench_path = (
-        Path(deployment_manager.config.remote_worker.fm_benches_path) / deployment_manager.config.site_name
-    )
+    with ssh_run(deployment_manager) as ssh:
+        remote_bench_path = (
+            Path(deployment_manager.config.remote_worker.fm_benches_path) / deployment_manager.config.site_name
+        )
 
-    richprint.change_head("Stop all remote-worker services")
+        richprint.change_head("Stop all remote-worker services")
 
-    # Stop regular compose services
-    ssh_run(
-        deployment_manager,
-        ["docker", "compose", "-f", "docker-compose.yml", "-f", "docker-compose.workers.yml", "down", "--timeout" , "10"],
-        workdir=str(remote_bench_path),
-        capture_output=True,
-    )
+        # Stop regular compose services
+        ssh.run(
+            ["docker", "compose", "-f", "docker-compose.yml", "-f", "docker-compose.workers.yml", "down", "--timeout" , "10"],
+            workdir=str(remote_bench_path),
+            capture_output=True,
+        )
 
     richprint.print("Stoped all remote-worker services")
 
@@ -562,7 +590,7 @@ def rsync_workspace(deployment_manager: "DeploymentManager") -> None:
         deployment_manager: Deployment manager instance with config
     """
     site_name = deployment_manager.config.site_name
-    server = deployment_manager.config.remote_worker.server
+    server = deployment_manager.config.remote_worker.server_ip
     ssh_user = deployment_manager.config.remote_worker.ssh_user
 
     source_path = frappe_manager.CLI_BENCHES_DIRECTORY / site_name / "workspace"

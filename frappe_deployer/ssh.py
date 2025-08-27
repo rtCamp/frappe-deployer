@@ -46,7 +46,7 @@ def ssh_run(
     ssh_command = [
         "ssh",
         "-p", str(remote_config.ssh_port),
-        f"{remote_config.ssh_user}@{remote_config.server}"
+        f"{remote_config.ssh_user}@{remote_config.server_ip}"
     ]
 
     # Add working directory if specified

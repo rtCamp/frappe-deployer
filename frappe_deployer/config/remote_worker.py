@@ -5,7 +5,7 @@ class RemoteWorkerConfig(BaseModel):
     """Configuration for remote worker settings
 
     Attributes:
-        server: str
+        server_ip: str
             The IP address or domain name of the remote server
         ssh_user: str
             SSH username for connecting to the remote server (default: root)
@@ -14,12 +14,12 @@ class RemoteWorkerConfig(BaseModel):
         workspace_path: str
             Path on remote server where workspace will be synced (default: /home/frappe/frappe)
     """
-    server: str = Field(
+    server_ip: str = Field(
         ..., 
         description="IP address or domain name of the remote server",
         min_length=1
     )
-    ssh_user: Optional[str] = Field("root", description="SSH username for the remote server")
+    ssh_user: Optional[str] = Field("frappe", description="SSH username for the remote server")
     ssh_port: Optional[int] = Field(22, description="SSH port number")
     include_dirs: Optional[list[str]] = Field(default_factory=list, description="List of additional directories to sync")
     include_files: Optional[list[str]] = Field(default_factory=list, description="List of additional files to sync")
