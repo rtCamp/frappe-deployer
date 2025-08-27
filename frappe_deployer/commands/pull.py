@@ -157,11 +157,14 @@ def pull(
             show_default=True,
         ),
     ] = False,
-    # remote workers
     remote_worker_server_ip: Annotated[
         Optional[str],
         typer.Option("--remote-worker-server-ip", "--rw-ip", help="Remote Worker server IP address or domain name"),
     ] = None,
+    remote_worker_sync: Annotated[
+        bool,
+        typer.Option("--remote-worker-sync", "--rw-sync", help="Toggle to enable remote worker sync."),
+    ] = False,
     remote_worker_ssh_user: Annotated[
         Optional[str], typer.Option("--remote-worker-ssh-user", "--rw-user", help="Remote Worker server ssh username")
     ] = None,
@@ -189,6 +192,9 @@ def pull(
 
     if fm_restore_db_from_site:
         current_locals["fm"] = {"restore_db_from_site": fm_restore_db_from_site}
+
+    if remote_worker_sync:
+        current_locals["sync_workers"] = remote_worker_sync
 
     if remote_worker_server_ip:
         current_locals["remote_worker"] = {
