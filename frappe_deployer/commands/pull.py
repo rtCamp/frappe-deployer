@@ -3,11 +3,14 @@ import time
 from typing import Annotated, List, Optional
 from frappe_manager.logger.log import richprint
 import typer
+from frappe_deployer.commands.remote_worker import sync
 from frappe_deployer.config.config import Config
 from frappe_deployer.deployment_manager import DeploymentManager
-from frappe_deployer.helpers import human_readable_time
+from frappe_deployer.helpers import human_readable_time, timing_manager
 
 from frappe_deployer.commands import app, get_config_overrides, parse_apps, validate_cofig_path, validate_db_file_path
+from frappe_deployer.remote_worker import is_remote_worker_enabled, link_worker_configs, only_start_workers_compose_services, rsync_workspace, stop_all_compose_services
+
 
 @app.command(no_args_is_help=True)
 def pull(
@@ -154,6 +157,23 @@ def pull(
             show_default=True,
         ),
     ] = False,
+    # remote workers
+    remote_worker_server_ip: Annotated[
+        Optional[str],
+        typer.Option("--remote-worker-server-ip", "--rw-ip", help="Remote Worker server IP address or domain name"),
+    ] = None,
+    remote_worker_ssh_user: Annotated[
+        Optional[str], typer.Option("--remote-worker-ssh-user", "--rw-user", help="Remote Worker server ssh username")
+    ] = None,
+    remote_worker_ssh_port: Annotated[
+        Optional[int], typer.Option("--remote-worker-ssh-port", "--rw-port", help="Remote Worker server ssh port no.")
+    ] = None,
+    remote_worker_include_dirs: Annotated[
+        Optional[list[str]], typer.Option("--remote-worker-include-dirs", "--rm-dirs", help="Additional directories to sync to the remote worker server during rsync")
+    ] = None,
+    remote_worker_include_files: Annotated[
+        Optional[list[str]], typer.Option("--remote-worker-include-files", "--rm-dirs", help="Additional files to sync to the remote worker server during rsync")
+    ] = None,
 ):
     """
     Pulls the current set of frappe apps and setup new release based on provided config file/flags.
@@ -170,6 +190,15 @@ def pull(
     if fm_restore_db_from_site:
         current_locals["fm"] = {"restore_db_from_site": fm_restore_db_from_site}
 
+    if remote_worker_server_ip:
+        current_locals["remote_worker"] = {
+            "server_ip": remote_worker_server_ip,
+            "ssh_user": remote_worker_ssh_user or "frappe",
+            "ssh_port": remote_worker_ssh_port or 22,
+            "include_dirs": remote_worker_include_dirs or [],
+            "include_files": remote_worker_include_files or [],
+        }
+
     richprint.start("working")
 
     config: Config = Config.from_toml(config_path, config_content, get_config_overrides(locals=current_locals))
@@ -180,14 +209,18 @@ def pull(
     manager = DeploymentManager(config)
     manager.configure_basic_info()
 
-    total_start_time = time.time()
+    with timing_manager(manager.printer, verbose=config.verbose):
+        with timing_manager(manager.printer, verbose=config.verbose, task="Create new release"):
+            manager.create_new_release()
 
-    manager.create_new_release()
+        with timing_manager(manager.printer, verbose=config.verbose, task="Remote Worker Sync"):
+            if config.sync_workers:
+                if (not config.remote_worker or not config.remote_worker.server_ip) and is_remote_worker_enabled(site_name):
+                    raise RuntimeError(
+                        "Remote worker configuration is required. Provide either a in config file or --remote-worker-server-ip option."
+                    )
 
-    if config.verbose:
-        total_end_time = time.time()
-        total_elapsed_time = total_end_time - total_start_time
-        manager.printer.print(
-            f"Total Time Taken: [bold yellow]{human_readable_time(total_elapsed_time)}[/bold yellow]",
-            emoji_code=":robot_face:",
-        )
+                stop_all_compose_services(manager)
+                rsync_workspace(manager)
+                link_worker_configs(manager)
+                only_start_workers_compose_services(manager)

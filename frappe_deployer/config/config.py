@@ -102,6 +102,7 @@ class Config(BaseModel):
     fm: Optional[FMConfig] = Field(None, description="FM configuration.")
     fc: Optional[FCConfig] = Field(None, description="FC configuration.")
     remote_worker: Optional[RemoteWorkerConfig] = Field(None, description="Remote worker configuration.")
+    sync_workers: Optional[bool] = Field(False, description="Flag to sync to remote workers. Effective only if `remote_worker.server_ip` is configured.")
 
     @field_validator('restore_db_file_path',mode='before')
     def validate_db_file_path(cls, value, values):

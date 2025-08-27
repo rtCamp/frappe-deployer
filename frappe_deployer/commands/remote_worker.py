@@ -6,6 +6,7 @@ from frappe_deployer.deployment_manager import DeploymentManager
 from frappe_deployer.remote_worker import (
     create_worker_site_config,
     enable_remote_worker,
+    is_remote_worker_enabled,
     link_worker_configs,
     only_start_workers_compose_services,
     rsync_workspace,
@@ -25,7 +26,7 @@ def enable(
         Optional[Path], typer.Option(help="TOML config path", callback=validate_cofig_path, show_default=False)
     ] = None,
     server: Annotated[
-        Optional[str], typer.Option("--server", "-s", help="Remote server IP address or domain name")
+        Optional[str], typer.Option("--server-ip", "-s", help="Remote server IP address or domain name")
     ] = None,
     ssh_user: Annotated[
         Optional[str], typer.Option("--ssh-user", "-u", help="SSH username for the remote server")
@@ -52,7 +53,7 @@ def enable(
     # Create remote worker config if server details provided via CLI
     if server:
         current_locals["remote_worker"] = {
-            "server": server,
+            "server_ip": server,
             "ssh_user": ssh_user or "frappe",
             "ssh_port": ssh_port or 22,
             # "include_dirs": include_dirs or [],
@@ -70,10 +71,14 @@ def enable(
         config_file_path=config_path, overrides=get_config_overrides(locals=current_locals, exclude=["force"])
     )
 
-    if not config.remote_worker or not config.remote_worker.server:
+    if not config.remote_worker or not config.remote_worker.server_ip:
         raise RuntimeError("Remote worker configuration is required. Provide either a config file or --server option.")
 
     deployment_manager = DeploymentManager(config)
+
+    if is_remote_worker_enabled(site_name):
+        richprint.print("Remote worker already enabled.")
+        return
 
     enable_remote_worker(site_name)
     create_worker_site_config(deployment_manager=deployment_manager, force=force)
@@ -113,7 +118,7 @@ def sync(
     # Create remote worker config if server details provided via CLI
     if server:
         current_locals["remote_worker"] = {
-            "server": server,
+            "server_ip": server,
             "ssh_user": ssh_user or "frappe",
             "ssh_port": ssh_port or 22,
             "include_dirs": include_dirs or [],
@@ -129,7 +134,7 @@ def sync(
 
     config = Config.from_toml(config_file_path=config_path, overrides=get_config_overrides(locals=current_locals))
 
-    if not config.remote_worker or not config.remote_worker.server:
+    if not config.remote_worker or not config.remote_worker.server_ip:
         raise RuntimeError("Remote worker configuration is required. Provide either a config file or --server option.")
 
     deployment_manager = DeploymentManager(config)

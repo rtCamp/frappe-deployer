@@ -4,8 +4,12 @@ from pathlib import Path
 from typing import Any, Generator
 import re
 import os
+from frappe_manager.display_manager.DisplayManager import DisplayManager
 import git
+import time
+from contextlib import contextmanager
 from queue import Queue
+from frappe_manager.logger.log import richprint
 
 def gen_name_with_timestamp(base_name: str):
     now = datetime.datetime.now()
@@ -89,3 +93,21 @@ def human_readable_time(seconds: float) -> str:
         parts.append(f"{seconds:.2f}s")
 
     return " ".join(parts)
+
+@contextmanager
+def timing_manager(printer: DisplayManager, task: str = "Total", verbose: bool = False):
+    """A context manager to time and report the duration of a code block."""
+    if not verbose:
+        yield
+        return
+
+    start_time = time.time()
+    try:
+        yield
+    finally:
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        printer.print(
+            f"Time Taken: [bold yellow]{human_readable_time(elapsed_time)}[/bold yellow], {task}",
+            emoji_code=":robot_face:",
+        )
