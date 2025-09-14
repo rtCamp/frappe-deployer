@@ -1,9 +1,4 @@
 #!/bin/bash
-# Entrypoint script for frappe-deployer GitHub Action
-
-set -e
-
-# Source helper functions
 source /helpers.sh
 
 init() {
