@@ -1,48 +1,72 @@
-name: Build and Publish Docker Image
-
-on:
-  workflow_dispatch:
-  push:
-    branches: [main]
-    tags: ['v*']
+name: Build Linux binary
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  PYAPP_DOWNLOAD: https://github.com/ofek/pyapp/releases/latest/download/source.tar.gz
+  PYTHON_VERSION: '3.11'
+
+on:
+  workflow_dispatch: {}
+  workflow_call:
+  push:
+    tags:
+      - '*'
+  release:
+    types: [published]
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+    - name: Determine App Version
+      run: |
+        python .github/scripts/get_version.py
+    - name: Setup PyAPP and build
+      env:
+        PYAPP_FULL_ISOLATION: 1
+        PYAPP_SKIP_INSTALL: 1
+        PYAPP_PROJECT_NAME: frappe_deployer
+        PYAPP_EXEC_SPEC: frappe_deployer.main:cli_entrypoint
+        PYAPP_PIP_EXTRA_ARGS: frappe-manager gitpython typer toml
+        PYAPP_DISTRIBUTION_EMBED: 1
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+        uv python install ${PYTHON_VERSION}
+        CPYTHON_PATH="$(uv python dir)/$(uv python list ${PYTHON_VERSION} --output-format json --only-installed | jq -r '.[0].key')"
 
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+        export PYAPP_DISTRIBUTION_PYTHON_PATH="bin/python3"
+        poetry build
+        uv pip install --python "$CPYTHON_PATH/bin/python3"  dist/*.whl --break-system-packages
+        export PYAPP_DISTRIBUTION_PATH="$CPYTHON_PATH/../$(basename $CPYTHON_PATH).tar.gz"
+        tar -czvf $PYAPP_DISTRIBUTION_PATH -C ${CPYTHON_PATH}/ .
+        curl ${PYAPP_DOWNLOAD}  -Lo pyapp-source.tar.gz
+        tar -xzf pyapp-source.tar.gz
+        mv pyapp-v* pyapp-latest
+        cd pyapp-latest
+        cargo build --release
+        mv target/release/pyapp ../fmd && chmod +x ../fmd
+        cp README.md ../README.md
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: fmd-${{ env.PYAPP_PROJECT_VERSION }}-linux-amd64
+        path: |
+          fmd
+          LICENSE
+          README.md
+        retention-days: 5
+    - name: Create release zip
+      if: ${{ github.event.release && github.event.action == 'published' }}
+      run: zip fmd-${{ env.PYAPP_PROJECT_VERSION }}-linux-amd64.zip "fmd" "LICENSE" "README.md"
+    - name: Attach files to release
+      uses: softprops/action-gh-release@v2
+      if: ${{ github.event.release && github.event.action == 'published' }}
+      with:
+        files: fmd-${{ env.PYAPP_PROJECT_VERSION }}-linux-amd64.zip
