@@ -79,6 +79,45 @@ remote_execute() {
     ssh -o StrictHostKeyChecking=no "${REMOTE_USER}"@"${REMOTE_HOST}" "cd $path && $cmd"
 }
 
+# Remote file copy function using scp
+remote_copy() {
+    local source_path="$1"
+    local dest_path="$2"
+
+    [[ "${REMOTE_USER}" ]] || emergency "REMOTE_USER not found."
+    [[ "${REMOTE_HOST}" ]] || emergency "REMOTE_HOST not found."
+
+    info "Copying file to remote: ${source_path} -> ${REMOTE_USER}@${REMOTE_HOST}:${dest_path}"
+    scp -o StrictHostKeyChecking=no "${source_path}" "${REMOTE_USER}@${REMOTE_HOST}:${dest_path}"
+}
+
+# To configure global SSH host key checking, set environment variables before running setup_ssh:
+#   export GLOBAL_SSH_HOST_KEY_CHECKING="no"
+#   export GLOBAL_SSH_USER_KNOWN_HOSTS_FILE="/dev/null"
+
+# Configure global SSH host key checking
+configure_global_ssh_host_key_checking() {
+    local strict_host_key_checking="${1:-no}"  # default to 'no'
+    local user_known_hosts_file="${2:-/dev/null}"  # default to '/dev/null'
+
+    # Ensure /etc/ssh/ssh_config exists
+    if [ ! -f /etc/ssh/ssh_config ]; then
+        sudo touch /etc/ssh/ssh_config
+        sudo chmod 644 /etc/ssh/ssh_config
+    fi
+
+    # Add or update global settings
+    sudo sed -i '/^Host \*/d' /etc/ssh/ssh_config
+    sudo sed -i '/^    StrictHostKeyChecking/d' /etc/ssh/ssh_config
+    sudo sed -i '/^    UserKnownHostsFile/d' /etc/ssh/ssh_config
+
+    echo "Host *" | sudo tee -a /etc/ssh/ssh_config > /dev/null
+    echo "    StrictHostKeyChecking ${strict_host_key_checking}" | sudo tee -a /etc/ssh/ssh_config > /dev/null
+    echo "    UserKnownHostsFile ${user_known_hosts_file}" | sudo tee -a /etc/ssh/ssh_config > /dev/null
+
+    info "Configured /etc/ssh/ssh_config: StrictHostKeyChecking=${strict_host_key_checking}, UserKnownHostsFile=${user_known_hosts_file}"
+}
+
 # SSH setup function
 setup_ssh() {
     SSH_DIR="$HOME/.ssh"
@@ -103,6 +142,11 @@ Host $REMOTE_HOST
     User $REMOTE_USER
     StrictHostKeyChecking no
 EOL
+    fi
+
+    # Optionally configure global SSH host key checking
+    if [[ -n "${GLOBAL_SSH_HOST_KEY_CHECKING:-}" ]]; then
+        configure_global_ssh_host_key_checking "${GLOBAL_SSH_HOST_KEY_CHECKING}" "${GLOBAL_SSH_USER_KNOWN_HOSTS_FILE:-/dev/null}"
     fi
 }
 
