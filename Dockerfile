@@ -25,7 +25,7 @@ WORKDIR /frappe-deployer
 RUN pip3 install pyapp
 ENV PYAPP_PROJECT_PATH=/frappe-deployer
 ENV PYAPP_PROJECT_NAME=frappe-deployer
-ENV PYAPP_PROJECT_VERSION=0.8.2
+ENV PYAPP_PROJECT_VERSION=0.11.4
 RUN python3 -m pyapp
 
 # Verify binary was created and test it
