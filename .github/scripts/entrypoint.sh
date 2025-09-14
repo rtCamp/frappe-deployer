@@ -32,7 +32,7 @@ deploy() {
     info "Starting frappe-deployer deployment"
     
     # Find the frappe-deployer binary
-    BINARY_PATH="/frappe-deployer/dist/frappe-deployer"
+    BINARY_PATH="/fmd"
     if [[ ! -f "$BINARY_PATH" ]]; then
         # Try alternative locations
         BINARY_PATH=$(find /frappe-deployer -name "frappe-deployer" -type f -executable 2>/dev/null | head -1)
