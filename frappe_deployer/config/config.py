@@ -144,8 +144,11 @@ class Config(BaseModel):
     @model_validator(mode='after')
     def configure_config(cls, config: Any) -> Any:
         FC_SPECIFIC_CONFIG_NAMES_TO_REMOVE = ["host_name", "plan_limit", "rate_limit", "ic_api_secret", "domains"]
+
+
         # add apps from fc
-        if config.fc:
+        if getattr(config,"fc") != None:
+
             client = FrappeCloudClient(config.fc.team_name,config.fc.api_key,config.fc.api_secret)
 
             urls = client.get_latest_backup_download_urls(config.fc.site_name)
