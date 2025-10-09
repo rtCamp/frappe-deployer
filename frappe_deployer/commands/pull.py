@@ -196,9 +196,6 @@ def pull(
     if remote_worker_sync:
         current_locals["sync_workers"] = remote_worker_sync
 
-    if not fc_key:
-        current_locals["fc"] = None
-
     if remote_worker_server_ip:
         current_locals["remote_worker"] = {
             "server_ip": remote_worker_server_ip,
