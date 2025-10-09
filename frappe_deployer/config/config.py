@@ -147,8 +147,7 @@ class Config(BaseModel):
 
 
         # add apps from fc
-        if getattr(config,"fc") != None:
-
+        if config.fc:
             client = FrappeCloudClient(config.fc.team_name,config.fc.api_key,config.fc.api_secret)
 
             urls = client.get_latest_backup_download_urls(config.fc.site_name)
