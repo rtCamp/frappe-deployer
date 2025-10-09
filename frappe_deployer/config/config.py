@@ -144,11 +144,12 @@ class Config(BaseModel):
     @model_validator(mode='after')
     def configure_config(cls, config: Any) -> Any:
         FC_SPECIFIC_CONFIG_NAMES_TO_REMOVE = ["host_name", "plan_limit", "rate_limit", "ic_api_secret", "domains"]
-        # add apps from fc
-        if config.fc:
-            client = FrappeCloudClient(config.fc.team_name,config.fc.api_key,config.fc.api_secret)
 
-            urls = client.get_latest_backup_download_urls(config.fc.site_name)
+        # add apps from fc
+        if cls.fc:
+            client = FrappeCloudClient(cls.fc.team_name,cls.fc.api_key,cls.fc.api_secret)
+
+            urls = client.get_latest_backup_download_urls(cls.fc.site_name)
             if urls:
                 from frappe_deployer.utils.download import download_file_with_progress
                 download_status = download_file_with_progress(urls, dest_dir=Path("/tmp"))
@@ -156,8 +157,8 @@ class Config(BaseModel):
                 db = download_status.get("database",None)
                 site_config = download_status.get("config",None)
 
-                if config:
-                    if not config.site_config or not config.site_config.get("encryption_key", None):
+                if cls:
+                    if not cls.site_config or not cls.site_config.get("encryption_key", None):
 
                         if site_config:
                             site_config_path = site_config.get("absolute_path", None)
@@ -168,36 +169,36 @@ class Config(BaseModel):
                                 for name in FC_SPECIFIC_CONFIG_NAMES_TO_REMOVE:
                                     fc_site_config.pop(name)
 
-                                config.site_config = fc_site_config
+                                cls.site_config = fc_site_config
 
 
                                 richprint.print(f"Appended FC site_config.json keys")
 
                 if db:
-                    if not config.restore_db_file_path:
+                    if not cls.restore_db_file_path:
                         db_path  = Path(db.get("absolute_path", None))
                         if db_path and db_path.exists():
-                            config.restore_db_file_path = db_path
+                            cls.restore_db_file_path = db_path
                             richprint.print(f"FC db backup path: {db_path}")
 
-            if config.fc.use_deps:
-                deps = client.get_dependencies(config.fc.site_name)
+            if cls.fc.use_deps:
+                deps = client.get_dependencies(cls.fc.site_name)
                 # Extract versions from deps
                 python_version = next((d["version"] for d in deps if d["dependency"] == "PYTHON_VERSION"), None)
                 # node_version = next((d["version"] for d in deps if d["dependency"] == "NODE_VERSION"), None)
 
                 # Set config values if not already set
-                if not getattr(config, "python_version", None) and python_version:
-                    config.python_version = python_version
+                if not getattr(cls, "python_version", None) and python_version:
+                    cls.python_version = python_version
 
                 # if not getattr(config, "node_version", None) and node_version:
                 #     config.node_version = node_version
 
-            if config.fc.use_apps:
-                fc_apps = fc_apps_list_to_appconfig_list(client.get_apps_list(config.fc.site_name))
+            if cls.fc.use_apps:
+                fc_apps = fc_apps_list_to_appconfig_list(client.get_apps_list(cls.fc.site_name))
 
                 # Create a mapping from repo (lowercase) to AppConfig for config.apps
-                config_apps_map = {app.repo.lower(): app for app in config.apps}
+                config_apps_map = {app.repo.lower(): app for app in cls.apps}
 
                 # Merge: if app exists in config.apps, use it; else, use from fc_apps
                 merged_apps = []
@@ -215,26 +216,26 @@ class Config(BaseModel):
                     else:
                         merged_apps.append(fc_apps_map[repo])
 
-                config.apps = merged_apps
+                cls.apps = merged_apps
 
         app: AppConfig
 
-        for app in config.apps:
+        for app in cls.apps:
             if getattr(app, "subdir_path", None):
-                app.symlink = getattr(app, "symlink", False) or getattr(config, "symlink_subdir_apps", False)
+                app.symlink = getattr(app, "symlink", False) or getattr(cls, "symlink_subdir_apps", False)
 
-        for app in config.apps:
+        for app in cls.apps:
             app.configure_app(
-                token=config.github_token, 
-                remove_remote=config.remove_remote,
-                remote_name=config.remote_name,
-                fm_pre_build=app.fm_pre_build or config.fm_pre_build,
-                fm_post_build=app.fm_post_build or config.fm_post_build
+                token=cls.github_token,
+                remove_remote=cls.remove_remote,
+                remote_name=cls.remote_name,
+                fm_pre_build=app.fm_pre_build or cls.fm_pre_build,
+                fm_post_build=app.fm_post_build or cls.fm_post_build
             )
 
         all_apps_exists = True
 
-        for app in config.apps:
+        for app in cls.apps:
             if not app.exists:
 
                 all_apps_exists = False
@@ -243,7 +244,7 @@ class Config(BaseModel):
         if not all_apps_exists:
             raise RuntimeError("Please ensure all apps repo's are accessible.")
 
-        return config
+        return cls
 
 
     @property
