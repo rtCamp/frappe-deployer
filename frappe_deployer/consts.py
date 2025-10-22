@@ -7,7 +7,8 @@ DATA_DIR_NAME = 'deployment-data'
 BACKUP_DIR_NAME = 'deployment-backup'
 
 RELEASE_SUFFIX = gen_name_with_timestamp(RELEASE_DIR_NAME)
-LOG_FILE_NAME = Path(f'./frappe-deployer-run-{RELEASE_SUFFIX}')
+LOG_FILE_NAME = Path(f'./frappe-deployer-run')
+#LOG_FILE_NAME = Path(f'./frappe-deployer-run-{RELEASE_SUFFIX}')
 
 # Generate a random bypass token that developers can use
 BYPASS_TOKEN = secrets.token_hex(16)  # 32 character hex string

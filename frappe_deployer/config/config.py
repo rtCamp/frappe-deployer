@@ -9,6 +9,7 @@ from unittest.mock import patch
 import toml
 
 from frappe_deployer.config.app import AppConfig
+from frappe_deployer.config.build import BuildConfig
 from frappe_deployer.config.fc import FCConfig
 from frappe_deployer.config.fm import FMConfig
 from frappe_deployer.config.host import HostConfig
@@ -63,7 +64,7 @@ class Config(BaseModel):
     fm : Optional[FMConfig]
         FM configuration.
     """
-    site_name: str = Field(..., description="The name of the site.")
+    site_name: Optional[str] = Field(None, description="The name of the site.")
     github_token: Optional[str] = Field(None, description="The GitHub personal access token.")
     remove_remote: Optional[bool] = Field(True, description="Flag to remove the remote to cloned apps.")
     remote_name: Optional[str] = Field("upstream", description="Name of the remote to use during cloning")
@@ -99,6 +100,7 @@ class Config(BaseModel):
     fm_pre_build: Optional[str] = Field(None, description="Script to run before building each app in FM mode")
     fm_post_build: Optional[str] = Field(None, description="Script to run after building each app in FM mode")
     host: Optional[HostConfig] = Field(None, description="Host configuration.")
+    build: Optional[BuildConfig] = Field(None, description="Build configuration.")
     fm: Optional[FMConfig] = Field(None, description="FM configuration.")
     fc: Optional[FCConfig] = Field(None, description="FC configuration.")
     remote_worker: Optional[RemoteWorkerConfig] = Field(None, description="Remote worker configuration.")
@@ -129,6 +131,11 @@ class Config(BaseModel):
 
     @property
     def bench_path(self) -> Path:
+        if self.build:
+            if not self.build.bench_path:
+                raise ValueError("Host configuration is required when mode is 'host'")
+            return self.build.bench_path
+
         if self.mode == 'fm':
             return CLI_BENCHES_DIRECTORY / self.site_name / 'workspace' / 'frappe-bench'
 
