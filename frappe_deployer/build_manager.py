@@ -35,6 +35,7 @@ from frappe_deployer.config.host import HostConfig
 from frappe_deployer.helpers import (
     get_relative_path,
     human_readable_time,
+    update_json_keys_in_file_path,
 )
 from frappe_deployer.release_directory import BenchDirectory
 
@@ -85,6 +86,7 @@ class BuildManager:
         self.clone_apps(self.current)
         self.python_env_create(self.current)
         self.bench_setup_requiments(self.current)
+        self.sync_configs_with_files(self.current)
         self.bench_build(self.current)
 
     def extract_timestamp(self, dir_name: str) -> int:
@@ -667,15 +669,15 @@ class BuildManager:
             #     # app.name,
             # ]
 
-            prod_build_cmd = [
-                self.bench_cli,
-                "build",
-                "--hard-link",
-                "--production",
-                "--force",
-                # "--app",
-                # app.name,
-            ]
+        prod_build_cmd = [
+            self.bench_cli,
+            "build",
+            "--hard-link",
+            "--production",
+            "--force",
+            # "--app",
+            # app.name,
+        ]
 
             # self.host_run(
             #     build_cmd,
@@ -688,13 +690,13 @@ class BuildManager:
             # print(f"removing {bench_directory.sites / 'assets'}")
             # shutil.rmtree(bench_directory.sites / 'assets')
 
-            self.host_run(
-                prod_build_cmd,
-                bench_directory,
-                # stream=False,
-                container=self.mode == "fm",
-                capture_output=False,
-            )
+        self.host_run(
+            prod_build_cmd,
+            bench_directory,
+            # stream=False,
+            container=self.mode == "fm",
+            capture_output=False,
+        )
 
         for app in apps:
             # Find corresponding AppConfig for the app to check for pre/post build commands
@@ -914,3 +916,12 @@ class BuildManager:
             return True
 
         return False
+
+    def sync_configs_with_files(self, bench_directory: BenchDirectory):
+        self.printer.change_head("Updating common_site_config.json")
+        common_site_config_path = bench_directory.sites / "common_site_config.json"
+
+        if self.config.common_site_config:
+            update_json_keys_in_file_path(common_site_config_path, self.config.common_site_config)
+
+        self.printer.print("Updated common_site_config.json")
