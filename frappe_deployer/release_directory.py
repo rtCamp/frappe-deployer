@@ -43,11 +43,15 @@ class BenchDirectory:
     def nginx_conf(self) -> Path:
         return self.config / 'nginx.conf'
 
-    def setup_dir(self):
+    def setup_dir(self, create_tmps=False):
         self.sites.mkdir(parents=True,exist_ok=True)
         self.apps.mkdir(parents=True,exist_ok=True)
         self.logs.mkdir(parents=True,exist_ok=True)
         self.config.mkdir(parents=True,exist_ok=True)
+
+        if create_tmps:
+            config_pids = self.config / "pids"
+            config_pids.mkdir(parents=True,exist_ok=True)
 
     def list_sites(self) -> list[Path]:
         """Returns a list of site names (directories) within the sites directory that are FQDNs."""
