@@ -11,7 +11,7 @@ class ModeEnum(str, Enum):
     fm = "fm"
     host = "host"
 
-COMMAND_MODULES = ["callback",'pull', 'cleanup', 'clone', 'maintenance', 'remote_worker', "search_replace", "info"]
+COMMAND_MODULES = ["callback", 'pull', 'cleanup', 'clone', 'maintenance', 'remote_worker', "search_replace", "info", "build"]
 
 app = typer.Typer(no_args_is_help=True, rich_markup_mode="rich")
 # remote_worker = typer.Typer(help="Remote worker management commands")
