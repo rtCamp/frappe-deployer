@@ -672,9 +672,9 @@ class BuildManager:
         prod_build_cmd = [
             self.bench_cli,
             "build",
-            "--hard-link",
             "--production",
             "--force",
+            "--hard-link",
             # "--app",
             # app.name,
         ]
@@ -691,7 +691,7 @@ class BuildManager:
             # shutil.rmtree(bench_directory.sites / 'assets')
 
         self.host_run(
-            prod_build_cmd,
+            prod_build_cmd[:-1],
             bench_directory,
             # stream=False,
             container=self.mode == "fm",
