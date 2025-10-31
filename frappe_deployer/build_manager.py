@@ -698,6 +698,14 @@ class BuildManager:
             capture_output=False,
         )
 
+        self.host_run(
+            prod_build_cmd,
+            bench_directory,
+            # stream=False,
+            container=self.mode == "fm",
+            capture_output=False,
+        )
+
         for app in apps:
             # Find corresponding AppConfig for the app to check for pre/post build commands
             app_config = None
@@ -724,7 +732,7 @@ class BuildManager:
                     custom_workdir=app_dir_path,
                 )
 
-            self.printer.print(f"Built app {app.name}")
+            # self.printer.print(f"Built app {app.name}")
 
         self.printer.print("Built all apps")
 
