@@ -4,8 +4,8 @@ FROM {{ base_image_name }} as builder
 # LABEL org.opencontainers.image.authors="rtCamp <sys@rtcamp.com>"
 
 ARG USER={{ user }}
-ARG BENCH=bench
-ARG SITENAME=frappe-haiku.rt.gw
+ARG BENCH={{ bench_name }}
+ARG SITENAME={{ site_name }}
 
 RUN groupadd --gid 1000 ${USER} && useradd --uid 1000 --gid 1000 --shell /bin/bash --create-home -d /workspace ${USER} \
 && chown -R ${USER}:${USER} /workspace \
