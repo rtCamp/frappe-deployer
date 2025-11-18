@@ -67,16 +67,14 @@ runs:
   using: "composite"
   steps:
 
-    - name: Install uv
-      shell: bash
-      run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        sudo cp $HOME/.cargo/bin/uv /usr/local/bin/uv
-
     - name: Install frappe-deployer
       shell: bash
       run: |
         sudo -u 1000 bash -c "
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+
+        export PATH=$HOME/.local/bin:$PATH
+
         uv venv --python 3.10
         source .venv/bin/activate
         uv pip install ${{ github.action_path }}
