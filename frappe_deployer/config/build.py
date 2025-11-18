@@ -96,8 +96,8 @@ class BuildFrappeConfig(ImageBuildConfig):
 
     @computed_field
     @property
-    def base_image_target_name(self) -> str:
-        return f"base-{self.name}:{self.tag}"
+    def builder_image_name(self) -> str:
+        return f"builder-{self.name}:{self.tag}"
 
 
     # @model_validator(mode='before')
