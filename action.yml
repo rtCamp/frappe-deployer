@@ -84,6 +84,11 @@ runs:
         PYTHON_EXEC=$(which python)
         sudo -u frappe $PYTHON_EXEC -m pip install --user ${{ github.action_path }}
 
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true
+
     - name: Run frappe-deployer
       shell: bash
       run: |
