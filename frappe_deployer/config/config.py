@@ -1,15 +1,17 @@
 import json
+import concurrent.futures
 from pathlib import Path
 from typing import Any, List, Literal, Optional, Union
 
 from frappe_manager import CLI_BENCHES_DIRECTORY
 from frappe_manager.utils.site import richprint
+from frappe_manager.utils.helpers import random_password_generate
 from pydantic import BaseModel, Field, field_validator, model_validator
 from unittest.mock import patch
 import toml
 
 from frappe_deployer.config.app import AppConfig
-from frappe_deployer.config.build import BuildConfig
+from frappe_deployer.config.build import BuildFrappeConfig, BuildNginxConfig
 from frappe_deployer.config.fc import FCConfig
 from frappe_deployer.config.fm import FMConfig
 from frappe_deployer.config.host import HostConfig
@@ -100,7 +102,8 @@ class Config(BaseModel):
     fm_pre_build: Optional[str] = Field(None, description="Script to run before building each app in FM mode")
     fm_post_build: Optional[str] = Field(None, description="Script to run after building each app in FM mode")
     host: Optional[HostConfig] = Field(None, description="Host configuration.")
-    build: Optional[BuildConfig] = Field(None, description="Build configuration.")
+    build_frappe: Optional[BuildFrappeConfig] = Field(None, description="Frappe build configuration.")
+    build_nginx: Optional[BuildNginxConfig] = Field(None, description="Nginx build configuration.")
     fm: Optional[FMConfig] = Field(None, description="FM configuration.")
     fc: Optional[FCConfig] = Field(None, description="FC configuration.")
     remote_worker: Optional[RemoteWorkerConfig] = Field(None, description="Remote worker configuration.")
@@ -131,10 +134,10 @@ class Config(BaseModel):
 
     @property
     def bench_path(self) -> Path:
-        if self.build:
-            if not self.build.bench_path:
-                raise ValueError("Host configuration is required when mode is 'host'")
-            return self.build.bench_path
+        if self.build_frappe:
+            if not self.build_frappe.bench_path:
+                raise ValueError("Frappe build configuration requires bench_path")
+            return self.build_frappe.bench_path
 
         if self.mode == 'fm':
             return CLI_BENCHES_DIRECTORY / self.site_name / 'workspace' / 'frappe-bench'
@@ -231,20 +234,24 @@ class Config(BaseModel):
             if getattr(app, "subdir_path", None):
                 app.symlink = getattr(app, "symlink", False) or getattr(config, "symlink_subdir_apps", False)
 
-        for app in config.apps:
-            app.configure_app(
-                token=config.github_token,
-                remove_remote=config.remove_remote,
-                remote_name=config.remote_name,
-                fm_pre_build=app.fm_pre_build or config.fm_pre_build,
-                fm_post_build=app.fm_post_build or config.fm_post_build
-            )
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(
+                    app.configure_app,
+                    token=config.github_token,
+                    remove_remote=config.remove_remote,
+                    remote_name=config.remote_name,
+                    fm_pre_build=app.fm_pre_build or config.fm_pre_build,
+                    fm_post_build=app.fm_post_build or config.fm_post_build
+                )
+                for app in config.apps
+            ]
+            concurrent.futures.wait(futures)
 
         all_apps_exists = True
 
         for app in config.apps:
             if not app.exists:
-
                 all_apps_exists = False
                 richprint.error(app.repo_url)
 
