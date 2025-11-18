@@ -75,7 +75,6 @@ class BuildManager:
         self.path = self.bench_path
 
         self.output_dir = self.bench_path.parent
-        self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.mode = "fm"
         self.config = config
@@ -89,6 +88,8 @@ class BuildManager:
 
     def build_images(self, force: bool = False, image_type: str = "all"):
         """Builds specified images (Frappe, Nginx, or all)."""
+
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Step 1: Build the Frappe base image if we are building any image that depends on it.
         if image_type in ("all", "frappe", "nginx") and self.config.build_frappe:
