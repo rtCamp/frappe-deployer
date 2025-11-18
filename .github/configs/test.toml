@@ -1,0 +1,19 @@
+site_name = "example.com"
+mode = "fm"
+uv = true
+verbose = true
+releases_retain_limit = 1
+python_version = "3.12"
+remove_remote = true
+backups = true
+
+[common_site_config]
+socketio_port = 9000
+
+[[apps]]
+repo = "frappe/frappe"
+ref = "develop"
+
+[[apps]]
+repo = "frappe/erpnext"
+ref = "develop"
