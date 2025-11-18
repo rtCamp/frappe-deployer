@@ -90,7 +90,6 @@ WORKDIR /workspace
 
 FROM builder as frappe
 
-
 LABEL author=rtCamp
 LABEL org.opencontainers.image.source=https://github.com/rtcamp/frappe-haiku
 
@@ -108,9 +107,6 @@ COPY --chown=${USER}:${USER} ./$BENCH/logs /workspace/frappe-bench/logs
 
 RUN mkdir -p /workspace/frappe-bench/sites/$SITENAME/private/files /workspace/frappe-bench/sites/$SITENAME/public/files /workspace/frappe-bench/sites/$SITENAME/logs /workspace/frappe-bench/sites/$SITENAME/locks
 
-RUN echo -e '#!/usr/bin/env bash\nexec "$@"' > /entrypoint && chmod +x /entrypoint
-
-
 RUN /workspace/frappe-bench/env/bin/pip install opentelemetry-distro opentelemetry-exporter-otlp && /workspace/frappe-bench/env/bin/opentelemetry-bootstrap -a install
 
-ENTRYPOINT [ "/entrypoint" ]
+ENTRYPOINT [ "/usr/bin/env" , "bash" ]
