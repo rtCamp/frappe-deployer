@@ -67,32 +67,28 @@ runs:
   using: "composite"
   steps:
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-
-    - name: Create user
+    - name: Install uv
       shell: bash
       run: |
-        sudo groupadd -g 1000 frappe || true
-        sudo useradd -u 1000 -g 1000 -m frappe || true
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        sudo cp $HOME/.cargo/bin/uv /usr/local/bin/uv
 
     - name: Install frappe-deployer
       shell: bash
       run: |
-        PYTHON_EXEC=$(which python)
-        sudo -u frappe $PYTHON_EXEC -m pip install --user ${{ github.action_path }}
-
-    # - name: Setup tmate session
-    #   uses: mxschmitt/action-tmate@v3
-    #   with:
-    #     limit-access-to-actor: true
+        sudo -u 1000 bash -c "
+        uv venv --python 3.10
+        source .venv/bin/activate
+        uv pip install ${{ github.action_path }}
+        "
 
     - name: Run frappe-deployer
       shell: bash
       run: |
-        sudo -u frappe bash -c "export PATH=$HOME/.local/bin:$PATH; ${{ github.action_path }}/scripts/deploy.sh"
+        sudo -u 1000 bash -c "
+        source .venv/bin/activate
+        ${{ github.action_path }}/scripts/deploy.sh
+        "
       env:
         INPUT_COMMAND: ${{ inputs.command }}
         INPUT_SITENAME: ${{ inputs.sitename }}
