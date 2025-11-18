@@ -66,7 +66,7 @@ class Config(BaseModel):
     fm : Optional[FMConfig]
         FM configuration.
     """
-    site_name: Optional[str] = Field(None, description="The name of the site.")
+    site_name: str = Field(..., description="The name of the site.")
     github_token: Optional[str] = Field(None, description="The GitHub personal access token.")
     remove_remote: Optional[bool] = Field(True, description="Flag to remove the remote to cloned apps.")
     remote_name: Optional[str] = Field("upstream", description="Name of the remote to use during cloning")
