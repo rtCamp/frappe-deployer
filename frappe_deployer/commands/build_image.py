@@ -18,11 +18,18 @@ class ImageType(str, Enum):
 @app.command(name="build-image", no_args_is_help=True)
 def build_image(
     ctx: typer.Context,
+    site_name: Annotated[
+        Optional[str],
+        typer.Argument(help="The name of the site.", show_default=False, metavar="Site Name / Bench Name"),
+    ] = None,
     config_path: Annotated[
         Optional[Path], typer.Option(help="TOML config path", callback=validate_cofig_path, show_default=False)
     ] = None,
     config_content: Annotated[
         Optional[str], typer.Option(help="TOML config string content", show_default=False)
+    ] = None,
+    github_token: Annotated[
+        Optional[str], typer.Option(help="The GitHub personal access token", show_default=False)
     ] = None,
     output_dir: Annotated[Path, typer.Option(help="Output directory for baked bench and Dockerfiles.", rich_help_panel="General")] = Path.cwd() / "outputs",
     force: Annotated[bool, typer.Option(help="Force build image.", rich_help_panel="General")] = False,

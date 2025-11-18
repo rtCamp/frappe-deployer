@@ -1,0 +1,96 @@
+name: 'Frappe Deployer Action'
+description: 'Deploy or build images for Frappe using frappe-deployer'
+branding:
+  icon: 'upload-cloud'
+  color: 'blue'
+inputs:
+  command:
+    description: 'Command to run (pull or build-image)'
+    required: false
+    default: 'pull'
+  sitename:
+    description: 'Site name'
+    required: false
+
+  # 'pull' command inputs
+  use_maintenance_mode:
+    description: 'Enable maintenance mode'
+    required: false
+    default: 'true'
+  use_bench_migrate:
+    description: 'Run bench migrate'
+    required: false
+    default: 'true'
+  use_wait_workers:
+    description: 'Wait Workers'
+    required: false
+    default: 'true'
+  additional_commands:
+    description: 'Additional commands to append to the deployment command'
+    required: false
+  ssh_private_key:
+    description: 'SSH Private Key for remote server. Required for `pull` command.'
+    required: false
+  ssh_server:
+    description: 'SSH Server. Required for `pull` command.'
+    required: false
+  ssh_user:
+    description: 'SSH User. Required for `pull` command.'
+    required: false
+
+  # 'build-image' command inputs
+  image_type:
+    description: 'Specify which image to build (frappe, nginx, all).'
+    required: false
+    default: 'all'
+  output_dir:
+    description: 'Output directory for baked bench and Dockerfiles.'
+    required: false
+    default: 'outputs'
+  force:
+    description: 'Force build image.'
+    required: false
+    default: 'false'
+
+  # Common inputs
+  github_token:
+    description: 'A github token for private repo access'
+    required: true
+  config_path:
+    description: 'Path to the frappe-deployer config file from repo root'
+    required: false
+  config_content:
+    description: 'TOML config string content'
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install frappe-deployer
+      shell: bash
+      run: pip install ${{ github.action_path }}
+
+    - name: Run frappe-deployer
+      shell: bash
+      run: ${{ github.action_path }}/scripts/deploy.sh
+      env:
+        INPUT_COMMAND: ${{ inputs.command }}
+        INPUT_SITENAME: ${{ inputs.sitename }}
+        INPUT_USE_MAINTENANCE_MODE: ${{ inputs.use_maintenance_mode }}
+        INPUT_USE_BENCH_MIGRATE: ${{ inputs.use_bench_migrate }}
+        INPUT_USE_WAIT_WORKERS: ${{ inputs.use_wait_workers }}
+        INPUT_ADDITIONAL_COMMANDS: ${{ inputs.additional_commands }}
+        INPUT_IMAGE_TYPE: ${{ inputs.image_type }}
+        INPUT_OUTPUT_DIR: ${{ inputs.output_dir }}
+        INPUT_FORCE: ${{ inputs.force }}
+        SSH_PRIVATE_KEY: ${{ inputs.ssh_private_key }}
+        SSH_SERVER: ${{ inputs.ssh_server }}
+        SSH_USER: ${{ inputs.ssh_user }}
+        FRAPPE_DEPLOYER_CONFIG_PATH: ${{ inputs.config_path }}
+        FRAPPE_DEPLOYER_CONFIG_CONTENT: ${{ inputs.config_content }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
