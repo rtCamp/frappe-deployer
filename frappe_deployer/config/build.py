@@ -1,6 +1,6 @@
 from enum import Enum
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Optional
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel,  model_validator, computed_field
 
@@ -21,6 +21,7 @@ class ImageBuildConfig(BaseModel):
     base_name: str
     base_tag: str
     platforms: list[str] = ["linux/amd64"]
+    user: str = "frappe"
     dockerfile: Path
 
     @computed_field
@@ -33,7 +34,7 @@ class ImageBuildConfig(BaseModel):
     def base_image_name(self) -> str:
         return f"{self.base_name}:{self.base_tag}"
 
-    def render_dockerfile(self, output_path: Path, template_path: Optional[Path] = None):
+    def render_dockerfile(self, output_path: Path, site_name: str, bench_name: str, template_path: Optional[Path] = None):
         """
         Renders a Jinja2 Dockerfile template with the given build configuration.
 
@@ -45,15 +46,16 @@ class ImageBuildConfig(BaseModel):
         template_to_use = template_path or self.dockerfile
         env = Environment(loader=FileSystemLoader(template_to_use.parent))
         template = env.get_template(template_to_use.name)
-        rendered_content = template.render(self.model_dump())
+        data = self.model_dump()
+        data['site_name'] = site_name
+        data['bench_name'] = bench_name
+        rendered_content = template.render(data)
         output_path.write_text(rendered_content)
-        print('gg')
-        print(f"Dockerfile successfully rendered to {output_path}")
 
 
 class BuildNginxConfig(ImageBuildConfig):
     """A Pydantic model representing the build configuration for an Nginx image."""
-    name: str = "nginx"
+    name: str = "frappe-nginx"
     tag: str = "latest"
     base_name: str = "nginx"
     base_tag: str = "latest"
@@ -70,7 +72,7 @@ class BuildFrappeConfig(ImageBuildConfig):
     A Pydantic model representing the build configuration for a Frappe image.
     """
     # Override name and dockerfile from base
-    name: str = "frappe"
+    name: str = "frappe-gunicorn"
     dockerfile: Path = Path(__file__).parent.parent / "template" / "frappe.Dockerfile"
 
     base_name: str = "python"
@@ -81,7 +83,6 @@ class BuildFrappeConfig(ImageBuildConfig):
     python: PythonConfig = PythonConfig()
     nodejs: NodeJSConfig = NodeJSConfig()
     distro: str = "slim"
-    user: str = "frappe"
 
     observability: Observability = Observability.OPENTELEMETRY
 

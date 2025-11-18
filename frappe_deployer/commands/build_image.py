@@ -31,6 +31,7 @@ def build_image(
     bench_path = output_dir / "bench"
 
     current_locals["build_frappe"] = {"bench_path": str(bench_path.absolute())}
+    current_locals["build_nginx"] = {"name": "frappe-nginx"}
 
     config: Config = Config.from_toml(config_path, config_content, get_config_overrides(locals=current_locals))
 

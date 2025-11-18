@@ -95,14 +95,10 @@ class BuildManager:
         """Builds all configured images (Frappe, Nginx)."""
 
         if self.config.build_frappe:
-            self.printer.print("--- Building Frappe Image ---")
             self._build_frappe_image(force)
-            self.printer.print("--- Frappe Image Built ---")
 
         if self.config.build_nginx:
-            self.printer.print("--- Building Nginx Image ---")
             self._build_nginx_image(force)
-            self.printer.print("--- Nginx Image Built ---")
 
     def _build_frappe_image(self, force: bool = False):
         """Builds the Frappe image."""
@@ -112,12 +108,12 @@ class BuildManager:
         rendered_dockerfile_path = self.output_dir / "Dockerfile.fmd.frappe"
 
         try:
-            build_config.render_dockerfile(rendered_dockerfile_path)
+            build_config.render_dockerfile(rendered_dockerfile_path, site_name=self.config.site_name, bench_name=self.bench_path.name)
             self.printer.print(f"Frappe Dockerfile rendered at {rendered_dockerfile_path}")
 
             # Build base image
             base_image_target_name = build_config.base_image_target_name
-            self.printer.change_head(f"Preparing base image: {base_image_target_name}")
+            self.printer.change_head(f"Preparing base image {base_image_target_name}")
 
             # docker_check_cmd = ["docker", "images", "-q", base_image_name]
 
@@ -133,7 +129,7 @@ class BuildManager:
             #     self.printer.print(f"Base image '{base_image_name}' already exists. Skipping build.")
 
             # else:
-            self.printer.print(f"Building base image '{base_image_target_name}'...")
+            self.printer.print(f"Building base image {base_image_target_name}...")
             build_cmd = [
                 "docker",
                 "build",
@@ -208,43 +204,45 @@ class BuildManager:
 
         build_config = self.config.build_nginx
         self.printer.change_head("Rendering Nginx Dockerfile")
-        rendered_dockerfile_path = self.output_dir / "Dockerfile.fmd.nginx"  # Changed path
+        rendered_dockerfile_path = self.output_dir / "Dockerfile.fmd.nginx"
 
         try:
-            build_config.render_dockerfile(rendered_dockerfile_path)
+            build_config.render_dockerfile(rendered_dockerfile_path, site_name=self.config.site_name, bench_name=self.bench_path.name)
+
             self.printer.print(f"Nginx Dockerfile rendered at {rendered_dockerfile_path}")
             image_name = build_config.image
             self.printer.change_head(f"Preparing Nginx image: {image_name}")
-            docker_check_cmd = ["docker", "images", "-q", image_name]
-            output = run_command_with_exit_code(docker_check_cmd, capture_output=True)
+            # docker_check_cmd = ["docker", "images", "-q", image_name]
+            # output = run_command_with_exit_code(docker_check_cmd, capture_output=True)
 
-            image_exists = False
-            if hasattr(output, 'stdout'):
-                image_exists = bool(output.stdout.strip())
-            else:
-                # If output does not have 'stdout' attribute, it's likely the unexpected tuple.
-                # In this case, we assume no image exists, as we cannot get stdout.
-                self.printer.print(f"WARNING: Unexpected output format from run_command_with_exit_code. Assuming image does not exist. Output: {output}", emoji_code=":warning:")
-                image_exists = False # Default to False if stdout is not available.
+            # image_exists = False
+            # if hasattr(output, 'stdout'):
+            #     image_exists = bool(output.stdout.strip())
+            # else:
+            #     # If output does not have 'stdout' attribute, it's likely the unexpected tuple.
+            #     # In this case, we assume no image exists, as we cannot get stdout.
+            #     self.printer.print(f"WARNING: Unexpected output format from run_command_with_exit_code. Assuming image does not exist. Output: {output}", emoji_code=":warning:")
+            #     image_exists = False # Default to False if stdout is not available.
 
-            if not force and image_exists:
-                self.printer.print(f"Nginx image '{image_name}' already exists. Skipping build.")
+            # if not force and image_exists:
+            #     self.printer.print(f"Nginx image '{image_name}' already exists. Skipping build.")
 
-            else:
-                self.printer.print(f"Building Nginx image '{image_name}'...")
-                build_cmd = ["docker", "build", "-t", image_name, "-f", str(rendered_dockerfile_path)]
-                if build_config.platforms:
-                    build_cmd.extend(["--platform", ",".join(build_config.platforms)])
-                build_cmd.append(str(self.output_dir))  # Changed context
-                output_stream = run_command_with_exit_code(build_cmd, stream=True)
-                self.printer.live_lines(output_stream, lines=10)
-                self.printer.print(f"Nginx image '{image_name}' built successfully.")
+            # else:
+            self.printer.print(f"Building Nginx image '{image_name}'...")
+            build_cmd = ["docker", "build", "-t", image_name, "-f", str(rendered_dockerfile_path)]
+            if build_config.platforms:
+                build_cmd.extend(["--platform", ",".join(build_config.platforms)])
+            build_cmd.append(str(self.output_dir))  # Changed context
+            output_stream = run_command_with_exit_code(build_cmd, stream=True)
+            self.printer.live_lines(output_stream, lines=10)
+            self.printer.print(f"Nginx image '{image_name}' built successfully.")
 
         finally:
-            if rendered_dockerfile_path.exists():
-                rendered_dockerfile_path.unlink()
+            pass
+            # if rendered_dockerfile_path.exists():
+            #     rendered_dockerfile_path.unlink()
 
-                self.printer.print(f"Cleaned up {rendered_dockerfile_path}")
+            #     self.printer.print(f"Cleaned up {rendered_dockerfile_path}")
         # render dockerfile
         # check if the image exist, so for instant rerun or it has state (can be overridden by force), create the base image
         # bake bench using the just created base image
