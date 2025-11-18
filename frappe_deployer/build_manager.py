@@ -3,6 +3,7 @@ import shutil
 import time
 import os
 import sys
+import concurrent.futures
 from pathlib import Path
 from typing import Iterable, Optional, Tuple, Union
 
@@ -59,24 +60,195 @@ def log_execution_time(method):
 
     return wrapper
 
+
 # TODO: BuildManager and DeploymentManager can be consolidated later on into one
+
 
 class BuildManager:
     apps: list[AppConfig]
     path: Path
     verbose: bool = False
 
-    def __init__(self, config: Config) -> None:
-        self.path = config.bench_path
+    def __init__(self, config: Config, output_dir: Path) -> None:
+        self.output_dir = output_dir
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Adjust bench_path based on output_dir
+        self.bench_path = config.bench_path
+        self.path = self.bench_path
+
+        # # Override bench_path in BuildFrappeConfig if it exists
+        # if config.build_frappe:
+        #     config.build_frappe.bench_path = self.bench_path
+
         self.mode = "fm"
         self.config = config
         self.verbose = config.verbose
-        self.bench_path = config.bench_path
         self.apps = config.apps
         self.printer = richprint
         self.bench_cli = "/usr/local/bin/bench"
-        self.current = BenchDirectory(config.bench_path)
+        self.current = BenchDirectory(self.bench_path)
+
         self.printer.start("Working")
+
+    def build_images(self, force: bool = False):
+        """Builds all configured images (Frappe, Nginx)."""
+
+        if self.config.build_frappe:
+            self.printer.print("--- Building Frappe Image ---")
+            self._build_frappe_image(force)
+            self.printer.print("--- Frappe Image Built ---")
+
+        if self.config.build_nginx:
+            self.printer.print("--- Building Nginx Image ---")
+            self._build_nginx_image(force)
+            self.printer.print("--- Nginx Image Built ---")
+
+    def _build_frappe_image(self, force: bool = False):
+        """Builds the Frappe image."""
+
+        build_config = self.config.build_frappe
+        self.printer.change_head("Rendering Frappe Dockerfile")
+        rendered_dockerfile_path = self.output_dir / "Dockerfile.fmd.frappe"
+
+        try:
+            build_config.render_dockerfile(rendered_dockerfile_path)
+            self.printer.print(f"Frappe Dockerfile rendered at {rendered_dockerfile_path}")
+
+            # Build base image
+            base_image_target_name = build_config.base_image_target_name
+            self.printer.change_head(f"Preparing base image: {base_image_target_name}")
+
+            # docker_check_cmd = ["docker", "images", "-q", base_image_name]
+
+            # output = run_command_with_exit_code(docker_check_cmd, capture_output=True)
+
+            # from rich import inspect
+            # for gg in output:
+            #     inspect(gg)
+            # exit()
+            # image_exists = bool(output.stdout.strip())
+
+            # if not force and image_exists:
+            #     self.printer.print(f"Base image '{base_image_name}' already exists. Skipping build.")
+
+            # else:
+            self.printer.print(f"Building base image '{base_image_target_name}'...")
+            build_cmd = [
+                "docker",
+                "build",
+                "-t",
+                base_image_target_name,
+                "--target",
+                "builder",
+                "-f",
+                str(rendered_dockerfile_path),
+            ]
+
+            if build_config.platforms:
+                build_cmd.extend(["--platform", ",".join(build_config.platforms)])
+
+            if build_config.build_args:
+                for arg in build_config.build_args:
+                    if arg:
+                        build_cmd.extend(["--build-arg", arg])
+
+            build_cmd.append(str(self.output_dir))
+
+            output_stream = run_command_with_exit_code(build_cmd, stream=True)
+            self.printer.live_lines(output_stream, lines=10)
+
+            # Bake bench
+            if not self.is_baked(self.current):
+                self.printer.change_head("Baking bench...")
+                self.bake()
+                self.printer.print("Bench baked successfully.")
+            else:
+                self.printer.print("Bench already baked. Skipping...")
+
+
+            # Build final image
+            final_image_name = build_config.image
+            self.printer.change_head(f"Building final image: {final_image_name}")
+            bench_dir_name = self.bench_path.name
+            final_build_cmd = [
+                "docker",
+                "build",
+                "-t",
+                final_image_name,
+                "-f",
+                str(rendered_dockerfile_path),
+                "--build-arg",
+                f"BENCH={bench_dir_name}",
+            ]
+
+            if build_config.platforms:
+                final_build_cmd.extend(["--platform", ",".join(build_config.platforms)])
+
+            if build_config.build_args:
+                for arg in build_config.build_args:
+                    if arg:
+                        final_build_cmd.extend(["--build-arg", arg])
+
+            final_build_cmd.append(str(self.output_dir))  # Changed context
+
+            output_stream = run_command_with_exit_code(final_build_cmd, stream=True)
+            self.printer.live_lines(output_stream, lines=10)
+            self.printer.print(f"Final image '{final_image_name}' built successfully.")
+
+        finally:
+            pass
+            # if rendered_dockerfile_path.exists():
+            #     rendered_dockerfile_path.unlink()
+
+            #     self.printer.print(f"Cleaned up {rendered_dockerfile_path}")
+
+    def _build_nginx_image(self, force: bool = False):
+        """Builds the Nginx image."""
+
+        build_config = self.config.build_nginx
+        self.printer.change_head("Rendering Nginx Dockerfile")
+        rendered_dockerfile_path = self.output_dir / "Dockerfile.fmd.nginx"  # Changed path
+
+        try:
+            build_config.render_dockerfile(rendered_dockerfile_path)
+            self.printer.print(f"Nginx Dockerfile rendered at {rendered_dockerfile_path}")
+            image_name = build_config.image
+            self.printer.change_head(f"Preparing Nginx image: {image_name}")
+            docker_check_cmd = ["docker", "images", "-q", image_name]
+            output = run_command_with_exit_code(docker_check_cmd, capture_output=True)
+
+            image_exists = False
+            if hasattr(output, 'stdout'):
+                image_exists = bool(output.stdout.strip())
+            else:
+                # If output does not have 'stdout' attribute, it's likely the unexpected tuple.
+                # In this case, we assume no image exists, as we cannot get stdout.
+                self.printer.print(f"WARNING: Unexpected output format from run_command_with_exit_code. Assuming image does not exist. Output: {output}", emoji_code=":warning:")
+                image_exists = False # Default to False if stdout is not available.
+
+            if not force and image_exists:
+                self.printer.print(f"Nginx image '{image_name}' already exists. Skipping build.")
+
+            else:
+                self.printer.print(f"Building Nginx image '{image_name}'...")
+                build_cmd = ["docker", "build", "-t", image_name, "-f", str(rendered_dockerfile_path)]
+                if build_config.platforms:
+                    build_cmd.extend(["--platform", ",".join(build_config.platforms)])
+                build_cmd.append(str(self.output_dir))  # Changed context
+                output_stream = run_command_with_exit_code(build_cmd, stream=True)
+                self.printer.live_lines(output_stream, lines=10)
+                self.printer.print(f"Nginx image '{image_name}' built successfully.")
+
+        finally:
+            if rendered_dockerfile_path.exists():
+                rendered_dockerfile_path.unlink()
+
+                self.printer.print(f"Cleaned up {rendered_dockerfile_path}")
+        # render dockerfile
+        # check if the image exist, so for instant rerun or it has state (can be overridden by force), create the base image
+        # bake bench using the just created base image
+        # create final image
 
     def bake(self):
         self.printer.print(f"Bench: {self.config.bench_name}")
@@ -89,12 +261,52 @@ class BuildManager:
         self.sync_configs_with_files(self.current)
         self.bench_build(self.current)
 
+    def is_baked(self, bench_directory: BenchDirectory) -> bool:
+        """
+        Checks if the bench is considered 'baked'.
+        A bench is considered baked if:
+        1. The 'sites/assets' directory exists and contains files.
+        2. All apps listed in 'sites/apps.txt' have their corresponding directories in 'apps/'.
+        """
+        assets_path = bench_directory.sites / "assets"
+        if not (assets_path.is_dir() and any(assets_path.iterdir())):
+            return False
+
+        apps_txt_path = bench_directory.sites / "apps.txt"
+        if not apps_txt_path.is_file():
+            self.printer.print(f"Warning: {apps_txt_path} not found. Cannot verify all apps are present.", emoji_code=":warning:")
+            return False
+
+        with apps_txt_path.open("r") as f:
+            installed_apps = [line.strip() for line in f if line.strip()]
+
+        for app_name in installed_apps:
+            app_path = bench_directory.apps / app_name
+            if not app_path.is_dir():
+                self.printer.print(f"App '{app_name}' listed in apps.txt not found at {app_path}", emoji_code=":x:")
+                return False
+
+        return True
+
     def extract_timestamp(self, dir_name: str) -> int:
         try:
             timestamp_str = dir_name.split("_")[-1]
             return int(timestamp_str)
         except ValueError:
             return 0
+
+    def _clone_task_wrapper(self, clone_func, **kwargs):
+        app = kwargs['app']
+        self.printer.print(f"Cloning {app.repo}...")
+        try:
+            result = clone_func(**kwargs)
+            self.printer.print(f"Finished cloning {app.repo}.")
+            return result
+        except Exception as e:
+            self.printer.error(f"Failed to clone {app.repo}: {e}")
+            raise
+
+    
 
     def clone_apps(
         self,
@@ -103,28 +315,56 @@ class BuildManager:
         overwrite: bool = False,
         backup=True,
     ):
+        clone_tasks = []
         clone_map = {}  # (repo, ref) -> clone_path
+        app_clone_info = [] # list of (app, clone_path)
 
+        # 1. Prepare clone tasks
+        self.printer.change_head("Preparing to clone repositories")
         for app in self.apps:
-            self.printer.change_head(f"Cloning repo {app.repo}")
-
+            clone_path = None
             if app.symlink:
                 key = (app.repo, app.ref)
                 if key in clone_map:
                     clone_path = clone_map[key]
-                    self.printer.print(f"Reusing clone for {app.repo}@{app.ref} subdir: {app.subdir_path}")
+                    self.printer.print(f"Will reuse clone for {app.repo}@{app.ref} subdir: {app.subdir_path}")
                 else:
                     if not data_directory:
                         raise RuntimeError("Deployment data directory is not provided")
                     clone_path = data_directory.get_frappe_bench_app_path(
                         app, append_release_name=bench_directory.path.resolve().name, suffix="_clone"
                     )
-                    data_directory.clone_app(app, clone_path=clone_path, move_to_subdir=False)
                     clone_map[key] = clone_path
+                    clone_tasks.append((data_directory.clone_app, {'app': app, 'clone_path': clone_path, 'move_to_subdir': False}))
             else:
                 clone_path = bench_directory.get_frappe_bench_app_path(app, suffix="_clone")
-                bench_directory.clone_app(app, clone_path=clone_path)
+                clone_tasks.append((bench_directory.clone_app, {'app': app, 'clone_path': clone_path}))
 
+            app_clone_info.append((app, clone_path))
+        self.printer.print(f"Found {len(clone_tasks)} unique repositories to clone.")
+
+        # 2. Execute clone tasks in parallel
+        self.printer.change_head(f"Cloning {len(clone_tasks)} repositories")
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+
+            future_to_app = {
+                executor.submit(self._clone_task_wrapper, func, **kwargs): kwargs['app']
+                for func, kwargs in clone_tasks
+            }
+            for future in concurrent.futures.as_completed(future_to_app):
+                app = future_to_app[future]
+                try:
+                    future.result()
+                except Exception:
+                    # The exception is already printed by the wrapper.
+                    # Re-raise to stop the process.
+                    raise
+
+        self.printer.print("All repositories cloned successfully.")
+
+        # 3. Process apps after cloning
+        for app, clone_path in app_clone_info:
+            self.printer.change_head(f"Processing app {app.repo}")
             from_dir = clone_path
 
             if app.symlink:
@@ -135,12 +375,9 @@ class BuildManager:
             to_dir = bench_directory.apps / app_name
 
             import datetime
-
             if to_dir.exists():
                 if not overwrite:
-                    raise FileExistsError(
-                        f"App directory '{to_dir}' already exists. Use \"--overwrite\" to overwrite it."
-                    )
+                    raise FileExistsError(f"App directory '{to_dir}' already exists. Use \"--overwrite\" to overwrite it.")
 
                 archive_base = bench_directory.path / "archived" / "apps"
                 archive_base.mkdir(parents=True, exist_ok=True)
@@ -148,9 +385,9 @@ class BuildManager:
                 archive_path = archive_base / f"{to_dir.name}-{date_str}"
                 shutil.move(str(to_dir), str(archive_path))
                 self.printer.print(f"Archived existing app to {archive_path}")
-
                 if not backup:
                     shutil.rmtree(str(archive_path))
+
 
             if app.symlink:
                 symlink_path = get_relative_path(to_dir, from_dir)
@@ -158,9 +395,7 @@ class BuildManager:
             else:
                 shutil.move(str(from_dir), str(to_dir))
 
-            self.printer.print(
-                f"{'Remote removed ' if app.remove_remote else ''}Cloned Repo: {app.repo}, Module Name: '{app_name}'"
-            )
+            self.printer.print(f"{'Remote removed ' if app.remove_remote else ''}Cloned Repo: {app.repo}, Module Name: '{app_name}'")
 
     def get_script_env(self, app_name: Optional[str] = None) -> dict[str, str]:
         """Get environment variables for scripts with config values"""
@@ -303,7 +538,7 @@ class BuildManager:
         if self.verbose:
             start_time = time.time()
 
-        base_env = {"COREPACK_ENABLE_DOWNLOAD_PROMPT":"0"}
+        base_env = {"COREPACK_ENABLE_DOWNLOAD_PROMPT": "0"}
 
         if env:
             base_env.update(env)
@@ -358,17 +593,17 @@ class BuildManager:
 
         workdir = workdir or f"/workspace/{bench_directory.path.name}"
 
-        if self.config.build:
+        if self.config.build_frappe:
             workdir = "/workspace/frappe-bench"
 
         compose_file: ComposeFile = ComposeFile(self.path.parent / "docker-compose.yml")
         compose_project: ComposeProject = ComposeProject(compose_file_manager=compose_file)
 
         if capture_output:
-            if self.config.build:
+            if self.config.build_frappe:
                 output = DockerClient().run(
-                    image=self.config.build.image,
-                    user=self.config.build.user,
+                    image=self.config.build_frappe.base_image_target_name,
+                    user=self.config.build_frappe.user,
                     command=docker_command,
                     workdir=workdir,
                     env=base_env,
@@ -399,10 +634,10 @@ class BuildManager:
             return output
 
         else:
-            if self.config.build:
+            if self.config.build_frappe:
                 output = DockerClient().run(
-                    image=self.config.build.image,
-                    user=self.config.build.user,
+                    image=self.config.build_frappe.base_image_target_name,
+                    user=self.config.build_frappe.user,
                     workdir=workdir,
                     command=docker_command,
                     env=base_env,
@@ -661,39 +896,17 @@ class BuildManager:
                     custom_workdir=app_dir_path,
                 )
 
-            # Run the regular build command
-            # build_cmd = [
-            #     self.bench_cli,
-            #     "build",
-            #     # "--app",
-            #     # app.name,
-            # ]
-
         prod_build_cmd = [
             self.bench_cli,
             "build",
-            "--production",
+            # "--production",
             "--force",
             "--hard-link",
-            # "--app",
-            # app.name,
         ]
-
-            # self.host_run(
-            #     build_cmd,
-            #     bench_directory,
-            #     # stream=False,
-            #     container=self.mode == "fm",
-            #     capture_output=False,
-            # )
-
-            # print(f"removing {bench_directory.sites / 'assets'}")
-            # shutil.rmtree(bench_directory.sites / 'assets')
 
         self.host_run(
             prod_build_cmd[:-1],
             bench_directory,
-            # stream=False,
             container=self.mode == "fm",
             capture_output=False,
         )
@@ -701,7 +914,6 @@ class BuildManager:
         self.host_run(
             prod_build_cmd,
             bench_directory,
-            # stream=False,
             container=self.mode == "fm",
             capture_output=False,
         )
