@@ -115,20 +115,6 @@ class BuildManager:
             base_image_target_name = build_config.base_image_target_name
             self.printer.change_head(f"Preparing base image {base_image_target_name}")
 
-            # docker_check_cmd = ["docker", "images", "-q", base_image_name]
-
-            # output = run_command_with_exit_code(docker_check_cmd, capture_output=True)
-
-            # from rich import inspect
-            # for gg in output:
-            #     inspect(gg)
-            # exit()
-            # image_exists = bool(output.stdout.strip())
-
-            # if not force and image_exists:
-            #     self.printer.print(f"Base image '{base_image_name}' already exists. Skipping build.")
-
-            # else:
             self.printer.print(f"Building base image {base_image_target_name}...")
             build_cmd = [
                 "docker",
@@ -196,7 +182,6 @@ class BuildManager:
             pass
             # if rendered_dockerfile_path.exists():
             #     rendered_dockerfile_path.unlink()
-
             #     self.printer.print(f"Cleaned up {rendered_dockerfile_path}")
 
     def _build_nginx_image(self, force: bool = False):
@@ -212,26 +197,13 @@ class BuildManager:
             self.printer.print(f"Nginx Dockerfile rendered at {rendered_dockerfile_path}")
             image_name = build_config.image
             self.printer.change_head(f"Preparing Nginx image: {image_name}")
-            # docker_check_cmd = ["docker", "images", "-q", image_name]
-            # output = run_command_with_exit_code(docker_check_cmd, capture_output=True)
 
-            # image_exists = False
-            # if hasattr(output, 'stdout'):
-            #     image_exists = bool(output.stdout.strip())
-            # else:
-            #     # If output does not have 'stdout' attribute, it's likely the unexpected tuple.
-            #     # In this case, we assume no image exists, as we cannot get stdout.
-            #     self.printer.print(f"WARNING: Unexpected output format from run_command_with_exit_code. Assuming image does not exist. Output: {output}", emoji_code=":warning:")
-            #     image_exists = False # Default to False if stdout is not available.
-
-            # if not force and image_exists:
-            #     self.printer.print(f"Nginx image '{image_name}' already exists. Skipping build.")
-
-            # else:
             self.printer.print(f"Building Nginx image '{image_name}'...")
             build_cmd = ["docker", "build", "-t", image_name, "-f", str(rendered_dockerfile_path)]
+
             if build_config.platforms:
                 build_cmd.extend(["--platform", ",".join(build_config.platforms)])
+
             build_cmd.append(str(self.output_dir))  # Changed context
             output_stream = run_command_with_exit_code(build_cmd, stream=True)
             self.printer.live_lines(output_stream, lines=10)
@@ -241,12 +213,7 @@ class BuildManager:
             pass
             # if rendered_dockerfile_path.exists():
             #     rendered_dockerfile_path.unlink()
-
             #     self.printer.print(f"Cleaned up {rendered_dockerfile_path}")
-        # render dockerfile
-        # check if the image exist, so for instant rerun or it has state (can be overridden by force), create the base image
-        # bake bench using the just created base image
-        # create final image
 
     def bake(self):
         self.printer.print(f"Bench: {self.config.bench_name}")
