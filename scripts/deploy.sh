@@ -68,7 +68,6 @@ pull_command() {
 
 build_image_command() {
     [[ "${GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} GITHUB_TOKEN ${ENDCOLOR} is missing."
-    [[ "${INPUT_SITENAME:-}" ]] || emergency "Input: ${CYAN} sitename ${ENDCOLOR} is missing."
 
     COMMAND="build-image"
     
