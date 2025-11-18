@@ -67,23 +67,45 @@ runs:
   using: "composite"
   steps:
 
+    - name: Install uv
+      shell: bash
+      run: |
+        mkdir -p ${{ github.workspace }}/.bin
+        export UV_INSTALL_DIR=${{ github.workspace }}/.bin
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "${{ github.workspace }}/.bin" >> $GITHUB_PATH
+
+    - name: Prepare User for Docker Permissions
+      id: docker_user
+      shell: bash
+      run: |
+        if ! id -u 1000 > /dev/null 2>&1; then
+          echo "Creating new user 'frappe' with UID 1000."
+          sudo groupadd -g 1000 frappe
+          sudo useradd -u 1000 -g 1000 -m frappe
+          echo "user=frappe" >> $GITHUB_OUTPUT
+        else
+          USER_NAME=$(id -nu 1000)
+          echo "User with UID 1000 already exists: ${USER_NAME}."
+          echo "user=${USER_NAME}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Install frappe-deployer
       shell: bash
       run: |
-        sudo -u 1000 bash -c "
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-
-        export PATH=$HOME/.local/bin:$PATH
-
-        uv venv --python 3.10
+        DOCKER_USER=${{ steps.docker_user.outputs.user }}
+        UV_EXEC_PATH=${{ github.workspace }}/.bin/uv
+        sudo -u $DOCKER_USER bash -c "
+        $UV_EXEC_PATH venv --python 3.10
         source .venv/bin/activate
-        uv pip install ${{ github.action_path }}
+        $UV_EXEC_PATH pip install ${{ github.action_path }}
         "
 
     - name: Run frappe-deployer
       shell: bash
       run: |
-        sudo -u 1000 bash -c "
+        DOCKER_USER=${{ steps.docker_user.outputs.user }}
+        sudo -u $DOCKER_USER bash -c "
         source .venv/bin/activate
         ${{ github.action_path }}/scripts/deploy.sh
         "
