@@ -73,6 +73,7 @@ runs:
         mkdir -p ${{ github.workspace }}/.bin
         export UV_INSTALL_DIR=${{ github.workspace }}/.bin
         curl -LsSf https://astral.sh/uv/install.sh | sh
+        chmod +x ${{ github.workspace }}/.bin/uv
         echo "${{ github.workspace }}/.bin" >> $GITHUB_PATH
 
     - name: Prepare User for Docker Permissions
