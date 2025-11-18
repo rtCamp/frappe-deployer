@@ -69,17 +69,13 @@ class BuildManager:
     path: Path
     verbose: bool = False
 
-    def __init__(self, config: Config, output_dir: Path) -> None:
-        self.output_dir = output_dir
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-
+    def __init__(self, config: Config) -> None:
         # Adjust bench_path based on output_dir
         self.bench_path = config.bench_path
         self.path = self.bench_path
 
-        # # Override bench_path in BuildFrappeConfig if it exists
-        # if config.build_frappe:
-        #     config.build_frappe.bench_path = self.bench_path
+        self.output_dir = self.bench_path.parent
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.mode = "fm"
         self.config = config
@@ -94,61 +90,71 @@ class BuildManager:
     def build_images(self, force: bool = False, image_type: str = "all"):
         """Builds specified images (Frappe, Nginx, or all)."""
 
+        # Step 1: Build the Frappe base image if we are building any image that depends on it.
+        if image_type in ("all", "frappe", "nginx") and self.config.build_frappe:
+            self._build_frappe_base_image(force)
+
+        # Step 2: Bake the bench if not already baked. This is needed for both frappe and nginx final images.
+        if image_type in ("all", "frappe", "nginx"):
+            if not self.is_baked(self.current):
+                self.printer.change_head("Baking bench...")
+                self.bake()
+                self.printer.print("Bench baked successfully.")
+            else:
+                self.printer.print("Bench already baked. Skipping bake process.")
+
+        # Step 3: Build the final images.
         if image_type in ("all", "frappe") and self.config.build_frappe:
             self._build_frappe_image(force)
 
         if image_type in ("all", "nginx") and self.config.build_nginx:
             self._build_nginx_image(force)
 
-    def _build_frappe_image(self, force: bool = False):
-        """Builds the Frappe image."""
-
+    def _build_frappe_base_image(self, force: bool = False):
+        """Builds the Frappe base image (builder stage)."""
         build_config = self.config.build_frappe
         self.printer.change_head("Rendering Frappe Dockerfile")
         rendered_dockerfile_path = self.output_dir / "Dockerfile.fmd.frappe"
 
+        build_config.render_dockerfile(rendered_dockerfile_path, site_name=self.config.site_name, bench_name=self.bench_path.name)
+        self.printer.print(f"Frappe Dockerfile rendered at {rendered_dockerfile_path}")
+
+        builder_image_name = build_config.builder_image_name
+        
+        self.printer.change_head(f"Preparing base image {builder_image_name}")
+        self.printer.print(f"Building base image {builder_image_name}...")
+        build_cmd = [
+            "docker",
+            "build",
+            "-t",
+            builder_image_name,
+            "--target",
+            "builder",
+            "-f",
+            str(rendered_dockerfile_path),
+        ]
+
+        if build_config.platforms:
+            build_cmd.extend(["--platform", ",".join(build_config.platforms)])
+
+        if build_config.build_args:
+            for arg in build_config.build_args:
+                if arg:
+                    build_cmd.extend(["--build-arg", arg])
+
+        build_cmd.append(str(self.output_dir))
+
+        output_stream = run_command_with_exit_code(build_cmd, stream=True)
+        self.printer.live_lines(output_stream, lines=10)
+        self.printer.print(f"Base image '{builder_image_name}' built successfully.")
+
+    def _build_frappe_image(self, force: bool = False):
+        """Builds the final Frappe image from the baked bench."""
+
+        build_config = self.config.build_frappe
+        rendered_dockerfile_path = self.output_dir / "Dockerfile.fmd.frappe"
+
         try:
-            build_config.render_dockerfile(rendered_dockerfile_path, site_name=self.config.site_name, bench_name=self.bench_path.name)
-            self.printer.print(f"Frappe Dockerfile rendered at {rendered_dockerfile_path}")
-
-            # Build base image
-            base_image_target_name = build_config.base_image_target_name
-            self.printer.change_head(f"Preparing base image {base_image_target_name}")
-
-            self.printer.print(f"Building base image {base_image_target_name}...")
-            build_cmd = [
-                "docker",
-                "build",
-                "-t",
-                base_image_target_name,
-                "--target",
-                "builder",
-                "-f",
-                str(rendered_dockerfile_path),
-            ]
-
-            if build_config.platforms:
-                build_cmd.extend(["--platform", ",".join(build_config.platforms)])
-
-            if build_config.build_args:
-                for arg in build_config.build_args:
-                    if arg:
-                        build_cmd.extend(["--build-arg", arg])
-
-            build_cmd.append(str(self.output_dir))
-
-            output_stream = run_command_with_exit_code(build_cmd, stream=True)
-            self.printer.live_lines(output_stream, lines=10)
-
-            # Bake bench
-            if not self.is_baked(self.current):
-                self.printer.change_head("Baking bench...")
-                self.bake()
-                self.printer.print("Bench baked successfully.")
-            else:
-                self.printer.print("Bench already baked. Skipping...")
-
-
             # Build final image
             final_image_name = build_config.image
             self.printer.change_head(f"Building final image: {final_image_name}")
@@ -567,7 +573,7 @@ class BuildManager:
         if capture_output:
             if self.config.build_frappe:
                 output = DockerClient().run(
-                    image=self.config.build_frappe.base_image_target_name,
+                    image=self.config.build_frappe.builder_image_name,
                     user=self.config.build_frappe.user,
                     command=docker_command,
                     workdir=workdir,
@@ -601,7 +607,7 @@ class BuildManager:
         else:
             if self.config.build_frappe:
                 output = DockerClient().run(
-                    image=self.config.build_frappe.base_image_target_name,
+                    image=self.config.build_frappe.builder_image_name,
                     user=self.config.build_frappe.user,
                     workdir=workdir,
                     command=docker_command,

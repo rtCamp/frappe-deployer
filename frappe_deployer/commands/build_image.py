@@ -45,6 +45,5 @@ def build_image(
     if len(config.apps) == 0:
         raise RuntimeError("Apps list cannot be empty in [code]pull[/code] command.")
 
-    # Instantiate BuildManager and build images
-    builder = BuildManager(config, output_dir=output_dir)
+    builder = BuildManager(config)
     builder.build_images(force=force, image_type=image_type.value)
