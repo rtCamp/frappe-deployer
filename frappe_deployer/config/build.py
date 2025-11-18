@@ -1,49 +1,113 @@
+from enum import Enum
 from pathlib import Path
-from pydantic import BaseModel,  model_validator
+from typing import Literal, Optional
+from jinja2 import Environment, FileSystemLoader
+from pydantic import BaseModel,  model_validator, computed_field
 
-class BuildConfig(BaseModel):
+class PythonConfig(BaseModel):
+    """A Pydantic model representing Python configuration."""
+    version: str = "3.12"
+    canonical: str = "3.12.12"
+    image: str = "3.12.12-slim"
+
+class NodeJSConfig(BaseModel):
+    """A Pydantic model representing NodeJS configuration."""
+    version: str = "22"
+    canonical: str = "22.20.0"
+
+class ImageBuildConfig(BaseModel):
+    """A base model for image build configurations."""
+    name: str
+    base_name: str
+    base_tag: str
+    platforms: list[str] = ["linux/amd64"]
+    dockerfile: Path
+
+    @computed_field
+    @property
+    def image(self) -> str:
+        return f"{self.name}:{self.tag}"
+
+    @computed_field
+    @property
+    def base_image_name(self) -> str:
+        return f"{self.base_name}:{self.base_tag}"
+
+    def render_dockerfile(self, output_path: Path, template_path: Optional[Path] = None):
+        """
+        Renders a Jinja2 Dockerfile template with the given build configuration.
+
+        Args:
+            output_path: The path where the final Dockerfile will be saved.
+            template_path: Optional path to a custom Jinja2 Dockerfile template.
+                           If not provided, the default from the config is used.
+        """
+        template_to_use = template_path or self.dockerfile
+        env = Environment(loader=FileSystemLoader(template_to_use.parent))
+        template = env.get_template(template_to_use.name)
+        rendered_content = template.render(self.model_dump())
+        output_path.write_text(rendered_content)
+        print('gg')
+        print(f"Dockerfile successfully rendered to {output_path}")
+
+
+class BuildNginxConfig(ImageBuildConfig):
+    """A Pydantic model representing the build configuration for an Nginx image."""
+    name: str = "nginx"
+    tag: str = "latest"
+    base_name: str = "nginx"
+    base_tag: str = "latest"
+    dockerfile: Path = Path(__file__).parent.parent / "template" / "nginx.Dockerfile"
+
+class Observability(str, Enum):
+    """Enum for observability options."""
+    NEWRELIC = "newrelic"
+    OPENTELEMETRY = "opentelemetry"
+
+
+class BuildFrappeConfig(ImageBuildConfig):
     """
-    HostConfig is a Pydantic model representing the configuration for a host.
-
-    Attributes
-    ----------
-    bench_path : Path
-        The path to the bench directory. This attribute is validated to ensure that it exists on the filesystem.
+    A Pydantic model representing the build configuration for a Frappe image.
     """
+    # Override name and dockerfile from base
+    name: str = "frappe"
+    dockerfile: Path = Path(__file__).parent.parent / "template" / "frappe.Dockerfile"
 
+    base_name: str = "python"
+    base_tag: str = "3.12.12-slim"
+
+    # Frappe-specific fields
     bench_path: Path
+    python: PythonConfig = PythonConfig()
+    nodejs: NodeJSConfig = NodeJSConfig()
+    distro: str = "slim"
     user: str = "frappe"
-    image: str = "frappe:python-3.12-nodejs22-slim"
 
-    # TODO: check if images exists if not then pull it
+    observability: Observability = Observability.OPENTELEMETRY
 
-    @model_validator(mode='before')
-    def check_bench_path_exists(cls, values):
-        """
-        Validates that the specified bench_path exists on the filesystem.
+    build_args: list[str] = [""]
 
-        Parameters
-        ----------
-        cls : type
-            The class itself.
-        values : dict
-            A dictionary of values to be validated.
+    # Override tag with a computed field
+    @computed_field
+    @property
+    def tag(self) -> str:
+        return f"python-{self.python.version}-nodejs-{self.nodejs.version}-{self.distro}"
 
-        Returns
-        -------
-        dict
-            The validated and possibly modified values dictionary.
+    @computed_field
+    @property
+    def base_image_target_name(self) -> str:
+        return f"base-{self.name}:{self.tag}"
 
-        Raises
-        ------
-        ValueError
-            If the specified bench_path does not exist.
-        """
-        bench_path = values.get('bench_path')
 
-        if (bench_path and not Path(bench_path).exists()) or not bench_path:
-            raise ValueError(f"The bench_path '{bench_path}' does not exist.")
+    # @model_validator(mode='before')
+    # def check_bench_path_exists(cls, values):
+    #     """
+    #     Validates that the specified bench_path exists on the filesystem.
+    #     """
+    #     bench_path = values.get('bench_path')
 
-        values['bench_path'] = Path(bench_path)
+    #     if (bench_path and not Path(bench_path).exists()) or not bench_path:
+    #         raise ValueError(f"The bench_path '{bench_path}' does not exist.")
 
-        return values
+    #     values['bench_path'] = Path(bench_path)
+    #     return values
