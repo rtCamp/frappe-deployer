@@ -91,13 +91,13 @@ class BuildManager:
 
         self.printer.start("Working")
 
-    def build_images(self, force: bool = False):
-        """Builds all configured images (Frappe, Nginx)."""
+    def build_images(self, force: bool = False, image_type: str = "all"):
+        """Builds specified images (Frappe, Nginx, or all)."""
 
-        if self.config.build_frappe:
+        if image_type in ("all", "frappe") and self.config.build_frappe:
             self._build_frappe_image(force)
 
-        if self.config.build_nginx:
+        if image_type in ("all", "nginx") and self.config.build_nginx:
             self._build_nginx_image(force)
 
     def _build_frappe_image(self, force: bool = False):
