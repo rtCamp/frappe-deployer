@@ -1,3 +1,4 @@
+from enum import Enum
 from git import Optional
 import typer
 from pathlib import Path
@@ -8,6 +9,11 @@ from frappe_deployer.config.config import Config
 from frappe_deployer.build_manager import BuildManager
 from frappe_deployer.commands import app, get_config_overrides, validate_cofig_path # Added validate_cofig_path
 from frappe_manager.logger.log import richprint
+
+class ImageType(str, Enum):
+    frappe = "frappe"
+    nginx = "nginx"
+    all = "all"
 
 @app.command(name="build-image", no_args_is_help=True)
 def build_image(
@@ -20,6 +26,7 @@ def build_image(
     ] = None,
     output_dir: Annotated[Path, typer.Option(help="Output directory for baked bench and Dockerfiles.", rich_help_panel="General")] = Path.cwd() / "outputs",
     force: Annotated[bool, typer.Option(help="Force build image.", rich_help_panel="General")] = False,
+    image_type: Annotated[ImageType, typer.Option(help="Specify which image to build.", case_sensitive=False, rich_help_panel="General")] = ImageType.all,
 ):
     """
     Builds the docker images for the project.
@@ -40,4 +47,4 @@ def build_image(
 
     # Instantiate BuildManager and build images
     builder = BuildManager(config, output_dir=output_dir)
-    builder.build_images(force=force)
+    builder.build_images(force=force, image_type=image_type.value)
