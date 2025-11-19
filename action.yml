@@ -90,7 +90,7 @@ runs:
       shell: bash
       working-directory: ${{ github.workspace }}
       run: |
-        source .venv/bin/activate && ./scripts/deploy.sh
+        source .venv/bin/activate && ${{ github.workspace }}/scripts/deploy.sh
       env:
         CI: true
         INPUT_COMMAND: ${{ inputs.command }}
