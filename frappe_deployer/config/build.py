@@ -76,8 +76,8 @@ class BuildFrappeConfig(ImageBuildConfig):
     """
     # Override name and dockerfile from base
     name: str = "frappe-gunicorn"
+    tag: str = "latest"
     dockerfile: Path = Path(__file__).parent.parent / "template" / "frappe.Dockerfile"
-
     base_name: str = "python"
     base_tag: str = "3.12.12-slim"
 
@@ -91,16 +91,10 @@ class BuildFrappeConfig(ImageBuildConfig):
 
     build_args: list[str] = [""]
 
-    # Override tag with a computed field
-    @computed_field
-    @property
-    def tag(self) -> str:
-        return f"python-{self.python.version}-nodejs-{self.nodejs.version}-{self.distro}"
-
     @computed_field
     @property
     def builder_image_name(self) -> str:
-        return f"builder-{self.name}:{self.tag}"
+        return f"builder-{self.name}:python-{self.python.version}-nodejs-{self.nodejs.version}-{self.distro}"
 
 
     # @model_validator(mode='before')
