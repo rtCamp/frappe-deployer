@@ -100,10 +100,12 @@ runs:
       run: |
         DOCKER_USER=${{ steps.docker_user.outputs.user }}
         UV_EXEC_PATH=${{ github.workspace }}/.bin/uv
+        sudo chmod +x $UV_EXEC_PATH
         sudo -u $DOCKER_USER bash -c "
-        $UV_EXEC_PATH venv --python 3.10
-        source .venv/bin/activate
-        $UV_EXEC_PATH pip install ${{ github.action_path }}
+        cd ${{ github.workspace }} &&
+        $UV_EXEC_PATH venv --python 3.10 &&
+        . .venv/bin/activate &&
+        uv pip install ${{ github.action_path }}
         "
 
     - name: Run frappe-deployer
@@ -111,7 +113,8 @@ runs:
       run: |
         DOCKER_USER=${{ steps.docker_user.outputs.user }}
         sudo -u $DOCKER_USER bash -c "
-        source .venv/bin/activate
+        cd ${{ github.workspace }} &&
+        . .venv/bin/activate &&
         ${{ github.action_path }}/scripts/deploy.sh
         "
       env:
