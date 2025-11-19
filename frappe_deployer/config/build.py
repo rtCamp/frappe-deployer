@@ -22,22 +22,13 @@ class ImageBuildConfig(BaseModel):
     base_name: str
     base_tag: str
     platforms: list[str] = ["linux/amd64"]
+    user: str = "frappe"
     dockerfile: Path
 
     @computed_field
     @property
     def image(self) -> str:
         return f"{self.name}:{self.tag}"
-
-    @computed_field
-    @property
-    def user(self) -> int:
-        return os.getuid()
-
-    @computed_field
-    @property
-    def group(self) -> int:
-        return os.getgid()
 
     @computed_field
     @property

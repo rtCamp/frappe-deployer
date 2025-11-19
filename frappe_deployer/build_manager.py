@@ -575,7 +575,7 @@ class BuildManager:
             if self.config.build_frappe:
                 output = DockerClient().run(
                     image=self.config.build_frappe.builder_image_name,
-                    user=f"{self.config.build_frappe.user}:{self.config.build_frappe.group}",
+                    user=f"{os.getuid()}:{os.getgid()}",
                     command=docker_command,
                     workdir=workdir,
                     env=base_env,
@@ -609,7 +609,7 @@ class BuildManager:
             if self.config.build_frappe:
                 output = DockerClient().run(
                     image=self.config.build_frappe.builder_image_name,
-                    user=f"{self.config.build_frappe.user}:{self.config.build_frappe.group}",
+                    user=f"{os.getuid()}:{os.getgid()}",
                     workdir=workdir,
                     command=docker_command,
                     env=base_env,
