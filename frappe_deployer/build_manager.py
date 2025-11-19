@@ -91,11 +91,11 @@ class BuildManager:
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Step 1: Build the Frappe base image if we are building any image that depends on it.
+        # Build the Frappe base image if we are building any image that depends on it.
         if image_type in ("all", "frappe", "nginx") and self.config.build_frappe:
             self._build_frappe_base_image(force)
 
-        # Step 2: Bake the bench if not already baked. This is needed for both frappe and nginx final images.
+        # Bake the bench if not already baked. This is needed for both frappe and nginx final images.
         if image_type in ("all", "frappe", "nginx"):
             if not self.is_baked(self.current):
                 self.printer.change_head("Baking bench...")
@@ -104,7 +104,7 @@ class BuildManager:
             else:
                 self.printer.print("Bench already baked. Skipping bake process.")
 
-        # Step 3: Build the final images.
+        # Build the final images.
         if image_type in ("all", "frappe") and self.config.build_frappe:
             self._build_frappe_image(force)
 
@@ -155,41 +155,35 @@ class BuildManager:
         build_config = self.config.build_frappe
         rendered_dockerfile_path = self.output_dir / "Dockerfile.fmd.frappe"
 
-        try:
-            # Build final image
-            final_image_name = build_config.image
-            self.printer.change_head(f"Building final image: {final_image_name}")
-            bench_dir_name = self.bench_path.name
-            final_build_cmd = [
-                "docker",
-                "build",
-                "-t",
-                final_image_name,
-                "-f",
-                str(rendered_dockerfile_path),
-                "--build-arg",
-                f"BENCH={bench_dir_name}",
-            ]
+        # Build final image
+        final_image_name = build_config.image
+        self.printer.change_head(f"Building final image: {final_image_name}")
+        bench_dir_name = self.bench_path.name
+        final_build_cmd = [
+            "docker",
+            "build",
+            "-t",
+            final_image_name,
+            "-f",
+            str(rendered_dockerfile_path),
+            "--build-arg",
+            f"BENCH={bench_dir_name}",
+        ]
 
-            if build_config.platforms:
-                final_build_cmd.extend(["--platform", ",".join(build_config.platforms)])
+        if build_config.platforms:
+            final_build_cmd.extend(["--platform", ",".join(build_config.platforms)])
 
-            if build_config.build_args:
-                for arg in build_config.build_args:
-                    if arg:
-                        final_build_cmd.extend(["--build-arg", arg])
+        if build_config.build_args:
+            for arg in build_config.build_args:
+                if arg:
+                    final_build_cmd.extend(["--build-arg", arg])
 
-            final_build_cmd.append(str(self.output_dir))  # Changed context
+        final_build_cmd.append(str(self.output_dir))  # Changed context
 
-            output_stream = run_command_with_exit_code(final_build_cmd, stream=True)
-            self.printer.live_lines(output_stream, lines=10)
-            self.printer.print(f"Final image '{final_image_name}' built successfully.")
+        output_stream = run_command_with_exit_code(final_build_cmd, stream=True)
+        self.printer.live_lines(output_stream, lines=10)
+        self.printer.print(f"Final image '{final_image_name}' built successfully.")
 
-        finally:
-            pass
-            # if rendered_dockerfile_path.exists():
-            #     rendered_dockerfile_path.unlink()
-            #     self.printer.print(f"Cleaned up {rendered_dockerfile_path}")
 
     def _build_nginx_image(self, force: bool = False):
         """Builds the Nginx image."""
@@ -198,29 +192,23 @@ class BuildManager:
         self.printer.change_head("Rendering Nginx Dockerfile")
         rendered_dockerfile_path = self.output_dir / "Dockerfile.fmd.nginx"
 
-        try:
-            build_config.render_dockerfile(rendered_dockerfile_path, site_name=self.config.site_name, bench_name=self.bench_path.name)
+        build_config.render_dockerfile(rendered_dockerfile_path, site_name=self.config.site_name, bench_name=self.bench_path.name)
 
-            self.printer.print(f"Nginx Dockerfile rendered at {rendered_dockerfile_path}")
-            image_name = build_config.image
-            self.printer.change_head(f"Preparing Nginx image: {image_name}")
+        self.printer.print(f"Nginx Dockerfile rendered at {rendered_dockerfile_path}")
+        image_name = build_config.image
+        self.printer.change_head(f"Preparing Nginx image: {image_name}")
 
-            self.printer.print(f"Building Nginx image '{image_name}'...")
-            build_cmd = ["docker", "build", "-t", image_name, "-f", str(rendered_dockerfile_path)]
+        self.printer.print(f"Building Nginx image '{image_name}'...")
+        build_cmd = ["docker", "build", "-t", image_name, "-f", str(rendered_dockerfile_path)]
 
-            if build_config.platforms:
-                build_cmd.extend(["--platform", ",".join(build_config.platforms)])
+        if build_config.platforms:
+            build_cmd.extend(["--platform", ",".join(build_config.platforms)])
 
-            build_cmd.append(str(self.output_dir))  # Changed context
-            output_stream = run_command_with_exit_code(build_cmd, stream=True)
-            self.printer.live_lines(output_stream, lines=10)
-            self.printer.print(f"Nginx image '{image_name}' built successfully.")
+        build_cmd.append(str(self.output_dir))  # Changed context
+        output_stream = run_command_with_exit_code(build_cmd, stream=True)
+        self.printer.live_lines(output_stream, lines=10)
+        self.printer.print(f"Nginx image '{image_name}' built successfully.")
 
-        finally:
-            pass
-            # if rendered_dockerfile_path.exists():
-            #     rendered_dockerfile_path.unlink()
-            #     self.printer.print(f"Cleaned up {rendered_dockerfile_path}")
 
     def bake(self):
         self.printer.print(f"Bench: {self.config.bench_name}")
