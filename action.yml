@@ -69,6 +69,11 @@ runs:
     - name: Checkout
       uses: actions/checkout@v5
 
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true
+
     - name: Install uv
       shell: bash
       run: |
