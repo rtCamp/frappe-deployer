@@ -1,72 +1,71 @@
-name: 'Frappe Deployer Action'
-description: 'Deploy or build images for Frappe using frappe-deployer'
+name: "Frappe Deployer Action"
+description: "Deploy or build images for Frappe using frappe-deployer"
 branding:
-  icon: 'upload-cloud'
-  color: 'blue'
+  icon: "upload-cloud"
+  color: "blue"
 inputs:
   command:
-    description: 'Command to run (pull or build-image)'
+    description: "Command to run (pull or build-image)"
     required: false
-    default: 'pull'
+    default: "pull"
   sitename:
-    description: 'Site name'
+    description: "Site name"
     required: false
 
   # 'pull' command inputs
   use_maintenance_mode:
-    description: 'Enable maintenance mode'
+    description: "Enable maintenance mode"
     required: false
-    default: 'true'
+    default: "true"
   use_bench_migrate:
-    description: 'Run bench migrate'
+    description: "Run bench migrate"
     required: false
-    default: 'true'
+    default: "true"
   use_wait_workers:
-    description: 'Wait Workers'
+    description: "Wait Workers"
     required: false
-    default: 'true'
+    default: "true"
   additional_commands:
-    description: 'Additional commands to append to the deployment command'
+    description: "Additional commands to append to the deployment command"
     required: false
   ssh_private_key:
-    description: 'SSH Private Key for remote server. Required for `pull` command.'
+    description: "SSH Private Key for remote server. Required for `pull` command."
     required: false
   ssh_server:
-    description: 'SSH Server. Required for `pull` command.'
+    description: "SSH Server. Required for `pull` command."
     required: false
   ssh_user:
-    description: 'SSH User. Required for `pull` command.'
+    description: "SSH User. Required for `pull` command."
     required: false
 
   # 'build-image' command inputs
   image_type:
-    description: 'Specify which image to build (frappe, nginx, all).'
+    description: "Specify which image to build (frappe, nginx, all)."
     required: false
-    default: 'all'
+    default: "all"
   output_dir:
-    description: 'Output directory for baked bench and Dockerfiles.'
+    description: "Output directory for baked bench and Dockerfiles."
     required: false
-    default: 'outputs'
+    default: "outputs"
   force:
-    description: 'Force build image.'
+    description: "Force build image."
     required: false
-    default: 'false'
+    default: "false"
 
   # Common inputs
   github_token:
-    description: 'A github token for private repo access'
+    description: "A github token for private repo access"
     required: true
   config_path:
-    description: 'Path to the frappe-deployer config file from repo root'
+    description: "Path to the frappe-deployer config file from repo root"
     required: false
   config_content:
-    description: 'TOML config string content'
+    description: "TOML config string content"
     required: false
 
 runs:
   using: "composite"
   steps:
-
     - name: Install uv
       shell: bash
       run: |
@@ -91,9 +90,12 @@ runs:
         fi
         echo "user=${TARGET_USER}" >> $GITHUB_OUTPUT
 
-        # Change ownership of the workspace to the target user to allow write access.
+        # Change ownership of the workspace to the target user
         echo "Changing ownership of ${{ github.workspace }} to ${TARGET_USER}."
         sudo chown -R ${TARGET_USER}:${TARGET_USER} ${{ github.workspace }}
+
+        echo "Setting full read/write permissions for the new owner."
+        sudo chmod -R u+rwx ${{ github.workspace }}
 
     - name: Install frappe-deployer
       shell: bash
