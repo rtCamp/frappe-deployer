@@ -7,7 +7,7 @@ import os
 
 from frappe_deployer.config.config import Config
 from frappe_deployer.build_manager import BuildManager
-from frappe_deployer.commands import app, get_config_overrides, validate_cofig_path # Added validate_cofig_path
+from frappe_deployer.commands import app, get_config_overrides, validate_cofig_path
 from frappe_manager.logger.log import richprint
 
 class ImageType(str, Enum):
