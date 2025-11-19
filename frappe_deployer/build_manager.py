@@ -177,6 +177,8 @@ class BuildManager:
             "--build-arg",
             f"BENCH={bench_dir_name}",
         ]
+        if build_config.push:
+            final_build_cmd.extend(["--push"])
 
         if build_config.platforms:
             final_build_cmd.extend(["--platform", ",".join(build_config.platforms)])
@@ -216,6 +218,9 @@ class BuildManager:
 
         self.printer.print(f"Building Nginx image '{image_name}'...")
         build_cmd = ["docker", "build", "-t", image_name, "-f", str(rendered_dockerfile_path)]
+
+        if build_config.push:
+            build_cmd.extend(["--push"])
 
         if build_config.platforms:
             build_cmd.extend(["--platform", ",".join(build_config.platforms)])

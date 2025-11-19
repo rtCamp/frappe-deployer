@@ -25,6 +25,7 @@ class ImageBuildConfig(BaseModel):
     user: str = "frappe"
     dockerfile: Path
     labels: Optional[list[str]] = None
+    push: bool = False
 
     @computed_field
     @property

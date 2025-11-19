@@ -33,6 +33,7 @@ def build_image(
     ] = None,
     output_dir: Annotated[Path, typer.Option(help="Output directory for baked bench and Dockerfiles.", rich_help_panel="General")] = Path.cwd() / "outputs",
     force: Annotated[bool, typer.Option(help="Force build image.", rich_help_panel="General")] = False,
+    push: Annotated[bool, typer.Option(help="Toggle to allow pushing the docker image", rich_help_panel="General")] = False,
     image_type: Annotated[ImageType, typer.Option(help="Specify which image to build.", case_sensitive=False, rich_help_panel="General")] = ImageType.all,
 ):
     """
@@ -44,8 +45,8 @@ def build_image(
 
     bench_path = output_dir / "bench"
 
-    current_locals["build_frappe"] = {"bench_path": str(bench_path.absolute())}
-    current_locals["build_nginx"] = {"name": "frappe-nginx"}
+    current_locals["build_frappe"] = {"bench_path": str(bench_path.absolute(), "push": push)}
+    current_locals["build_nginx"] = {"name": "frappe-nginx", "push": push}
 
     config: Config = Config.from_toml(config_path, config_content, get_config_overrides(locals=current_locals))
 
