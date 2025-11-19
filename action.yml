@@ -69,11 +69,6 @@ runs:
     - name: Checkout
       uses: actions/checkout@v5
 
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
-      with:
-        limit-access-to-actor: true
-
     - name: Install uv
       shell: bash
       run: |
@@ -90,6 +85,11 @@ runs:
       run: |
         ${{ github.workspace }}/.bin/uv venv --python 3.10
         ${{ github.workspace }}/.bin/uv pip install ${{ github.action_path }}
+
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true
 
     - name: Run frappe-deployer
       shell: bash
