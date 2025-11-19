@@ -1,5 +1,11 @@
 FROM {{base_image_name}}
 
+{% if labels %}
+{% for label in labels %}
+LABEL {{ label }}
+{% endfor %}
+{% endif %}
+
 ARG SITENAME={{site_name}}
 ARG BENCH={{bench_name}}
 ARG USER={{user}}

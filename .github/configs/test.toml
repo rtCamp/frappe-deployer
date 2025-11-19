@@ -17,3 +17,20 @@ ref = "develop"
 [[apps]]
 repo = "frappe/erpnext"
 ref = "develop"
+
+[build_frappe]
+name = "ghcr.io/rtcamp/frappe-deployer-frappe"
+tag = "v0.1"
+base_name = "python"
+base_tag = "3.12.12-slim"
+platforms = [ "linux/amd64" ]
+distro = "slim"
+labels = [ "author=rtCamp", "org.opencontainers.image.source=https://github.com/rtcamp/frappe-deployer" ]
+
+[build_nginx]
+name = "ghcr.io/rtcamp/frappe-deployer-nginx"
+tag = "v0.1"
+base_name = "nginx"
+base_tag = "latest"
+platforms = [ "linux/amd64" ]
+labels = [ "author=rtCamp", "org.opencontainers.image.source=https://github.com/rtcamp/frappe-deployer" ]

@@ -555,8 +555,6 @@ class BuildManager:
         if env:
             base_env.update(env)
 
-        print("fmd - base", base_env)
-
         if not container:
             if capture_output:
                 output = run_command_with_exit_code(
