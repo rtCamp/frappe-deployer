@@ -24,6 +24,7 @@ class ImageBuildConfig(BaseModel):
     platforms: list[str] = ["linux/amd64"]
     user: str = "frappe"
     dockerfile: Path
+    labels: Optional[list[str]] = None
 
     @computed_field
     @property

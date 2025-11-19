@@ -1,6 +1,13 @@
 # python: {{ python_canonical }}
 # nodejs: {{ nodejs_canonical }}
 FROM {{ base_image_name }} as builder
+
+{% if labels %}
+{% for label in labels %}
+LABEL {{ label }}
+{% endfor %}
+{% endif %}
+
 # LABEL org.opencontainers.image.authors="rtCamp <sys@rtcamp.com>"
 
 ARG USER={{ user }}
