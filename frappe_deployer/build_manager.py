@@ -146,7 +146,15 @@ class BuildManager:
         build_cmd.append(str(self.output_dir))
 
         output_stream = run_command_with_exit_code(build_cmd, stream=True)
-        self.printer.live_lines(output_stream, lines=10)
+
+        if not is_ci() and is_tty():
+            self.printer.live_lines(output_stream, lines=10)
+        else:
+            for source, line in output_stream:
+                if isinstance(line, bytes):
+                    line = line.decode(errors="replace")
+                self.printer.print(line.rstrip(), emoji_code="   ")
+
         self.printer.print(f"Base image '{builder_image_name}' built successfully.")
 
     def _build_frappe_image(self, force: bool = False):
@@ -178,10 +186,18 @@ class BuildManager:
                 if arg:
                     final_build_cmd.extend(["--build-arg", arg])
 
-        final_build_cmd.append(str(self.output_dir))  # Changed context
+        final_build_cmd.append(str(self.output_dir))
 
         output_stream = run_command_with_exit_code(final_build_cmd, stream=True)
-        self.printer.live_lines(output_stream, lines=10)
+
+        if not is_ci() and is_tty():
+            self.printer.live_lines(output_stream, lines=10)
+        else:
+            for source, line in output_stream:
+                if isinstance(line, bytes):
+                    line = line.decode(errors="replace")
+                self.printer.print(line.rstrip(), emoji_code="   ")
+
         self.printer.print(f"Final image '{final_image_name}' built successfully.")
 
 
@@ -204,9 +220,17 @@ class BuildManager:
         if build_config.platforms:
             build_cmd.extend(["--platform", ",".join(build_config.platforms)])
 
-        build_cmd.append(str(self.output_dir))  # Changed context
+        build_cmd.append(str(self.output_dir))
+
         output_stream = run_command_with_exit_code(build_cmd, stream=True)
-        self.printer.live_lines(output_stream, lines=10)
+        if not is_ci() and is_tty():
+            self.printer.live_lines(output_stream, lines=10)
+        else:
+            for source, line in output_stream:
+                if isinstance(line, bytes):
+                    line = line.decode(errors="replace")
+                self.printer.print(line.rstrip(), emoji_code="   ")
+
         self.printer.print(f"Nginx image '{image_name}' built successfully.")
 
 
