@@ -77,58 +77,25 @@ runs:
     - name: Install uv
       shell: bash
       run: |
+        sudo chown -R $(whoami):$(whoami) "$(dirname '${{ github.workspace }}')"
         mkdir -p ${{ github.workspace }}/.bin
         export UV_INSTALL_DIR=${{ github.workspace }}/.bin
         curl -LsSf https://astral.sh/uv/install.sh | sh
+        sudo chmod +x $UV_INSTALL_DIR
         echo "${{ github.workspace }}/.bin" >> $GITHUB_PATH
-
-
-    - name: Prepare User for Docker Permissions
-      id: docker_user
-      shell: bash
-      run: |
-        TARGET_USER=""
-        mkdir -p '${{ github.workspace }}'
-        if ! id -u 1000 > /dev/null 2>&1; then
-          echo "Creating new user 'frappe' with UID 1000."
-          sudo groupadd -g 1000 frappe
-          sudo useradd -u 1000 -g 1000 -m frappe
-          TARGET_USER="frappe"
-        else
-          TARGET_USER=$(id -nu 1000)
-          echo "User with UID 1000 already exists: ${TARGET_USER}."
-        fi
-        echo "user=${TARGET_USER}" >> $GITHUB_OUTPUT
-
-        # Change ownership of the workspace to the target user
-        echo "Changing ownership of ${{ github.workspace }} to ${TARGET_USER}."
-        # sudo chown -R ${TARGET_USER}:${TARGET_USER} \"$(dirname '${{ github.workspace }}')\"
-        sudo chown -R ${TARGET_USER}:${TARGET_USER} "$(dirname '${{ github.workspace }}')"
-
-        echo "Setting full read/write permissions for the new owner."
-        sudo chmod -R u+rwx ${{ github.workspace }}
 
     - name: Install frappe-deployer
       shell: bash
       working-directory: ${{ github.workspace }}
       run: |
-        DOCKER_USER=${{ steps.docker_user.outputs.user }}
-        sudo chmod +x ./.bin/uv
-        sudo -u $DOCKER_USER bash -c "
-        ./.bin/uv venv --python 3.10 &&
-        . .venv/bin/activate &&
-        uv pip install ${{ github.action_path }}
-        "
+        ${{ github.workspace }}/.bin/uv venv --python 3.10
+        ${{ github.workspace }}/.bin/uv pip install ${{ github.action_path }}
 
     - name: Run frappe-deployer
       shell: bash
       working-directory: ${{ github.workspace }}
       run: |
-        DOCKER_USER=${{ steps.docker_user.outputs.user }}
-        sudo -u $DOCKER_USER bash -c "
-        . .venv/bin/activate &&
-        ${{ github.action_path }}/scripts/deploy.sh
-        "
+        source .venv/bin/activate && ${{ github.action_path }}/scripts/deploy.sh
       env:
         INPUT_COMMAND: ${{ inputs.command }}
         INPUT_SITENAME: ${{ inputs.sitename }}
