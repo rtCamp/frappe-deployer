@@ -278,6 +278,25 @@ class BuildManager:
             self.printer.error(f"Failed to clone {app.repo}: {e}")
             raise
 
+    def chown_dir(self, bench_directory: BenchDirectory, target_path: str, user: str = "frappe:frappe"):
+        """
+        Changes the ownership of a directory, intended for volume mounted directories inside a container.
+        Args:
+            bench_directory: The BenchDirectory context.
+            target_path: The path to the directory inside the container.
+            user: The user and group to set, e.g., '1000:1000'.
+        """
+        self.printer.change_head(f"Changing ownership of {target_path} to {user}")
+        command = ["chown", "-R", user, target_path]
+        self.host_run(
+            command,
+            bench_directory,
+            container=True,
+            container_user="root",
+            capture_output=False,
+        )
+        self.printer.print(f"Ownership of {target_path} changed to {user}")
+
     
 
     def clone_apps(
@@ -501,7 +520,7 @@ class BuildManager:
         bench_directory: BenchDirectory,
         container: bool = False,
         container_service: str = "frappe",
-        container_user: str = "frappe",
+        container_user: Optional[str] = None,
         capture_output: bool = True,
         live_lines: int = 4,
         workdir: Optional[str] = None,
@@ -571,11 +590,18 @@ class BuildManager:
         compose_file: ComposeFile = ComposeFile(self.path.parent / "docker-compose.yml")
         compose_project: ComposeProject = ComposeProject(compose_file_manager=compose_file)
 
+        user_to_run_as = container_user
+        if user_to_run_as is None:
+            # if self.config.build_frappe:
+            #     user_to_run_as = f"{os.getuid()}:{os.getgid()}"
+            # else:
+            user_to_run_as = "frappe"
+
         if capture_output:
             if self.config.build_frappe:
                 output = DockerClient().run(
                     image=self.config.build_frappe.builder_image_name,
-                    user=f"{os.getuid()}:{os.getgid()}",
+                    user=user_to_run_as,
                     command=docker_command,
                     workdir=workdir,
                     env=base_env,
@@ -589,7 +615,7 @@ class BuildManager:
                 output: SubprocessOutput = compose_project.docker.compose.exec(
                     service=container_service,
                     command=docker_entrypoint + docker_command,
-                    user=container_user,
+                    user=user_to_run_as,
                     workdir=workdir,
                     stream=not capture_output,
                     env=base_env,  # Pass formatted list for docker execution
@@ -609,7 +635,7 @@ class BuildManager:
             if self.config.build_frappe:
                 output = DockerClient().run(
                     image=self.config.build_frappe.builder_image_name,
-                    user=f"{os.getuid()}:{os.getgid()}",
+                    user=user_to_run_as,
                     workdir=workdir,
                     command=docker_command,
                     env=base_env,
@@ -623,7 +649,7 @@ class BuildManager:
                 output: Iterable[Tuple[str, bytes]] = compose_project.docker.compose.exec(
                     service=container_service,
                     command=docker_command,
-                    user=container_user,
+                    user=user_to_run_as,
                     workdir=workdir,
                     stream=not capture_output,
                     env=base_env,  # Pass formatted list for docker execution
