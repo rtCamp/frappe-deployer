@@ -94,7 +94,7 @@ runs:
         # Change ownership of the workspace to the target user
         echo "Changing ownership of ${{ github.workspace }} to ${TARGET_USER}."
         # sudo chown -R ${TARGET_USER}:${TARGET_USER} \"$(dirname '${{ github.workspace }}')\"
-        sudo chown -R $(whoami):$(whoami) "$(dirname '${{ github.workspace }}')"
+        sudo chown -R ${TARGET_USER}:${TARGET_USER} "$(dirname '${{ github.workspace }}')"
 
         echo "Setting full read/write permissions for the new owner."
         sudo chmod -R u+rwx ${{ github.workspace }}
