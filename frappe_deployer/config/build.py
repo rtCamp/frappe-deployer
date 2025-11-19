@@ -1,5 +1,6 @@
 from enum import Enum
 from pathlib import Path
+import os
 from typing import Optional
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel,  model_validator, computed_field
@@ -21,13 +22,22 @@ class ImageBuildConfig(BaseModel):
     base_name: str
     base_tag: str
     platforms: list[str] = ["linux/amd64"]
-    user: str = "frappe"
     dockerfile: Path
 
     @computed_field
     @property
     def image(self) -> str:
         return f"{self.name}:{self.tag}"
+
+    @computed_field
+    @property
+    def user(self) -> int:
+        return os.getuid()
+
+    @computed_field
+    @property
+    def group(self) -> int:
+        return os.getgid()
 
     @computed_field
     @property
