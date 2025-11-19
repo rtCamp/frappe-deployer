@@ -69,7 +69,7 @@ pull_command() {
 build_image_command() {
     [[ "${GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} GITHUB_TOKEN ${ENDCOLOR} is missing."
 
-    COMMAND="build-image"
+    COMMAND="build-image --push"
     
     if [[ "${FRAPPE_DEPLOYER_CONFIG_PATH:-}" ]]; then
         COMMAND="${COMMAND} --config-path ${GITHUB_WORKSPACE}/${FRAPPE_DEPLOYER_CONFIG_PATH}"
