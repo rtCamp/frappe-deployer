@@ -296,6 +296,14 @@ class BuildManager:
             container_user="root",
             capture_output=False,
         )
+        command = ["chmod", "-R", 'g+rwx', target_path]
+        self.host_run(
+            command,
+            bench_directory,
+            container=True,
+            container_user="root",
+            capture_output=False,
+        )
         self.printer.print(f"Ownership of {target_path} changed to {user}")
 
     
