@@ -95,13 +95,19 @@ runs:
         echo "Changing ownership of ${{ github.workspace }} to ${TARGET_USER}."
         sudo chown -R ${TARGET_USER}:${TARGET_USER} ${{ github.workspace }}
 
+        # Grant traverse permissions to parent directory for other users.
+        echo "Granting traverse permissions to parent directory."
+        sudo chmod o+x $(dirname ${{ github.workspace }})
+
     - name: Install frappe-deployer
       shell: bash
       run: |
         DOCKER_USER=${{ steps.docker_user.outputs.user }}
-        sudo chmod +x ${{ github.workspace }}/.bin/uv
-        sudo -u $DOCKER_USER -w ${{ github.workspace }} bash -c "
-        ${{ github.workspace }}/.bin/uv venv --python 3.10 &&
+        UV_EXEC_PATH=${{ github.workspace }}/.bin/uv
+        sudo chmod +x $UV_EXEC_PATH
+        sudo -u $DOCKER_USER bash -c "
+        cd ${{ github.workspace }} &&
+        $UV_EXEC_PATH venv --python 3.10 &&
         . .venv/bin/activate &&
         uv pip install ${{ github.action_path }}
         "
@@ -110,7 +116,8 @@ runs:
       shell: bash
       run: |
         DOCKER_USER=${{ steps.docker_user.outputs.user }}
-        sudo -u $DOCKER_USER -w ${{ github.workspace }} bash -c "
+        sudo -u $DOCKER_USER bash -c "
+        cd ${{ github.workspace }} &&
         . .venv/bin/activate &&
         ${{ github.action_path }}/scripts/deploy.sh
         "
