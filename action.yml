@@ -73,23 +73,27 @@ runs:
         mkdir -p ${{ github.workspace }}/.bin
         export UV_INSTALL_DIR=${{ github.workspace }}/.bin
         curl -LsSf https://astral.sh/uv/install.sh | sh
-        chmod +x ${{ github.workspace }}/.bin/uv
         echo "${{ github.workspace }}/.bin" >> $GITHUB_PATH
 
     - name: Prepare User for Docker Permissions
       id: docker_user
       shell: bash
       run: |
+        TARGET_USER=""
         if ! id -u 1000 > /dev/null 2>&1; then
           echo "Creating new user 'frappe' with UID 1000."
           sudo groupadd -g 1000 frappe
           sudo useradd -u 1000 -g 1000 -m frappe
-          echo "user=frappe" >> $GITHUB_OUTPUT
+          TARGET_USER="frappe"
         else
-          USER_NAME=$(id -nu 1000)
-          echo "User with UID 1000 already exists: ${USER_NAME}."
-          echo "user=${USER_NAME}" >> $GITHUB_OUTPUT
+          TARGET_USER=$(id -nu 1000)
+          echo "User with UID 1000 already exists: ${TARGET_USER}."
         fi
+        echo "user=${TARGET_USER}" >> $GITHUB_OUTPUT
+
+        # Change ownership of the workspace to the target user to allow write access.
+        echo "Changing ownership of ${{ github.workspace }} to ${TARGET_USER}."
+        sudo chown -R ${TARGET_USER}:${TARGET_USER} ${{ github.workspace }}
 
     - name: Install frappe-deployer
       shell: bash
