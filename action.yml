@@ -66,6 +66,9 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
     - name: Install uv
       shell: bash
       run: |
@@ -73,6 +76,7 @@ runs:
         export UV_INSTALL_DIR=${{ github.workspace }}/.bin
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "${{ github.workspace }}/.bin" >> $GITHUB_PATH
+
 
     - name: Prepare User for Docker Permissions
       id: docker_user
