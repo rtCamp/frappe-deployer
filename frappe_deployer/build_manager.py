@@ -228,7 +228,7 @@ class BuildManager:
         self.printer.change_head("Configuring bench dirs")
         self.config.to_toml(self.current.path / "fmd-config.toml")
         self.clone_apps(self.current)
-        self.chown_dir(self.current, '/workspace/frappe-bench')
+        self.chown_dir(self.current, '/workspace/frappe-bench', f'frappe:{os.getgid()}')
         self.python_env_create(self.current)
         self.bench_setup_requiments(self.current)
         self.sync_configs_with_files(self.current)
