@@ -86,8 +86,31 @@ runs:
         ${{ github.workspace }}/.bin/uv venv --python 3.10
         ${{ github.workspace }}/.bin/uv pip install ${{ github.action_path }}
 
+    - name: where is action
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: |
+        ls -lah ${{ github.action_path }}/scripts/deploy.sh
+
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
+      env:
+        CI: true
+        INPUT_COMMAND: ${{ inputs.command }}
+        INPUT_SITENAME: ${{ inputs.sitename }}
+        INPUT_USE_MAINTENANCE_MODE: ${{ inputs.use_maintenance_mode }}
+        INPUT_USE_BENCH_MIGRATE: ${{ inputs.use_bench_migrate }}
+        INPUT_USE_WAIT_WORKERS: ${{ inputs.use_wait_workers }}
+        INPUT_ADDITIONAL_COMMANDS: ${{ inputs.additional_commands }}
+        INPUT_IMAGE_TYPE: ${{ inputs.image_type }}
+        INPUT_OUTPUT_DIR: ${{ inputs.output_dir }}
+        INPUT_FORCE: ${{ inputs.force }}
+        SSH_PRIVATE_KEY: ${{ inputs.ssh_private_key }}
+        SSH_SERVER: ${{ inputs.ssh_server }}
+        SSH_USER: ${{ inputs.ssh_user }}
+        FRAPPE_DEPLOYER_CONFIG_PATH: ${{ inputs.config_path }}
+        FRAPPE_DEPLOYER_CONFIG_CONTENT: ${{ inputs.config_content }}
+        FRAPPE_DEPLOYER_GITHUB_TOKEN: ${{ inputs.gh_token }}
 
     - name: Run frappe-deployer
       shell: bash
