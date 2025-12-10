@@ -115,4 +115,6 @@ runs:
     - name: Clean up temporary directory
       if: always()
       shell: bash
-      run: rm -rf ${{ steps.temp_dir.outputs.path }}
+      run: |
+        docker run --rm --user root -v ${{ steps.temp_dir.outputs.path }}:/data alpine sh -c 'find /data -mindepth 1 -delete'
+        rm -rf ${{ steps.temp_dir.outputs.path }}
