@@ -86,6 +86,9 @@ runs:
         ${{ github.workspace }}/.bin/uv venv --python 3.10
         ${{ github.workspace }}/.bin/uv pip install ${{ github.action_path }}
 
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+
     - name: Run frappe-deployer
       shell: bash
       working-directory: ${{ github.workspace }}
