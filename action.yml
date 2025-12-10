@@ -53,7 +53,7 @@ inputs:
     default: "false"
 
   # Common inputs
-  github_token:
+  gh_token:
     description: "A github token for private repo access"
     required: true
   config_path:
@@ -107,4 +107,4 @@ runs:
         SSH_USER: ${{ inputs.ssh_user }}
         FRAPPE_DEPLOYER_CONFIG_PATH: ${{ inputs.config_path }}
         FRAPPE_DEPLOYER_CONFIG_CONTENT: ${{ inputs.config_content }}
-        GITHUB_TOKEN: ${{ inputs.github_token }}
+        FRAPPE_DEPLOYER_GITHUB_TOKEN: ${{ inputs.gh_token }}
