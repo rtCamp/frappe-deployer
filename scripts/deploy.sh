@@ -13,11 +13,11 @@ pull_command() {
     [[ "${REMOTE_USER:-}" ]] || emergency "ENV: ${CYAN} SSH_USER ${ENDCOLOR} is missing for 'pull' command."
     [[ "${SSH_PRIVATE_KEY:-}" ]] || emergency "ENV: ${CYAN} SSH_PRIVATE_KEY ${ENDCOLOR} is missing for 'pull' command."
 
-    [[ "${GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} GITHUB_TOKEN ${ENDCOLOR} is missing."
+    [[ "${FRAPPE_DEPLOYER_GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} FRAPPE_DEPLOYER_GITHUB_TOKEN ${ENDCOLOR} is missing."
     [[ "${INPUT_SITENAME:-}" ]] || emergency "Input: ${CYAN} sitename ${ENDCOLOR} is missing."
 
     # Construct COMMAND
-    COMMAND="pull ${INPUT_SITENAME} --github-token ${GITHUB_TOKEN}"
+    COMMAND="pull ${INPUT_SITENAME} --github-token ${FRAPPE_DEPLOYER_GITHUB_TOKEN}"
     COMMAND="${COMMAND} --configure "
     if [ "${INPUT_USE_MAINTENANCE_MODE}" == "true" ]; then
       COMMAND="${COMMAND} --maintenance-mode"
@@ -67,9 +67,9 @@ pull_command() {
 }
 
 build_image_command() {
-    [[ "${GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} GITHUB_TOKEN ${ENDCOLOR} is missing."
+    [[ "${FRAPPE_DEPLOYER_GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} FRAPPE_DEPLOYER_GITHUB_TOKEN ${ENDCOLOR} is missing."
 
-    COMMAND="build-image --push --github-token ${GITHUB_TOKEN}"
+    COMMAND="build-image --push --github-token ${FRAPPE_DEPLOYER_GITHUB_TOKEN}"
     
     if [[ "${FRAPPE_DEPLOYER_CONFIG_PATH:-}" ]]; then
         COMMAND="${COMMAND} --config-path ${GITHUB_WORKSPACE}/${FRAPPE_DEPLOYER_CONFIG_PATH}"
