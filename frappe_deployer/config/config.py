@@ -85,6 +85,7 @@ class Config(BaseModel):
     maintenance_mode_phases: List[str] = Field(["migrate","start"], description='Phases in which maintenance mode will be active')
     backups: bool = Field(True, description="Flag to enable or disable backups.")
     configure: bool = Field(False, description="Flag to enable or disable site configuration for deployment.")
+    configure_apps: bool = Field(True, description="Flag to enable or disable app configuration for deployment.")
     releases_retain_limit: int = Field(7, description="Number of releases to retain.")
     reset_site: bool = Field(False, description="Flag to reset the site.")
     common_site_config: Optional[dict[str, Any]] = Field(None, description="Common site configuration dictionary.")
@@ -233,29 +234,30 @@ class Config(BaseModel):
             if getattr(app, "subdir_path", None):
                 app.symlink = getattr(app, "symlink", False) or getattr(config, "symlink_subdir_apps", False)
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [
-                executor.submit(
-                    app.configure_app,
-                    token=config.github_token,
-                    remove_remote=config.remove_remote,
-                    remote_name=config.remote_name,
-                    fm_pre_build=app.fm_pre_build or config.fm_pre_build,
-                    fm_post_build=app.fm_post_build or config.fm_post_build
-                )
-                for app in config.apps
-            ]
-            concurrent.futures.wait(futures)
+        if config.configure_apps:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                futures = [
+                    executor.submit(
+                        app.configure_app,
+                        token=config.github_token,
+                        remove_remote=config.remove_remote,
+                        remote_name=config.remote_name,
+                        fm_pre_build=app.fm_pre_build or config.fm_pre_build,
+                        fm_post_build=app.fm_post_build or config.fm_post_build
+                    )
+                    for app in config.apps
+                ]
+                concurrent.futures.wait(futures)
 
-        all_apps_exists = True
+            all_apps_exists = True
 
-        for app in config.apps:
-            if not app.exists:
-                all_apps_exists = False
-                richprint.error(app.repo_url)
+            for app in config.apps:
+                if not app.exists:
+                    all_apps_exists = False
+                    richprint.error(app.repo_url)
 
-        if not all_apps_exists:
-            raise RuntimeError("Please ensure all apps repo's are accessible.")
+            if not all_apps_exists:
+                raise RuntimeError("Please ensure all apps repo's are accessible.")
 
         return config
 

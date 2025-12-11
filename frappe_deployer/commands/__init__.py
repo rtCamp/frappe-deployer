@@ -80,6 +80,7 @@ def configure_basic_deployment_config(site_name: str) -> dict:
     data["site_name"] = site_name
     data["bench_path"] = str(CLI_BENCHES_DIRECTORY / f"{site_name}/frappe-bench")
     data["apps"] = []
+    data["configure_apps"] = False
 
     return data
 
