@@ -1496,13 +1496,12 @@ class DeploymentManager:
         prod_build_cmd = [
             self.bench_cli,
             "build",
-            # "--production",
+            "--production",
             "--force",
-            "--hard-link",
         ]
 
         self.host_run(
-            prod_build_cmd[:-1],
+            prod_build_cmd,
             bench_directory,
             container=self.mode == "fm",
             capture_output=False,
