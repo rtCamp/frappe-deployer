@@ -63,7 +63,7 @@ pull_command() {
     setup_ssh
     
     remote_execute "/home/$REMOTE_USER/" "mkdir -p /home/$REMOTE_USER/.frappe_deployer_logs"
-    remote_execute "/home/$REMOTE_USER/.frappe_deployer_logs" "/home/$REMOTE_USER/.local/bin/frappe-deployer ${COMMAND_LINE} 2>1"
+    remote_execute "/home/$REMOTE_USER/.frappe_deployer_logs" "/home/$REMOTE_USER/.local/bin/frappe-deployer ${COMMAND_LINE} 2>&1"
 }
 
 build_image_command() {
