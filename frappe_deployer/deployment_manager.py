@@ -358,7 +358,6 @@ class DeploymentManager:
             self.bench_path.symlink_to(get_relative_path(self.bench_path, self.new.path), True)
 
         self.configure_symlinks()
-
         self.clone_apps(self.new)
         self.python_env_create(self.new)
         self.bench_setup_requiments(self.new)
