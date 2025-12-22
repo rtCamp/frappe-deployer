@@ -329,11 +329,11 @@ class DeploymentManager:
 
         self.printer.print(f"Bench: {self.config.bench_name} Site: {self.config.site_name}")
 
-        # create new release dirs
         self.printer.change_head("Configuring new release dirs")
 
         if not self.config.configure:
-            self.bench_db_and_configs_backup()
+            if self.config.backups:
+                self.bench_db_and_configs_backup()
 
         if self.config.fm:
             if self.config.fm.restore_db_from_site:
@@ -352,11 +352,6 @@ class DeploymentManager:
         self.config.to_toml(self.new.path / f"{self.config.site_name}.toml")
 
         if self.config.configure:
-            # if self.config.maintenance_mode:
-            #     start_time = time.time()
-            #     self.printer.print("Enabled maintenance mode")
-            #     self.current.maintenance_mode(self.site_name, True)
-
             DeploymentManager.configure(config=self.config, only_move=True, backups=True)
             self.printer.change_head("Moving bench directory, creating initial release")
             shutil.move(str(self.current.path.absolute()), str(self.path / "prev_frappe_bench"))
@@ -369,11 +364,6 @@ class DeploymentManager:
         self.bench_setup_requiments(self.new)
         self.bench_build(self.new)
         self.bench_clear_cache(self.current, True)
-
-        # if self.config.maintenance_mode:
-        #     start_time = time.time()
-        #     self.printer.print("Enabled maintenance mode")
-        #     self.current.maintenance_mode(self.site_name, True)
         self.sync_configs_with_files(self.config.site_name)
         exception = None
 
@@ -1069,7 +1059,7 @@ class DeploymentManager:
         try:
             # Write script content
             with open(script_path, "w") as script_file:
-                script_file.write("set -e\n")  # Remove shebang, just keep error handling
+                # script_file.write("set -e\n")
                 script_file.write(script_content)
 
             script_path.chmod(0o755)
@@ -1111,12 +1101,11 @@ class DeploymentManager:
             self.printer.print(f"{script_type} done")
 
         finally:
-            # Cleanup
             try:
                 if script_path.exists():
                     script_path.unlink()
-                    if not any(script_dir.iterdir()):  # If directory is empty
-                        script_dir.rmdir()  # Remove the deployment_tmp directory
+                    if not any(script_dir.iterdir()):
+                        script_dir.rmdir()
             except Exception as e:
                 self.printer.warning(f"Failed to cleanup temporary script: {e}")
 
@@ -1464,27 +1453,17 @@ class DeploymentManager:
         self.printer.print("Configured apps.txt")
 
     def bench_build(self, bench_directory: BenchDirectory):
-        apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
-
-        for app in apps:
-            app_config = None
-
-            for config in self.apps:
-                app_name = bench_directory.get_app_python_module_name(bench_directory.apps / config.dir_name)
-                if app_name == app.name:
-                    app_config = config
-                    break
-
-            app_dir_path = f"/workspace/{bench_directory.path.name}/apps/{app.name}"
-
-            if self.mode == "fm" and app_config and app_config.fm_pre_build:
-                self.printer.print(f"Running pre-build command for {app.name} in app directory")
+        for config in self.apps:
+            app = config
+            app_dir_path = f"/workspace/{bench_directory.path.name}/apps/{app.app_name}"
+            if self.mode == "fm" and app.fm_pre_build:
+                self.printer.print(f"Running pre-build command for {app.app_name} in app directory")
                 self._run_script(
-                    app_config.fm_pre_build,
+                    app.fm_pre_build,
                     bench_directory,
-                    f"Pre-build script for {app.name}",
+                    f"Pre-build script for {app.app_name}",
                     container=True,
-                    app_name=app.name,
+                    app_name=app.app_name,
                     custom_workdir=app_dir_path,
                 )
 
@@ -1509,34 +1488,19 @@ class DeploymentManager:
             capture_output=False,
         )
 
-        for app in apps:
-            # Find corresponding AppConfig for the app to check for pre/post build commands
-            app_config = None
-            for config in self.apps:
-                app_name = bench_directory.get_app_python_module_name(bench_directory.apps / config.dir_name)
-                if app_name == app.name:
-                    app_config = config
-                    break
-
-            # Define app directory path for container
-            app_dir_path = f"/workspace/{bench_directory.path.name}/apps/{app.name}"
-
-            # Run post-build command if configured and in FM mode
-            if self.mode == "fm" and app_config and app_config.fm_post_build:
-                self.printer.print(f"Running post-build command for {app.name} in app directory")
-
-                # Use _run_script method which handles script execution properly
+        for config in self.apps:
+            app = config
+            app_dir_path = f"/workspace/{bench_directory.path.name}/apps/{app.app_name}"
+            if self.mode == "fm" and app.fm_post_build:
+                self.printer.print(f"Running post-build command for {app.app_name} in app directory")
                 self._run_script(
-                    app_config.fm_post_build,
+                    app.fm_post_build,
                     bench_directory,
-                    f"post-build script for {app.name}",
+                    f"Post-build script for {app.app_name}",
                     container=True,
-                    app_name=app.name,
+                    app_name=app.app_name,
                     custom_workdir=app_dir_path,
                 )
-
-            # self.printer.print(f"Built app {app.name}")
-
         self.printer.print("Built all apps")
 
     def search_and_replace_in_database(
