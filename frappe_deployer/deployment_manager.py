@@ -1045,7 +1045,7 @@ class DeploymentManager:
         custom_workdir: Optional[str] = None,
     ) -> None:
         """Execute a shell script with proper setup and cleanup."""
-        self.printer.change_head(f"Running {script_type}")
+        self.printer.print(f"Running {script_type}")
 
         # Create deployment_tmp directory in bench directory
         script_dir = self.current.path.parent / "deployment_tmp"
@@ -1452,6 +1452,7 @@ class DeploymentManager:
         self.printer.print("Configured apps.txt")
 
     def bench_build(self, bench_directory: BenchDirectory):
+        self.printer.change_head("Running bench build for all apps")
         for config in self.apps:
             app = config
             app_dir_path = f"/workspace/{bench_directory.path.name}/apps/{app.app_name}"
