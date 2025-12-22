@@ -521,6 +521,7 @@ class DeploymentManager:
                     from_dir = from_dir / app.subdir_path
 
             app_name = app.app_name if app.app_name else bench_directory.get_app_python_module_name(from_dir)
+            app.app_name = app_name
             to_dir = bench_directory.apps / app_name
 
             import datetime
@@ -1463,31 +1464,25 @@ class DeploymentManager:
         self.printer.print("Configured apps.txt")
 
     def bench_build(self, bench_directory: BenchDirectory):
-        # apps: list[Union[AppConfig, Path]] = self.apps
-
         apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
 
         for app in apps:
-            # Find corresponding AppConfig for the app to check for pre/post build commands
             app_config = None
+
             for config in self.apps:
                 app_name = bench_directory.get_app_python_module_name(bench_directory.apps / config.dir_name)
                 if app_name == app.name:
                     app_config = config
                     break
 
-            # Define app directory path for container
             app_dir_path = f"/workspace/{bench_directory.path.name}/apps/{app.name}"
 
-            # Run pre-build command if configured and in FM mode
             if self.mode == "fm" and app_config and app_config.fm_pre_build:
                 self.printer.print(f"Running pre-build command for {app.name} in app directory")
-
-                # Use _run_script method which handles script execution properly
                 self._run_script(
                     app_config.fm_pre_build,
                     bench_directory,
-                    f"pre-build script for {app.name}",
+                    f"Pre-build script for {app.name}",
                     container=True,
                     app_name=app.name,
                     custom_workdir=app_dir_path,
@@ -1496,12 +1491,12 @@ class DeploymentManager:
         prod_build_cmd = [
             self.bench_cli,
             "build",
-            "--production",
             "--force",
+            "--production",
         ]
 
         self.host_run(
-            prod_build_cmd,
+            prod_build_cmd[:-1],
             bench_directory,
             container=self.mode == "fm",
             capture_output=False,
