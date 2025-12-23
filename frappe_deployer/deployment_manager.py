@@ -115,7 +115,7 @@ class DeploymentManager:
 
         # Check if the virtual environment exists
         if not venv_path.exists() or not (venv_path / "bin" / "bench").exists():
-            self.python_env_create(self.current, venv_path=str(venv_path))
+            self.python_env_create(self.current, venv_path=str(venv_path), python_version="3.14")
 
             # Install bench and frappe from given GitHub tags link using uv
             bench_install_command = [
@@ -1305,7 +1305,7 @@ class DeploymentManager:
     def python_env_create(
         self, bench_directory: BenchDirectory, venv_path: str = "env", python_version: Optional[str] = None
     ):
-        python_version = self.config.python_version if self.config.python_version else "3"
+        python_version = python_version or self.config.python_version if self.config.python_version else "3"
 
         venv_create_command = [f"python{python_version}", "-m", "venv", venv_path]
 
