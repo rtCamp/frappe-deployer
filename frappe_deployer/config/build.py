@@ -3,7 +3,7 @@ from pathlib import Path
 import os
 from typing import Optional
 from jinja2 import Environment, FileSystemLoader
-from pydantic import BaseModel,  model_validator, computed_field
+from pydantic import BaseModel, Field, model_validator, computed_field
 
 class PythonConfig(BaseModel):
     """A Pydantic model representing Python configuration."""
@@ -19,6 +19,7 @@ class NodeJSConfig(BaseModel):
 class ImageBuildConfig(BaseModel):
     """A base model for image build configurations."""
     name: str
+    tag: str = "latest"
     base_name: str
     base_tag: str
     platforms: list[str] = ["linux/amd64"]
@@ -26,6 +27,10 @@ class ImageBuildConfig(BaseModel):
     dockerfile: Path
     labels: Optional[list[str]] = None
     push: bool = False
+    additional_packages: Optional[list[str]] = Field(
+        default=None,
+        description="Additional APT packages to install in the builder stage"
+    )
 
     @computed_field
     @property
