@@ -8,8 +8,6 @@ LABEL {{ label }}
 {% endfor %}
 {% endif %}
 
-# LABEL org.opencontainers.image.authors="rtCamp <sys@rtcamp.com>"
-
 ARG USER={{ user }}
 ARG BENCH={{ bench_name }}
 ARG SITENAME={{ site_name }}
@@ -84,6 +82,9 @@ RUN apt-get update && \
   rlwrap \
   #tk8.6-dev \
   ssh-client \
+  {% if additional_packages %}# Additional custom packages
+  {% for package in additional_packages %}{{ package }} \
+  {% endfor %}{% endif %}
   # Check if required ?
   && rm -rf /var/lib/apt/lists/*
 
