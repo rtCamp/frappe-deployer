@@ -41,7 +41,9 @@ RUN NODE_VERSION="v{{ nodejs.canonical }}" \
   && rm "node-$NODE_VERSION-linux-$ARCH.tar.xz" SHASUMS256.txt.asc SHASUMS256.txt \
   && ln -s /usr/local/bin/node /usr/local/bin/nodejs
 
-RUN corepack enable yarn
+RUN corepack enable && \
+    corepack prepare yarn@stable --activate && \
+    corepack prepare pnpm@10.13.1 --activate
 RUN pip install --no-cache-dir -U pip uv frappe-bench
 RUN apt-get update && \
   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
