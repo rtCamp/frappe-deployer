@@ -1468,8 +1468,6 @@ class DeploymentManager:
         apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
 
         for app in apps:
-            self.printer.change_head(f"Building app {app.name}")
-
             # Find corresponding AppConfig for the app to check for pre/post build commands
             app_config = None
             for config in self.apps:
@@ -1495,16 +1493,31 @@ class DeploymentManager:
                     custom_workdir=app_dir_path,
                 )
 
-            # Run the regular build command
-            build_cmd = [self.bench_cli, "build", "--app", app.name]
+        prod_build_cmd = [
+            self.bench_cli,
+            "build",
+            "--production",
+            "--force",
+        ]
 
-            self.host_run(
-                build_cmd,
-                bench_directory,
-                # stream=False,
-                container=self.mode == "fm",
-                capture_output=False,
-            )
+        self.host_run(
+            prod_build_cmd,
+            bench_directory,
+            container=self.mode == "fm",
+            capture_output=False,
+        )
+
+        for app in apps:
+            # Find corresponding AppConfig for the app to check for pre/post build commands
+            app_config = None
+            for config in self.apps:
+                app_name = bench_directory.get_app_python_module_name(bench_directory.apps / config.dir_name)
+                if app_name == app.name:
+                    app_config = config
+                    break
+
+            # Define app directory path for container
+            app_dir_path = f"/workspace/{bench_directory.path.name}/apps/{app.name}"
 
             # Run post-build command if configured and in FM mode
             if self.mode == "fm" and app_config and app_config.fm_post_build:
@@ -1520,7 +1533,7 @@ class DeploymentManager:
                     custom_workdir=app_dir_path,
                 )
 
-            self.printer.print(f"Built app {app.name}")
+            # self.printer.print(f"Built app {app.name}")
 
         self.printer.print("Built all apps")
 
