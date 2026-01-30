@@ -90,7 +90,7 @@ class DeploymentManager:
         self.path = config.deploy_dir_path
         self.printer = richprint
         self.bench_cli = "bench"
-        self.fmx = "/opt/user/.bin/fmx"
+        self.fmx = "fmx"
 
         self.current = BenchDirectory(config.bench_path)
 
