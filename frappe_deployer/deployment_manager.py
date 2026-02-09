@@ -1496,7 +1496,7 @@ class DeploymentManager:
                 )
 
             # Run the regular build command
-            build_cmd = [self.bench_cli, "build", "--app", app.name]
+            build_cmd = [self.bench_cli, "build", "--production", "--app", app.name]
 
             self.host_run(
                 build_cmd,
