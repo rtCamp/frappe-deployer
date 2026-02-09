@@ -2,7 +2,7 @@ from unittest.mock import patch
 from frappe_deployer.consts import LOG_FILE_NAME
 import typer
 
-VERSION = "0.13.0"
+VERSION = "0.13.1"
 
 def version_callback(show: bool):
 
