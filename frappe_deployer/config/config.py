@@ -322,7 +322,7 @@ class Config(BaseModel):
         if overrides:
             for key, value in overrides.items():
                 if key in [ "build_frappe", "build_nginx"]:
-                    config_data[key] =   value | config_data.get(key, {})
+                    config_data[key] = value | config_data.get(key, {})
                     continue
 
                 if key == 'apps':
