@@ -88,7 +88,7 @@ function check_command_status () {
 remote_execute() {
 
     [[ "${REMOTE_USER}" ]] || emergency "REMOTE_USER not found."
-    [[ "${REMOTE_HOST}" ]] || emergency "REMOTE_USER not found."
+    [[ "${REMOTE_HOST}" ]] || emergency "REMOTE_HOST not found."
 
     path=$(echo "$1")
     cmd=$(echo "$2")
