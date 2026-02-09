@@ -100,17 +100,17 @@ remote_execute() {
 setup_ssh() {
 
   # used for saving private key
-	SSH_DIR="$HOME/.ssh"
-	mkdir -p "$SSH_DIR"
-	chmod 700 "$SSH_DIR"
+    SSH_DIR="$HOME/.ssh"
+    mkdir -p "$SSH_DIR"
+    chmod 700 "$SSH_DIR"
 
   [[ "${SSH_PRIVATE_KEY:-}" ]] || emergency "SSH_PRIVATE_KEY is not set."
 
-	if [[ -n "$SSH_PRIVATE_KEY" ]]; then
-		echo "$SSH_PRIVATE_KEY" | tr -d '\r' > "$SSH_DIR/id_rsa"
-		chmod 600 "$SSH_DIR/id_rsa"
-		eval "$(ssh-agent -s)"
-		ssh-add "$SSH_DIR/id_rsa"
+    if [[ -n "$SSH_PRIVATE_KEY" ]]; then
+        echo "$SSH_PRIVATE_KEY" | tr -d '\r' > "$SSH_DIR/id_rsa"
+        chmod 600 "$SSH_DIR/id_rsa"
+        eval "$(ssh-agent -s)"
+        ssh-add "$SSH_DIR/id_rsa"
 
 cat > /etc/ssh/ssh_config <<EOL
 Host $REMOTE_HOST
