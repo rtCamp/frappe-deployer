@@ -104,6 +104,8 @@ class DeploymentManager:
 
     def configure_basic_info(self):
         self.site_installed_apps = self.get_site_installed_apps(self.current)
+        print(self.site.installed_apps)
+        exit()
         self.configure_bench_cli()
 
     def configure_bench_cli(self):
