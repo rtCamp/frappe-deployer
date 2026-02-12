@@ -104,8 +104,6 @@ class DeploymentManager:
 
     def configure_basic_info(self):
         self.site_installed_apps = self.get_site_installed_apps(self.current)
-        print(self.site.installed_apps)
-        exit()
         self.configure_bench_cli()
 
     def configure_bench_cli(self):
@@ -117,7 +115,7 @@ class DeploymentManager:
 
         # Check if the virtual environment exists
         if not venv_path.exists() or not (venv_path / "bin" / "bench").exists():
-            self.python_env_create(self.current, venv_path=str(venv_path), python_version="3.14")
+            self.python_env_create(self.current, venv_path=str(venv_path), python_version="3.12")
 
             # Install bench and frappe from given GitHub tags link using uv
             bench_install_command = [
@@ -126,8 +124,8 @@ class DeploymentManager:
                 "install",
                 "--python",
                 f"{str(venv_path)}/bin/python",
-                "git+https://github.com/frappe/bench.git",
-                "git+https://github.com/frappe/frappe.git@version-16",
+                "frappe-bench==5.29.1",
+                "git+https://github.com/frappe/frappe.git@315eb492a4e9d21d143cb95d92d7cfa1513ea408",
             ]
 
             self.host_run(bench_install_command, self.current, container=self.mode == "fm", capture_output=False)
@@ -1689,7 +1687,9 @@ class DeploymentManager:
             self.printer.warning(f"Not able to get current list of apps installed in {self.site_name}")
             return {self.site_name: []}
 
-        return json.loads("".join(output.combined)) if output.combined else {self.site_name: []}
+        from rich import inspect
+        inspect(output)
+        return json.loads("".join(output.stdout)) if output.stdout else {self.site_name: []}
 
     def is_app_installed_in_site(self, site_name: str, app_name: str) -> bool:
         site_apps = self.site_installed_apps.get(site_name)
