@@ -125,7 +125,7 @@ class DeploymentManager:
                 "--python",
                 f"{str(venv_path)}/bin/python",
                 "git+https://github.com/frappe/bench.git",
-                "git+https://github.com/frappe/frappe.git@version-15",
+                #"git+https://github.com/frappe/frappe.git@version-15",
             ]
 
             self.host_run(bench_install_command, self.current, container=self.mode == "fm", capture_output=False)
