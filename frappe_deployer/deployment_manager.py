@@ -1686,7 +1686,8 @@ class DeploymentManager:
         except DockerException:
             self.printer.warning(f"Not able to get current list of apps installed in {self.site_name}")
             return {self.site_name: []}
-        return json.loads("".join(output.combined))
+
+        return json.loads("".join(output.combined)) if output.combined else {self.site_name: []}
 
     def is_app_installed_in_site(self, site_name: str, app_name: str) -> bool:
         site_apps = self.site_installed_apps.get(site_name)
