@@ -125,7 +125,7 @@ class DeploymentManager:
                 "--python",
                 f"{str(venv_path)}/bin/python",
                 "git+https://github.com/frappe/bench.git",
-                #"git+https://github.com/frappe/frappe.git@version-15",
+                "git+https://github.com/frappe/frappe.git@version-16",
             ]
 
             self.host_run(bench_install_command, self.current, container=self.mode == "fm", capture_output=False)
@@ -352,7 +352,7 @@ class DeploymentManager:
         self.config.to_toml(self.new.path / f"{self.config.site_name}.toml")
 
         if self.config.configure:
-            DeploymentManager.configure(config=self.config, only_move=True, backups=True)
+            DeploymentManager.configure(config=self.config, only_move=True, backups=self.config.backups)
             self.printer.change_head("Moving bench directory, creating initial release")
             shutil.move(str(self.current.path.absolute()), str(self.path / "prev_frappe_bench"))
             self.bench_path.symlink_to(get_relative_path(self.bench_path, self.new.path), True)
