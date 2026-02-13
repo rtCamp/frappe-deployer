@@ -362,7 +362,7 @@ class DeploymentManager:
         self.python_env_create(self.new)
         self.bench_setup_requiments(self.new)
         self.bench_build(self.new)
-        self.bench_clear_cache(self.current, True)
+        self.bench_clear_cache(self.new, True)
         self.sync_configs_with_files(self.config.site_name)
         exception = None
 
