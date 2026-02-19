@@ -1146,11 +1146,19 @@ class DeploymentManager:
         else:
             self.printer.print(f"Installed app {app_python_module_name} in {self.site_name}")
 
+    def _get_app_paths_in_config_order(self, bench_directory: BenchDirectory) -> list[Path]:
+        """Return app paths in the same order as `self.apps`, filtered to existing directories."""
+        app_paths: list[Path] = []
+        for app_config in self.apps:
+            app_path = bench_directory.apps / app_config.dir_name
+            if app_path.is_dir():
+                app_paths.append(app_path)
+        return app_paths
+
     def bench_install_apps(self, bench_directory: BenchDirectory) -> None:
         """Main function to handle installation and migration process."""
-        apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
-        for app in apps:
-            self._install_app(bench_directory.apps / app.name, bench_directory)
+        for app_path in self._get_app_paths_in_config_order(bench_directory):
+            self._install_app(app_path, bench_directory)
 
     def host_run(
         self,
@@ -1393,10 +1401,9 @@ class DeploymentManager:
                 "-U",
                 "-e",
             ]
-            apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
-            for app in apps:
+            for app_path in self._get_app_paths_in_config_order(bench_directory):
                 self.host_run(
-                    install_cmd + [f"apps/{app.name}"],
+                    install_cmd + [f"apps/{app_path.name}"],
                     bench_directory,
                     # stream=False,
                     container=self.mode == "fm",
@@ -1437,9 +1444,7 @@ class DeploymentManager:
         self.printer.print(f"Apps python env install time: {elapsed_time:.2f} seconds")
 
         self.printer.change_head("Configuring apps.txt")
-        # Get all directory names in bench_directory.apps
-        apps_dir = bench_directory.apps
-        app_names = [d.name for d in apps_dir.iterdir() if d.is_dir()]
+        app_names = [app_path.name for app_path in self._get_app_paths_in_config_order(bench_directory)]
 
         # Save the list to bench_directory.sites / 'apps.txt'
         apps_txt_path = bench_directory.sites / "apps.txt"
