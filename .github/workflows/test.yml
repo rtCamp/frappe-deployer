@@ -1,0 +1,21 @@
+name: Test Action
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  test-build-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Run build-image command
+        uses: ./ # This uses the action in the current repository
+        with:
+          command: 'build-image'
+          config_path: '.github/configs/test.toml'
+          github_token: ${{ secrets.GITHUB_TOKEN }}

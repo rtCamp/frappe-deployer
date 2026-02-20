@@ -90,7 +90,7 @@ class DeploymentManager:
         self.path = config.deploy_dir_path
         self.printer = richprint
         self.bench_cli = "bench"
-        self.fmx = "/opt/user/.bin/fmx"
+        self.fmx = "fmx"
 
         self.current = BenchDirectory(config.bench_path)
 
@@ -115,7 +115,7 @@ class DeploymentManager:
 
         # Check if the virtual environment exists
         if not venv_path.exists() or not (venv_path / "bin" / "bench").exists():
-            self.python_env_create(self.current, venv_path=str(venv_path))
+            self.python_env_create(self.current, venv_path=str(venv_path), python_version="3.12")
 
             # Install bench and frappe from given GitHub tags link using uv
             bench_install_command = [
@@ -124,8 +124,8 @@ class DeploymentManager:
                 "install",
                 "--python",
                 f"{str(venv_path)}/bin/python",
-                "git+https://github.com/frappe/bench.git",
-                "git+https://github.com/frappe/frappe.git",
+                "frappe-bench==5.29.1",
+                "git+https://github.com/frappe/frappe.git@315eb492a4e9d21d143cb95d92d7cfa1513ea408",
             ]
 
             self.host_run(bench_install_command, self.current, container=self.mode == "fm", capture_output=False)
@@ -329,11 +329,11 @@ class DeploymentManager:
 
         self.printer.print(f"Bench: {self.config.bench_name} Site: {self.config.site_name}")
 
-        # create new release dirs
         self.printer.change_head("Configuring new release dirs")
 
         if not self.config.configure:
-            self.bench_db_and_configs_backup()
+            if self.config.backups:
+                self.bench_db_and_configs_backup()
 
         if self.config.fm:
             if self.config.fm.restore_db_from_site:
@@ -352,28 +352,17 @@ class DeploymentManager:
         self.config.to_toml(self.new.path / f"{self.config.site_name}.toml")
 
         if self.config.configure:
-            # if self.config.maintenance_mode:
-            #     start_time = time.time()
-            #     self.printer.print("Enabled maintenance mode")
-            #     self.current.maintenance_mode(self.site_name, True)
-
-            DeploymentManager.configure(config=self.config, only_move=True, backups=True)
+            DeploymentManager.configure(config=self.config, only_move=True, backups=self.config.backups)
             self.printer.change_head("Moving bench directory, creating initial release")
             shutil.move(str(self.current.path.absolute()), str(self.path / "prev_frappe_bench"))
             self.bench_path.symlink_to(get_relative_path(self.bench_path, self.new.path), True)
 
         self.configure_symlinks()
-
         self.clone_apps(self.new)
         self.python_env_create(self.new)
         self.bench_setup_requiments(self.new)
         self.bench_build(self.new)
-        self.bench_clear_cache(self.current, True)
-
-        # if self.config.maintenance_mode:
-        #     start_time = time.time()
-        #     self.printer.print("Enabled maintenance mode")
-        #     self.current.maintenance_mode(self.site_name, True)
+        self.bench_clear_cache(self.new, True)
         self.sync_configs_with_files(self.config.site_name)
         exception = None
 
@@ -521,6 +510,7 @@ class DeploymentManager:
                     from_dir = from_dir / app.subdir_path
 
             app_name = app.app_name if app.app_name else bench_directory.get_app_python_module_name(from_dir)
+            app.app_name = app_name
             to_dir = bench_directory.apps / app_name
 
             import datetime
@@ -1055,7 +1045,7 @@ class DeploymentManager:
         custom_workdir: Optional[str] = None,
     ) -> None:
         """Execute a shell script with proper setup and cleanup."""
-        self.printer.change_head(f"Running {script_type}")
+        self.printer.print(f"Running {script_type}")
 
         # Create deployment_tmp directory in bench directory
         script_dir = self.current.path.parent / "deployment_tmp"
@@ -1068,7 +1058,7 @@ class DeploymentManager:
         try:
             # Write script content
             with open(script_path, "w") as script_file:
-                script_file.write("set -e\n")  # Remove shebang, just keep error handling
+                # script_file.write("set -e\n")
                 script_file.write(script_content)
 
             script_path.chmod(0o755)
@@ -1110,12 +1100,11 @@ class DeploymentManager:
             self.printer.print(f"{script_type} done")
 
         finally:
-            # Cleanup
             try:
                 if script_path.exists():
                     script_path.unlink()
-                    if not any(script_dir.iterdir()):  # If directory is empty
-                        script_dir.rmdir()  # Remove the deployment_tmp directory
+                    if not any(script_dir.iterdir()):
+                        script_dir.rmdir()
             except Exception as e:
                 self.printer.warning(f"Failed to cleanup temporary script: {e}")
 
@@ -1316,7 +1305,7 @@ class DeploymentManager:
     def python_env_create(
         self, bench_directory: BenchDirectory, venv_path: str = "env", python_version: Optional[str] = None
     ):
-        python_version = self.config.python_version if self.config.python_version else "3"
+        python_version = python_version or self.config.python_version if self.config.python_version else "3"
 
         venv_create_command = [f"python{python_version}", "-m", "venv", venv_path]
 
@@ -1463,65 +1452,55 @@ class DeploymentManager:
         self.printer.print("Configured apps.txt")
 
     def bench_build(self, bench_directory: BenchDirectory):
-        # apps: list[Union[AppConfig, Path]] = self.apps
-
-        apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
-
-        for app in apps:
-            self.printer.change_head(f"Building app {app.name}")
-
-            # Find corresponding AppConfig for the app to check for pre/post build commands
-            app_config = None
-            for config in self.apps:
-                app_name = bench_directory.get_app_python_module_name(bench_directory.apps / config.dir_name)
-                if app_name == app.name:
-                    app_config = config
-                    break
-
-            # Define app directory path for container
-            app_dir_path = f"/workspace/{bench_directory.path.name}/apps/{app.name}"
-
-            # Run pre-build command if configured and in FM mode
-            if self.mode == "fm" and app_config and app_config.fm_pre_build:
-                self.printer.print(f"Running pre-build command for {app.name} in app directory")
-
-                # Use _run_script method which handles script execution properly
+        self.printer.change_head("Running bench build for all apps")
+        for config in self.apps:
+            app = config
+            app_dir_path = f"/workspace/{bench_directory.path.name}/apps/{app.app_name}"
+            if self.mode == "fm" and app.fm_pre_build:
+                self.printer.print(f"Running pre-build command for {app.app_name} in app directory")
                 self._run_script(
-                    app_config.fm_pre_build,
+                    app.fm_pre_build,
                     bench_directory,
-                    f"pre-build script for {app.name}",
+                    f"Pre-build script for {app.app_name}",
                     container=True,
-                    app_name=app.name,
+                    app_name=app.app_name,
                     custom_workdir=app_dir_path,
                 )
 
-            # Run the regular build command
-            build_cmd = [self.bench_cli, "build", "--app", app.name]
+        prod_build_cmd = [
+            self.bench_cli,
+            "build",
+            "--force",
+            "--production",
+        ]
 
-            self.host_run(
-                build_cmd,
-                bench_directory,
-                # stream=False,
-                container=self.mode == "fm",
-                capture_output=False,
-            )
+        self.host_run(
+            prod_build_cmd[:-1],
+            bench_directory,
+            container=self.mode == "fm",
+            capture_output=False,
+        )
 
-            # Run post-build command if configured and in FM mode
-            if self.mode == "fm" and app_config and app_config.fm_post_build:
-                self.printer.print(f"Running post-build command for {app.name} in app directory")
+        self.host_run(
+            prod_build_cmd,
+            bench_directory,
+            container=self.mode == "fm",
+            capture_output=False,
+        )
 
-                # Use _run_script method which handles script execution properly
+        for config in self.apps:
+            app = config
+            app_dir_path = f"/workspace/{bench_directory.path.name}/apps/{app.app_name}"
+            if self.mode == "fm" and app.fm_post_build:
+                self.printer.print(f"Running post-build command for {app.app_name} in app directory")
                 self._run_script(
-                    app_config.fm_post_build,
+                    app.fm_post_build,
                     bench_directory,
-                    f"post-build script for {app.name}",
+                    f"Post-build script for {app.app_name}",
                     container=True,
-                    app_name=app.name,
+                    app_name=app.app_name,
                     custom_workdir=app_dir_path,
                 )
-
-            self.printer.print(f"Built app {app.name}")
-
         self.printer.print("Built all apps")
 
     def search_and_replace_in_database(
@@ -1704,10 +1683,11 @@ class DeploymentManager:
                 container=self.mode == "fm",
                 capture_output=True,
             )
+            if output.combined:
+                return json.loads("".join(output.stdout))
         except DockerException:
             self.printer.warning(f"Not able to get current list of apps installed in {self.site_name}")
             return {self.site_name: []}
-        return json.loads("".join(output.combined))
 
     def is_app_installed_in_site(self, site_name: str, app_name: str) -> bool:
         site_apps = self.site_installed_apps.get(site_name)

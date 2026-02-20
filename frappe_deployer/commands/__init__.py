@@ -11,7 +11,7 @@ class ModeEnum(str, Enum):
     fm = "fm"
     host = "host"
 
-COMMAND_MODULES = ["callback", 'pull', 'cleanup', 'clone', 'maintenance', 'remote_worker', "search_replace", "info", "build"]
+COMMAND_MODULES = ["callback", 'pull', 'cleanup', 'clone', 'maintenance', 'remote_worker', "search_replace", "info", "build", "build_image"]
 
 app = typer.Typer(no_args_is_help=True, rich_markup_mode="rich")
 # remote_worker = typer.Typer(help="Remote worker management commands")
@@ -80,6 +80,7 @@ def configure_basic_deployment_config(site_name: str) -> dict:
     data["site_name"] = site_name
     data["bench_path"] = str(CLI_BENCHES_DIRECTORY / f"{site_name}/frappe-bench")
     data["apps"] = []
+    data["configure_apps"] = False
 
     return data
 
