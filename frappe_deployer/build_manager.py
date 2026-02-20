@@ -829,10 +829,9 @@ class BuildManager:
                 # "--compile-bytecode"
                 "-e",
             ]
-            apps = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
-            for app in apps:
+            for app_path in self._get_app_paths_in_config_order(bench_directory):
                 self.host_run(
-                    install_cmd + [f"apps/{app.name}"],
+                    install_cmd + [f"apps/{app_path.name}"],
                     bench_directory,
                     # stream=False,
                     container=self.mode == "fm",
@@ -873,9 +872,7 @@ class BuildManager:
         self.printer.print(f"Apps python env install time: {elapsed_time:.2f} seconds")
 
         self.printer.change_head("Configuring apps.txt")
-        # Get all directory names in bench_directory.apps
-        apps_dir = bench_directory.apps
-        app_names = [d.name for d in apps_dir.iterdir() if d.is_dir()]
+        app_names = [app_path.name for app_path in self._get_app_paths_in_config_order(bench_directory)]
 
         # Save the list to bench_directory.sites / 'apps.txt'
         apps_txt_path = bench_directory.sites / "apps.txt"
@@ -886,6 +883,15 @@ class BuildManager:
                 app_name = bench_directory.get_app_python_module_name(bench_directory.apps / app_name)
                 f.write(f"{app_name}\n")
         self.printer.print("Configured apps.txt")
+
+    def _get_app_paths_in_config_order(self, bench_directory: BenchDirectory) -> list[Path]:
+        """Return app paths in the same order as `self.apps`, filtered to existing directories."""
+        app_paths: list[Path] = []
+        for app_config in self.apps:
+            app_path = bench_directory.apps / app_config.dir_name
+            if app_path.is_dir():
+                app_paths.append(app_path)
+        return app_paths
 
     def bench_build(self, bench_directory: BenchDirectory):
         # apps: list[Union[AppConfig, Path]] = self.apps
