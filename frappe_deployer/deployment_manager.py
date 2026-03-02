@@ -115,20 +115,27 @@ class DeploymentManager:
 
         # Check if the virtual environment exists
         if not venv_path.exists() or not (venv_path / "bin" / "bench").exists():
-            self.python_env_create(self.current, venv_path=str(venv_path), python_version="3.12")
+            try:
+                self.python_env_create(self.current, venv_path=str(venv_path), python_version="3.12")
 
-            # Install bench and frappe from given GitHub tags link using uv
-            bench_install_command = [
-                "uv",
-                "pip",
-                "install",
-                "--python",
-                f"{str(venv_path)}/bin/python",
-                "frappe-bench==5.29.1",
-                "git+https://github.com/frappe/frappe.git@315eb492a4e9d21d143cb95d92d7cfa1513ea408",
-            ]
+                # Install bench and frappe from given GitHub tags link using uv
+                bench_install_command = [
+                    "uv",
+                    "pip",
+                    "install",
+                    "--python",
+                    f"{str(venv_path)}/bin/python",
+                    "frappe-bench==5.29.1",
+                    "git+https://github.com/frappe/frappe.git@315eb492a4e9d21d143cb95d92d7cfa1513ea408",
+                ]
 
-            self.host_run(bench_install_command, self.current, container=self.mode == "fm", capture_output=False)
+                self.host_run(bench_install_command, self.current, container=self.mode == "fm", capture_output=False)
+            except Exception as e:
+                self.printer.error(f"Failed to create frappe-deployer-venv: {str(e)}")
+                raise RuntimeError(
+                    f"Could not set up bench CLI environment at {venv_path}. "
+                    "Please ensure Python 3.12 is installed and accessible."
+                ) from e
 
         # Use this bench from this venv in subsequent runs
         self.bench_cli = str((venv_path / "bin" / "bench").absolute())
