@@ -17,16 +17,21 @@ from frappe_deployer.commands import app
 def mask_sensitive_value(value: str) -> str:
     """Mask potentially sensitive values."""
     sensitive_patterns = [
-        # Add patterns that could indicate sensitive data
-        r'token["\']?\s*[:=]\s*["\']?\w+["\']?',  # Match token values
-        r'password["\']?\s*[:=]\s*["\']?\w+["\']?',  # Match password values
-        r'secret["\']?\s*[:=]\s*["\']?\w+["\']?',  # Match secret values
-        r'https?://[^@]+@',  # Match credentials in URLs
+        # Match token values - only mask the actual token
+        (r'(token["\']?\s*[:=]\s*["\']?)([\w\-\.]+)(["\']?)', r'\1*****\3'),
+        # Match password values - only mask the actual password
+        (r'(password["\']?\s*[:=]\s*["\']?)([\w\-\.]+)(["\']?)', r'\1*****\3'),
+        # Match secret values - only mask the actual secret
+        (r'(secret["\']?\s*[:=]\s*["\']?)([\w\-\.]+)(["\']?)', r'\1*****\3'),
+        # Match api_key values - only mask the actual key
+        (r'(api_key["\']?\s*[:=]\s*["\']?)([\w\-\.]+)(["\']?)', r'\1*****\3'),
+        # Match credentials in URLs - only mask the credentials part
+        (r'(https?://)[^@\s]+(@)', r'\1*****\2'),
     ]
     
     masked_value = str(value)
-    for pattern in sensitive_patterns:
-        masked_value = re.sub(pattern, lambda m: re.sub(r'[^:=\s"\']+', '*****', m.group()), masked_value)
+    for pattern, replacement in sensitive_patterns:
+        masked_value = re.sub(pattern, replacement, masked_value, flags=re.IGNORECASE)
     return masked_value
 
 def capture_and_format_exception(traceback_max_frames: int = 100) -> str:
