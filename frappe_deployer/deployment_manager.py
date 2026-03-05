@@ -107,31 +107,53 @@ class DeploymentManager:
         self.configure_bench_cli()
 
     def configure_bench_cli(self):
-        # Create a virtual environment in ~/.cache/frappe-deployer-venv
-        venv_path = Path.home() / ".cache" / "frappe-deployer-venv"
-
+        # Create a virtual environment in cache directory
         if self.mode == "fm":
-            venv_path = Path("/workspace/.cache/frappe-deployer-venv")
+            # FM mode: cache is in project directory, mounted to /workspace/.cache in container
+            host_venv_path = self.path / ".cache" / "frappe-deployer-venv"
+            container_venv_path = Path("/workspace/.cache/frappe-deployer-venv")
+        else:
+            # Host mode: cache is in user's home directory
+            host_venv_path = Path.home() / ".cache" / "frappe-deployer-venv"
+            container_venv_path = host_venv_path
 
-        # Check if the virtual environment exists
-        if not venv_path.exists() or not (venv_path / "bin" / "bench").exists():
-            self.python_env_create(self.current, venv_path=str(venv_path), python_version="3.12")
-
-            # Install bench and frappe from given GitHub tags link using uv
-            bench_install_command = [
-                "uv",
-                "pip",
-                "install",
-                "--python",
-                f"{str(venv_path)}/bin/python",
-                "frappe-bench==5.29.1",
-                "git+https://github.com/frappe/frappe.git@315eb492a4e9d21d143cb95d92d7cfa1513ea408",
-            ]
-
-            self.host_run(bench_install_command, self.current, container=self.mode == "fm", capture_output=False)
-
+        # Check if the virtual environment exists and is complete
+        # Always check on host filesystem since container paths are mounted from host
+        bench_exists = (host_venv_path / "bin" / "bench").exists()
+        venv_exists = host_venv_path.exists()
+        
+        if not bench_exists:
+            try:
+                # Remove incomplete venv if it exists
+                if venv_exists:
+                    self.printer.print(f"Removing incomplete venv at {host_venv_path}", emoji_code=":warning:")
+                    # Always remove on host since container paths are mounted
+                    shutil.rmtree(host_venv_path)
+                
+                # Pass the container path to python_env_create for use in container commands
+                self.python_env_create(self.current, venv_path=str(container_venv_path), python_version="3.12")
+                
+                # Install bench and frappe from given GitHub tags link using uv
+                bench_install_command = [
+                    "uv",
+                    "pip",
+                    "install",
+                    "--python",
+                    f"{str(container_venv_path)}/bin/python",
+                    "frappe-bench==5.29.1",
+                    "git+https://github.com/frappe/frappe.git@315eb492a4e9d21d143cb95d92d7cfa1513ea408",
+                ]
+                
+                self.host_run(bench_install_command, self.current, container=self.mode == "fm", capture_output=False)
+            except Exception as e:
+                self.printer.error(f"Failed to create frappe-deployer-venv: {str(e)}")
+                raise RuntimeError(
+                    f"Could not set up bench CLI environment at {host_venv_path}. "
+                    "Please ensure Python 3.12 is installed and accessible."
+                ) from e
+        
         # Use this bench from this venv in subsequent runs
-        self.bench_cli = str((venv_path / "bin" / "bench").absolute())
+        self.bench_cli = str((container_venv_path / "bin" / "bench").absolute())
 
     def sync_sites_to_data_dir(self):
         """Sync sites from current bench to data directory"""
