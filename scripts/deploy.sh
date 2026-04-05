@@ -172,6 +172,21 @@ build_image_command() {
 		COMMAND="${COMMAND} --image-type ${INPUT_IMAGE_TYPE}"
 	fi
 
+	# Parse per-app env vars and export them into the current shell before running
+	# frappe-deployer locally, so fm_pre_build scripts inside Docker can access them.
+	if [[ -n "${INPUT_APP_ENV:-}" ]]; then
+		while IFS= read -r line; do
+			[[ -z "${line// /}" ]] && continue
+			[[ "${line}" == \#* ]] && continue
+			kv="${line#*:}"
+			if [[ "${kv}" == *"="* ]]; then
+				export "${kv?}"
+			else
+				warn "app_env: skipping malformed line (expected 'app-name:KEY=VALUE'): ${line}"
+			fi
+		done <<<"${INPUT_APP_ENV}"
+	fi
+
 	# Here we execute frappe-deployer locally, not on a remote server.
 	# The user needs to ensure docker is available.
 	frappe-deployer ${COMMAND}

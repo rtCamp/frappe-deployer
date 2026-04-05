@@ -561,7 +561,8 @@ class BuildManager:
         if self.verbose:
             start_time = time.time()
 
-        base_env = {"COREPACK_ENABLE_DOWNLOAD_PROMPT": "0"}
+        base_env = os.environ.copy()
+        base_env["COREPACK_ENABLE_DOWNLOAD_PROMPT"] = "0"
 
         if env:
             base_env.update(env)
