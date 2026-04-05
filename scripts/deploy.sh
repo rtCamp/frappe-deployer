@@ -20,26 +20,61 @@ pull_command() {
 
 	# Construct COMMAND
 	COMMAND="pull ${INPUT_SITENAME} --github-token ${FRAPPE_DEPLOYER_GITHUB_TOKEN}"
-	COMMAND="${COMMAND} --configure "
-	if [ "${INPUT_USE_MAINTENANCE_MODE}" == "true" ]; then
-		COMMAND="${COMMAND} --maintenance-mode"
+	COMMAND="${COMMAND} --configure"
+
+	if [ "${INPUT_DRAIN_WORKERS:-false}" == "true" ]; then
+		COMMAND="${COMMAND} --drain-workers"
 	else
-		COMMAND="${COMMAND} --no-maintenance-mode"
+		COMMAND="${COMMAND} --no-drain-workers"
 	fi
 
-	if [ "${INPUT_USE_WAIT_WORKERS}" == "true" ]; then
-		COMMAND="${COMMAND} --wait-workers"
-	else
-		COMMAND="${COMMAND} --no-wait-workers"
+	if [ -n "${INPUT_DRAIN_WORKERS_TIMEOUT:-}" ]; then
+		COMMAND="${COMMAND} --drain-workers-timeout ${INPUT_DRAIN_WORKERS_TIMEOUT}"
 	fi
 
-	if [ "${INPUT_USE_BENCH_MIGRATE}" == "true" ]; then
-		COMMAND="${COMMAND} --run-bench-migrate"
-	else
-		COMMAND="${COMMAND} --no-run-bench-migrate"
+	if [ -n "${INPUT_DRAIN_WORKERS_POLL:-}" ]; then
+		COMMAND="${COMMAND} --drain-workers-poll ${INPUT_DRAIN_WORKERS_POLL}"
 	fi
 
-	if [ -n "${INPUT_ADDITIONAL_COMMANDS}" ]; then
+	if [ "${INPUT_SKIP_STALE_WORKERS:-true}" == "true" ]; then
+		COMMAND="${COMMAND} --skip-stale-workers"
+	else
+		COMMAND="${COMMAND} --no-skip-stale-workers"
+	fi
+
+	if [ -n "${INPUT_SKIP_STALE_TIMEOUT:-}" ]; then
+		COMMAND="${COMMAND} --skip-stale-timeout ${INPUT_SKIP_STALE_TIMEOUT}"
+	fi
+
+	if [ "${INPUT_MIGRATE:-true}" == "true" ]; then
+		COMMAND="${COMMAND} --migrate"
+	else
+		COMMAND="${COMMAND} --no-migrate"
+	fi
+
+	if [ -n "${INPUT_MIGRATE_TIMEOUT:-}" ]; then
+		COMMAND="${COMMAND} --migrate-timeout ${INPUT_MIGRATE_TIMEOUT}"
+	fi
+
+	if [ -n "${INPUT_MIGRATE_COMMAND:-}" ]; then
+		COMMAND="${COMMAND} --migrate-command '${INPUT_MIGRATE_COMMAND}'"
+	fi
+
+	if [ -n "${INPUT_MAINTENANCE_MODE_PHASES:-}" ]; then
+		for phase in ${INPUT_MAINTENANCE_MODE_PHASES}; do
+			COMMAND="${COMMAND} --maintenance-mode-phases ${phase}"
+		done
+	fi
+
+	if [ -n "${INPUT_WORKER_KILL_TIMEOUT:-}" ]; then
+		COMMAND="${COMMAND} --worker-kill-timeout ${INPUT_WORKER_KILL_TIMEOUT}"
+	fi
+
+	if [ -n "${INPUT_WORKER_KILL_POLL:-}" ]; then
+		COMMAND="${COMMAND} --worker-kill-poll ${INPUT_WORKER_KILL_POLL}"
+	fi
+
+	if [ -n "${INPUT_ADDITIONAL_COMMANDS:-}" ]; then
 		COMMAND="${COMMAND} ${INPUT_ADDITIONAL_COMMANDS}"
 	fi
 

@@ -6,11 +6,14 @@ import sys
 from pathlib import Path
 from typing import Iterable, Literal, Optional, Tuple, Union
 
+
 def is_ci():
     return os.environ.get("CI", "").lower() == "true"
 
+
 def is_tty():
     return sys.stdout.isatty()
+
 
 from frappe_manager import CLI_DIR
 from frappe_manager.compose_manager.ComposeFile import ComposeFile
@@ -121,7 +124,7 @@ class DeploymentManager:
         # Always check on host filesystem since container paths are mounted from host
         bench_exists = (host_venv_path / "bin" / "bench").exists()
         venv_exists = host_venv_path.exists()
-        
+
         if not bench_exists:
             try:
                 # Remove incomplete venv if it exists
@@ -129,10 +132,10 @@ class DeploymentManager:
                     self.printer.print(f"Removing incomplete venv at {host_venv_path}", emoji_code=":warning:")
                     # Always remove on host since container paths are mounted
                     shutil.rmtree(host_venv_path)
-                
+
                 # Pass the container path to python_env_create for use in container commands
                 self.python_env_create(self.current, venv_path=str(container_venv_path), python_version="3.12")
-                
+
                 # Install bench and frappe from given GitHub tags link using uv
                 bench_install_command = [
                     "uv",
@@ -143,7 +146,7 @@ class DeploymentManager:
                     "frappe-bench==5.29.1",
                     "git+https://github.com/frappe/frappe.git@315eb492a4e9d21d143cb95d92d7cfa1513ea408",
                 ]
-                
+
                 self.host_run(bench_install_command, self.current, container=self.mode == "fm", capture_output=False)
             except Exception as e:
                 self.printer.error(f"Failed to create frappe-deployer-venv: {str(e)}")
@@ -151,7 +154,7 @@ class DeploymentManager:
                     f"Could not set up bench CLI environment at {host_venv_path}. "
                     "Please ensure Python 3.12 is installed and accessible."
                 ) from e
-        
+
         # Use this bench from this venv in subsequent runs
         self.bench_cli = str((container_venv_path / "bin" / "bench").absolute())
 
@@ -294,10 +297,17 @@ class DeploymentManager:
             release.bench_symlink(release.new)
             release.bench_restart(
                 release.new,
-                migrate=release.config.run_bench_migrate,
+                migrate=release.config.migrate,
                 migrate_timeout=release.config.migrate_timeout,
-                wait_workers=release.config.wait_workers,
-                wait_workers_timeout=release.config.wait_workers_timeout,
+                migrate_command=release.config.migrate_command,
+                drain_workers=release.config.drain_workers,
+                drain_workers_timeout=release.config.drain_workers_timeout,
+                drain_workers_poll=release.config.drain_workers_poll,
+                skip_stale_workers=release.config.skip_stale_workers,
+                skip_stale_timeout=release.config.skip_stale_timeout,
+                worker_kill_timeout=release.config.worker_kill_timeout,
+                worker_kill_poll=release.config.worker_kill_poll,
+                maintenance_phases=release.config.maintenance_mode_phases if release.config.maintenance_mode else None,
             )
             release.bench_build(release.new)
             release.bench_install_apps(release.current)
@@ -412,13 +422,19 @@ class DeploymentManager:
 
                 self.site_installed_apps = self.get_site_installed_apps(self.current)
 
-
             self.bench_restart(
                 self.new,
-                migrate=self.config.run_bench_migrate,
+                migrate=self.config.migrate,
                 migrate_timeout=self.config.migrate_timeout,
-                wait_workers=self.config.wait_workers,
-                wait_workers_timeout=self.config.wait_workers_timeout,
+                migrate_command=self.config.migrate_command,
+                drain_workers=self.config.drain_workers,
+                drain_workers_timeout=self.config.drain_workers_timeout,
+                drain_workers_poll=self.config.drain_workers_poll,
+                skip_stale_workers=self.config.skip_stale_workers,
+                skip_stale_timeout=self.config.skip_stale_timeout,
+                worker_kill_timeout=self.config.worker_kill_timeout,
+                worker_kill_poll=self.config.worker_kill_poll,
+                maintenance_phases=self.config.maintenance_mode_phases if self.config.maintenance_mode else None,
             )
             self.bench_install_apps(self.current)
 
@@ -436,10 +452,17 @@ class DeploymentManager:
                 self.bench_symlink(BenchDirectory(self.previous_release_dir))
                 self.bench_restart(
                     BenchDirectory(self.previous_release_dir),
-                    migrate=self.config.run_bench_migrate,
+                    migrate=self.config.migrate,
                     migrate_timeout=self.config.migrate_timeout,
-                    wait_workers=self.config.wait_workers,
-                    wait_workers_timeout=self.config.wait_workers_timeout,
+                    migrate_command=self.config.migrate_command,
+                    drain_workers=self.config.drain_workers,
+                    drain_workers_timeout=self.config.drain_workers_timeout,
+                    drain_workers_poll=self.config.drain_workers_poll,
+                    skip_stale_workers=self.config.skip_stale_workers,
+                    skip_stale_timeout=self.config.skip_stale_timeout,
+                    worker_kill_timeout=self.config.worker_kill_timeout,
+                    worker_kill_poll=self.config.worker_kill_poll,
+                    maintenance_phases=self.config.maintenance_mode_phases if self.config.maintenance_mode else None,
                 )
                 self.printer.print("Symlinked previous deployment before new release")
 
@@ -506,7 +529,7 @@ class DeploymentManager:
         except ValueError:
             return 0
 
-    def clone_apps(self, bench_directory: "BenchDirectory", overwrite: bool = False, backup = True):
+    def clone_apps(self, bench_directory: "BenchDirectory", overwrite: bool = False, backup=True):
         clone_map = {}  # (repo, ref) -> clone_path
 
         for app in self.apps:
@@ -518,7 +541,9 @@ class DeploymentManager:
                     clone_path = clone_map[key]
                     self.printer.print(f"Reusing clone for {app.repo}@{app.ref} subdir: {app.subdir_path}")
                 else:
-                    clone_path = self.data.get_frappe_bench_app_path(app, append_release_name=bench_directory.path.resolve().name, suffix="_clone")
+                    clone_path = self.data.get_frappe_bench_app_path(
+                        app, append_release_name=bench_directory.path.resolve().name, suffix="_clone"
+                    )
                     self.data.clone_app(app, clone_path=clone_path, move_to_subdir=False)
                     clone_map[key] = clone_path
             else:
@@ -539,7 +564,9 @@ class DeploymentManager:
 
             if to_dir.exists():
                 if not overwrite:
-                    raise FileExistsError(f"App directory '{to_dir}' already exists. Use \"--overwrite\" to overwrite it.")
+                    raise FileExistsError(
+                        f"App directory '{to_dir}' already exists. Use \"--overwrite\" to overwrite it."
+                    )
 
                 archive_base = bench_directory.path / "archived" / "apps"
                 archive_base.mkdir(parents=True, exist_ok=True)
@@ -979,7 +1006,9 @@ class DeploymentManager:
             update_json_keys_in_file_path(common_site_config_path, self.config.common_site_config)
 
         if self.config.site_config:
-            update_json_keys_in_file_path(site_config_path, self.config.site_config, merge_data= True if self.config.fc else False)
+            update_json_keys_in_file_path(
+                site_config_path, self.config.site_config, merge_data=True if self.config.fc else False
+            )
 
         self.printer.print("Updated common_site_config.json, site_config.json")
 
@@ -1132,7 +1161,7 @@ class DeploymentManager:
 
     def _run_bench_migrate(self, bench_directory: BenchDirectory) -> None:
         """Run bench migrate command if configured."""
-        if not self.config.run_bench_migrate:
+        if not self.config.migrate:
             self.printer.print("Skipped. Bench migrate")
             return
 
@@ -1244,7 +1273,7 @@ class DeploymentManager:
                 return None
 
         docker_command = " ".join(command)
-        docker_command = f"/bin/bash -c \'source /etc/bash.bashrc; {docker_command}\'"
+        docker_command = f"/bin/bash -c 'source /etc/bash.bashrc; {docker_command}'"
 
         workdir = workdir or f"/workspace/{bench_directory.path.name}"
 
@@ -1618,7 +1647,6 @@ class DeploymentManager:
     #                 capture_output=False,
     #             )
 
-
     #     self.printer.start("Working")
     #     self.printer.print("Symlinked and restarted")
 
@@ -1626,11 +1654,16 @@ class DeploymentManager:
         self,
         bench_directory: BenchDirectory,
         migrate=False,
-        migrate_timeout=1200,
-        wait_workers=False,
-        wait_workers_timeout=600,
-        maintenance=False,
-        maintenance_phases=["migrate", "start"],
+        migrate_timeout=300,
+        migrate_command=None,
+        drain_workers=False,
+        drain_workers_timeout=300,
+        drain_workers_poll=5,
+        skip_stale_workers=True,
+        skip_stale_timeout=15,
+        worker_kill_timeout=15,
+        worker_kill_poll=3.0,
+        maintenance_phases=None,
     ):
         self.printer.change_head("Restart and Migrate")
 
@@ -1640,14 +1673,29 @@ class DeploymentManager:
             args += ["--migrate"]
             if migrate_timeout:
                 args += ["--migrate-timeout", str(migrate_timeout)]
+            if migrate_command:
+                args += ["--migrate-command", migrate_command]
 
-        if wait_workers:
-            args += ["--wait-workers"]
-            if wait_workers_timeout:
-                args += ["--wait-workers-timeout", str(wait_workers_timeout)]
+        if drain_workers:
+            args += ["--drain-workers"]
+            if drain_workers_timeout:
+                args += ["--drain-workers-timeout", str(drain_workers_timeout)]
+            if drain_workers_poll:
+                args += ["--drain-workers-poll", str(drain_workers_poll)]
+            if skip_stale_workers:
+                args += ["--skip-stale-workers"]
+            else:
+                args += ["--no-skip-stale-workers"]
+            if skip_stale_timeout:
+                args += ["--skip-stale-timeout", str(skip_stale_timeout)]
+            if worker_kill_timeout:
+                args += ["--worker-kill-timeout", str(worker_kill_timeout)]
+            if worker_kill_poll:
+                args += ["--worker-kill-poll", str(worker_kill_poll)]
 
-        if maintenance:
-            args += ["--maintenance-mode"] + maintenance_phases
+        if maintenance_phases:
+            for phase in maintenance_phases:
+                args += ["--maintenance-mode", phase]
 
         # Run pre-scripts
         if self.config.host_pre_script:
@@ -1660,13 +1708,7 @@ class DeploymentManager:
 
         if self.mode == "fm":
             restart_cmd = [self.fmx, "restart"] + args
-            self.host_run(
-                restart_cmd,
-                bench_directory,
-                container=True,
-                capture_output=False,
-                live_lines=50
-            )
+            self.host_run(restart_cmd, bench_directory, container=True, capture_output=False, live_lines=50)
         else:
             services_to_restart = ["workers", "web"]
             for service in services_to_restart:

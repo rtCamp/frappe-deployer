@@ -13,18 +13,49 @@ inputs:
     required: false
 
   # 'pull' command inputs
-  use_maintenance_mode:
-    description: "Enable maintenance mode"
+  drain_workers:
+    description: "Drain workers before restart (replaces use_wait_workers)"
+    required: false
+    default: "false"
+  drain_workers_timeout:
+    description: "Timeout in seconds to wait for workers to drain"
+    required: false
+    default: "300"
+  drain_workers_poll:
+    description: "Poll interval in seconds while draining workers"
+    required: false
+    default: "5"
+  skip_stale_workers:
+    description: "Skip stale workers when draining"
     required: false
     default: "true"
-  use_bench_migrate:
-    description: "Run bench migrate"
+  skip_stale_timeout:
+    description: "Timeout in seconds to consider a worker stale"
+    required: false
+    default: "15"
+  migrate:
+    description: "Run bench migrate (replaces use_bench_migrate)"
     required: false
     default: "true"
-  use_wait_workers:
-    description: "Wait Workers"
+  migrate_timeout:
+    description: "Timeout in seconds for bench migrate"
     required: false
-    default: "true"
+    default: "300"
+  migrate_command:
+    description: "Custom migrate command override"
+    required: false
+  maintenance_mode_phases:
+    description: "Maintenance mode phases: space-separated list of 'drain' and/or 'migrate'"
+    required: false
+    default: ""
+  worker_kill_timeout:
+    description: "Timeout in seconds before force-killing workers"
+    required: false
+    default: "15"
+  worker_kill_poll:
+    description: "Poll interval in seconds while waiting to kill workers"
+    required: false
+    default: "3.0"
   additional_commands:
     description: "Additional commands to append to the deployment command"
     required: false
@@ -98,9 +129,17 @@ runs:
         CI: true
         INPUT_COMMAND: ${{ inputs.command }}
         INPUT_SITENAME: ${{ inputs.sitename }}
-        INPUT_USE_MAINTENANCE_MODE: ${{ inputs.use_maintenance_mode }}
-        INPUT_USE_BENCH_MIGRATE: ${{ inputs.use_bench_migrate }}
-        INPUT_USE_WAIT_WORKERS: ${{ inputs.use_wait_workers }}
+        INPUT_DRAIN_WORKERS: ${{ inputs.drain_workers }}
+        INPUT_DRAIN_WORKERS_TIMEOUT: ${{ inputs.drain_workers_timeout }}
+        INPUT_DRAIN_WORKERS_POLL: ${{ inputs.drain_workers_poll }}
+        INPUT_SKIP_STALE_WORKERS: ${{ inputs.skip_stale_workers }}
+        INPUT_SKIP_STALE_TIMEOUT: ${{ inputs.skip_stale_timeout }}
+        INPUT_MIGRATE: ${{ inputs.migrate }}
+        INPUT_MIGRATE_TIMEOUT: ${{ inputs.migrate_timeout }}
+        INPUT_MIGRATE_COMMAND: ${{ inputs.migrate_command }}
+        INPUT_MAINTENANCE_MODE_PHASES: ${{ inputs.maintenance_mode_phases }}
+        INPUT_WORKER_KILL_TIMEOUT: ${{ inputs.worker_kill_timeout }}
+        INPUT_WORKER_KILL_POLL: ${{ inputs.worker_kill_poll }}
         INPUT_ADDITIONAL_COMMANDS: ${{ inputs.additional_commands }}
         INPUT_IMAGE_TYPE: ${{ inputs.image_type }}
         INPUT_OUTPUT_DIR: ${{ inputs.output_dir }}

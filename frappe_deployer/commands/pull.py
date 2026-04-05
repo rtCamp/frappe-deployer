@@ -9,7 +9,13 @@ from frappe_deployer.deployment_manager import DeploymentManager
 from frappe_deployer.helpers import human_readable_time, timing_manager
 
 from frappe_deployer.commands import app, get_config_overrides, parse_apps, validate_cofig_path, validate_db_file_path
-from frappe_deployer.remote_worker import is_remote_worker_enabled, link_worker_configs, only_start_workers_compose_services, rsync_workspace, stop_all_compose_services
+from frappe_deployer.remote_worker import (
+    is_remote_worker_enabled,
+    link_worker_configs,
+    only_start_workers_compose_services,
+    rsync_workspace,
+    stop_all_compose_services,
+)
 
 
 @app.command(no_args_is_help=True)
@@ -62,21 +68,59 @@ def pull(
         Optional[bool], typer.Option(help="Enable/Disable maintenance mode", show_default=False)
     ] = None,
     maintenance_mode_phases: Annotated[
-        Optional[List[str]], typer.Option(help="For which phases maintenance mode will be enabled.", show_default=False)
+        Optional[List[str]],
+        typer.Option(
+            help="Phases in which maintenance mode is active: 'drain' and/or 'migrate'.",
+            show_default=False,
+        ),
     ] = None,
     search_replace: Annotated[
         Optional[bool], typer.Option(help="Enable search and replace in database.", show_default=False)
     ] = None,
-    run_bench_migrate: Annotated[
-        Optional[bool], typer.Option(help="Enable/Disable 'bench migrate' run", show_default=False)
+    migrate: Annotated[Optional[bool], typer.Option(help="Run bench migrate", show_default=False)] = None,
+    migrate_timeout: Annotated[
+        Optional[int], typer.Option(help="Migrate timeout in seconds", show_default=False)
     ] = None,
-    migrate_timeout: Annotated[Optional[int], typer.Option(help="Migrate timeout", show_default=False)] = None,
-    wait_workers: Annotated[
+    migrate_command: Annotated[
+        Optional[str], typer.Option(help="Custom migrate command override", show_default=False)
+    ] = None,
+    drain_workers: Annotated[
         Optional[bool],
-        typer.Option(help="Whether to enable waiting for workers", show_default=False, rich_help_panel="FM Mode"),
+        typer.Option(help="Drain workers before restart", show_default=False, rich_help_panel="FM Mode"),
     ] = None,
-    wait_workers_timeout: Annotated[
-        Optional[int], typer.Option(help="Wait workers timeout", show_default=False, rich_help_panel="FM Mode")
+    drain_workers_timeout: Annotated[
+        Optional[int],
+        typer.Option(
+            help="Timeout in seconds to wait for workers to drain", show_default=False, rich_help_panel="FM Mode"
+        ),
+    ] = None,
+    drain_workers_poll: Annotated[
+        Optional[int],
+        typer.Option(
+            help="Poll interval in seconds while draining workers", show_default=False, rich_help_panel="FM Mode"
+        ),
+    ] = None,
+    skip_stale_workers: Annotated[
+        Optional[bool],
+        typer.Option(help="Skip stale workers when draining", show_default=False, rich_help_panel="FM Mode"),
+    ] = None,
+    skip_stale_timeout: Annotated[
+        Optional[int],
+        typer.Option(
+            help="Timeout in seconds to consider a worker stale", show_default=False, rich_help_panel="FM Mode"
+        ),
+    ] = None,
+    worker_kill_timeout: Annotated[
+        Optional[int],
+        typer.Option(
+            help="Timeout in seconds before force-killing workers", show_default=False, rich_help_panel="FM Mode"
+        ),
+    ] = None,
+    worker_kill_poll: Annotated[
+        Optional[float],
+        typer.Option(
+            help="Poll interval in seconds while waiting to kill workers", show_default=False, rich_help_panel="FM Mode"
+        ),
     ] = None,
     backups: Annotated[Optional[bool], typer.Option(help="Enable/Disable taking backups")] = None,
     uv: Annotated[
@@ -172,10 +216,20 @@ def pull(
         Optional[int], typer.Option("--remote-worker-ssh-port", "--rw-port", help="Remote Worker server ssh port no.")
     ] = None,
     remote_worker_include_dirs: Annotated[
-        Optional[list[str]], typer.Option("--remote-worker-include-dirs", "--rm-dirs", help="Additional directories to sync to the remote worker server during rsync")
+        Optional[list[str]],
+        typer.Option(
+            "--remote-worker-include-dirs",
+            "--rm-dirs",
+            help="Additional directories to sync to the remote worker server during rsync",
+        ),
     ] = None,
     remote_worker_include_files: Annotated[
-        Optional[list[str]], typer.Option("--remote-worker-include-files", "--rm-dirs", help="Additional files to sync to the remote worker server during rsync")
+        Optional[list[str]],
+        typer.Option(
+            "--remote-worker-include-files",
+            "--rm-dirs",
+            help="Additional files to sync to the remote worker server during rsync",
+        ),
     ] = None,
 ):
     """
@@ -221,7 +275,9 @@ def pull(
 
         with timing_manager(manager.printer, verbose=config.verbose, task="Remote Worker Sync"):
             if config.sync_workers:
-                if (not config.remote_worker or not config.remote_worker.server_ip) and is_remote_worker_enabled(site_name):
+                if (not config.remote_worker or not config.remote_worker.server_ip) and is_remote_worker_enabled(
+                    site_name
+                ):
                     raise RuntimeError(
                         "Remote worker configuration is required. Provide either a in config file or --remote-worker-server-ip option."
                     )

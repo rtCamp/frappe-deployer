@@ -117,11 +117,13 @@ class BuildManager:
         self.printer.change_head("Rendering Frappe Dockerfile")
         rendered_dockerfile_path = self.output_dir / "Dockerfile.fmd.frappe"
 
-        build_config.render_dockerfile(rendered_dockerfile_path, site_name=self.config.site_name, bench_name=self.bench_path.name)
+        build_config.render_dockerfile(
+            rendered_dockerfile_path, site_name=self.config.site_name, bench_name=self.bench_path.name
+        )
         self.printer.print(f"Frappe Dockerfile rendered at {rendered_dockerfile_path}")
 
         builder_image_name = build_config.builder_image_name
-        
+
         self.printer.change_head(f"Preparing base image {builder_image_name}")
         self.printer.print(f"Building base image {builder_image_name}...")
         build_cmd = [
@@ -202,7 +204,6 @@ class BuildManager:
 
         self.printer.print(f"Final image '{final_image_name}' built successfully.")
 
-
     def _build_nginx_image(self, force: bool = False):
         """Builds the Nginx image."""
 
@@ -210,7 +211,9 @@ class BuildManager:
         self.printer.change_head("Rendering Nginx Dockerfile")
         rendered_dockerfile_path = self.output_dir / "Dockerfile.fmd.nginx"
 
-        build_config.render_dockerfile(rendered_dockerfile_path, site_name=self.config.site_name, bench_name=self.bench_path.name)
+        build_config.render_dockerfile(
+            rendered_dockerfile_path, site_name=self.config.site_name, bench_name=self.bench_path.name
+        )
 
         self.printer.print(f"Nginx Dockerfile rendered at {rendered_dockerfile_path}")
         image_name = build_config.image
@@ -238,14 +241,13 @@ class BuildManager:
 
         self.printer.print(f"Nginx image '{image_name}' built successfully.")
 
-
     def bake(self):
         self.printer.print(f"Bench: {self.config.bench_name}")
         self.current.setup_dir(create_tmps=True)
         self.printer.change_head("Configuring bench dirs")
         self.config.to_toml(self.current.path / "fmd-config.toml")
         self.clone_apps(self.current)
-        self.chown_dir(self.current, '/workspace/frappe-bench', f'frappe:{os.getgid()}')
+        self.chown_dir(self.current, "/workspace/frappe-bench", f"frappe:{os.getgid()}")
         self.python_env_create(self.current)
         self.bench_setup_requiments(self.current)
         self.sync_configs_with_files(self.current)
@@ -264,7 +266,9 @@ class BuildManager:
 
         apps_txt_path = bench_directory.sites / "apps.txt"
         if not apps_txt_path.is_file():
-            self.printer.print(f"Warning: {apps_txt_path} not found. Cannot verify all apps are present.", emoji_code=":warning:")
+            self.printer.print(
+                f"Warning: {apps_txt_path} not found. Cannot verify all apps are present.", emoji_code=":warning:"
+            )
             return False
 
         with apps_txt_path.open("r") as f:
@@ -286,7 +290,7 @@ class BuildManager:
             return 0
 
     def _clone_task_wrapper(self, clone_func, **kwargs):
-        app = kwargs['app']
+        app = kwargs["app"]
         self.printer.print(f"Cloning {app.repo}...")
         try:
             result = clone_func(**kwargs)
@@ -313,7 +317,7 @@ class BuildManager:
             container_user="root",
             capture_output=False,
         )
-        command = ["chmod", "-R", 'g+rwx', target_path]
+        command = ["chmod", "-R", "g+rwx", target_path]
         self.host_run(
             command,
             bench_directory,
@@ -322,8 +326,6 @@ class BuildManager:
             capture_output=False,
         )
         self.printer.print(f"Ownership of {target_path} changed to {user}")
-
-    
 
     def clone_apps(
         self,
@@ -334,7 +336,7 @@ class BuildManager:
     ):
         clone_tasks = []
         clone_map = {}  # (repo, ref) -> clone_path
-        app_clone_info = [] # list of (app, clone_path)
+        app_clone_info = []  # list of (app, clone_path)
 
         # 1. Prepare clone tasks
         self.printer.change_head("Preparing to clone repositories")
@@ -352,10 +354,12 @@ class BuildManager:
                         app, append_release_name=bench_directory.path.resolve().name, suffix="_clone"
                     )
                     clone_map[key] = clone_path
-                    clone_tasks.append((data_directory.clone_app, {'app': app, 'clone_path': clone_path, 'move_to_subdir': False}))
+                    clone_tasks.append(
+                        (data_directory.clone_app, {"app": app, "clone_path": clone_path, "move_to_subdir": False})
+                    )
             else:
                 clone_path = bench_directory.get_frappe_bench_app_path(app, suffix="_clone")
-                clone_tasks.append((bench_directory.clone_app, {'app': app, 'clone_path': clone_path}))
+                clone_tasks.append((bench_directory.clone_app, {"app": app, "clone_path": clone_path}))
 
             app_clone_info.append((app, clone_path))
         self.printer.print(f"Found {len(clone_tasks)} unique repositories to clone.")
@@ -363,10 +367,8 @@ class BuildManager:
         # 2. Execute clone tasks in parallel
         self.printer.change_head(f"Cloning {len(clone_tasks)} repositories")
         with concurrent.futures.ThreadPoolExecutor() as executor:
-
             future_to_app = {
-                executor.submit(self._clone_task_wrapper, func, **kwargs): kwargs['app']
-                for func, kwargs in clone_tasks
+                executor.submit(self._clone_task_wrapper, func, **kwargs): kwargs["app"] for func, kwargs in clone_tasks
             }
             for future in concurrent.futures.as_completed(future_to_app):
                 app = future_to_app[future]
@@ -392,9 +394,12 @@ class BuildManager:
             to_dir = bench_directory.apps / app_name
 
             import datetime
+
             if to_dir.exists():
                 if not overwrite:
-                    raise FileExistsError(f"App directory '{to_dir}' already exists. Use \"--overwrite\" to overwrite it.")
+                    raise FileExistsError(
+                        f"App directory '{to_dir}' already exists. Use \"--overwrite\" to overwrite it."
+                    )
 
                 archive_base = bench_directory.path / "archived" / "apps"
                 archive_base.mkdir(parents=True, exist_ok=True)
@@ -405,14 +410,15 @@ class BuildManager:
                 if not backup:
                     shutil.rmtree(str(archive_path))
 
-
             if app.symlink:
                 symlink_path = get_relative_path(to_dir, from_dir)
                 to_dir.symlink_to(symlink_path, True)
             else:
                 shutil.move(str(from_dir), str(to_dir))
 
-            self.printer.print(f"{'Remote removed ' if app.remove_remote else ''}Cloned Repo: {app.repo}, Module Name: '{app_name}'")
+            self.printer.print(
+                f"{'Remote removed ' if app.remove_remote else ''}Cloned Repo: {app.repo}, Module Name: '{app_name}'"
+            )
 
     def get_script_env(self, app_name: Optional[str] = None) -> dict[str, str]:
         """Get environment variables for scripts with config values"""
@@ -1070,11 +1076,16 @@ class BuildManager:
         self,
         bench_directory: BenchDirectory,
         migrate=False,
-        migrate_timeout=1200,
-        wait_workers=False,
-        wait_workers_timeout=600,
-        maintenance=False,
-        maintenance_phases=["migrate", "start"],
+        migrate_timeout=300,
+        migrate_command=None,
+        drain_workers=False,
+        drain_workers_timeout=300,
+        drain_workers_poll=5,
+        skip_stale_workers=True,
+        skip_stale_timeout=15,
+        worker_kill_timeout=15,
+        worker_kill_poll=3.0,
+        maintenance_phases=None,
     ):
         self.printer.change_head("Restart and Migrate")
 
@@ -1084,14 +1095,29 @@ class BuildManager:
             args += ["--migrate"]
             if migrate_timeout:
                 args += ["--migrate-timeout", str(migrate_timeout)]
+            if migrate_command:
+                args += ["--migrate-command", migrate_command]
 
-        if wait_workers:
-            args += ["--wait-workers"]
-            if wait_workers_timeout:
-                args += ["--wait-workers-timeout", str(wait_workers_timeout)]
+        if drain_workers:
+            args += ["--drain-workers"]
+            if drain_workers_timeout:
+                args += ["--drain-workers-timeout", str(drain_workers_timeout)]
+            if drain_workers_poll:
+                args += ["--drain-workers-poll", str(drain_workers_poll)]
+            if skip_stale_workers:
+                args += ["--skip-stale-workers"]
+            else:
+                args += ["--no-skip-stale-workers"]
+            if skip_stale_timeout:
+                args += ["--skip-stale-timeout", str(skip_stale_timeout)]
+            if worker_kill_timeout:
+                args += ["--worker-kill-timeout", str(worker_kill_timeout)]
+            if worker_kill_poll:
+                args += ["--worker-kill-poll", str(worker_kill_poll)]
 
-        if maintenance:
-            args += ["--maintenance-mode"] + maintenance_phases
+        if maintenance_phases:
+            for phase in maintenance_phases:
+                args += ["--maintenance-mode", phase]
 
         # Run pre-scripts
         if self.config.host_pre_script:

@@ -17,12 +17,15 @@ from frappe_deployer.config.host import HostConfig
 from frappe_deployer.config.remote_worker import RemoteWorkerConfig
 from frappe_deployer.fc import FrappeCloudClient, fc_apps_list_to_appconfig_list
 
+
 def patched_change_head(original_function):
     def wrapper(*args, **kwargs):
         result = original_function(*args, **kwargs)
-        richprint.print(*args, emoji_code=':construction:')
+        richprint.print(*args, emoji_code=":construction:")
         return result
+
     return wrapper
+
 
 class Config(BaseModel):
     """
@@ -38,8 +41,8 @@ class Config(BaseModel):
         Flag to remove the remote to cloned apps.
     apps : List[AppConfig]
         List of application configurations.
-    run_bench_migrate : bool
-        Flag to run bench migrate.
+    migrate : bool
+        Run bench migrate.
     maintenance_mode : bool
         Flag to use maintenance mode while restart and bench migrate and bench install-app.
     releases_retain_limit : Optional[int]
@@ -65,6 +68,7 @@ class Config(BaseModel):
     fm : Optional[FMConfig]
         FM configuration.
     """
+
     site_name: str = Field(..., description="The name of the site.")
     github_token: Optional[str] = Field(None, description="The GitHub personal access token.")
     remove_remote: Optional[bool] = Field(True, description="Flag to remove the remote to cloned apps.")
@@ -72,17 +76,27 @@ class Config(BaseModel):
     apps: List[AppConfig] = Field(..., description="List of application configurations.")
     python_version: Optional[str] = Field(None, description="Python Version to for venv creation.")
     node_version: Optional[str] = Field(None, description="Node.js Version to use.")
-    run_bench_migrate: bool = Field(True, description="Flag to run bench migrate.")
-    migrate_timeout: int = Field(600, description="Migrate timeout")
-    wait_workers: bool = Field(False, description="Wait workers")
-    wait_workers_timeout: int = Field(600, description="Wait workers timout")
+    migrate: bool = Field(True, description="Run bench migrate")
+    migrate_timeout: int = Field(300, description="Migrate timeout in seconds")
+    migrate_command: Optional[str] = Field(None, description="Custom migrate command override")
+    drain_workers: bool = Field(False, description="Drain workers before restart")
+    drain_workers_timeout: int = Field(300, description="Timeout in seconds to wait for workers to drain")
+    drain_workers_poll: int = Field(5, description="Poll interval in seconds while draining workers")
+    skip_stale_workers: bool = Field(True, description="Skip stale workers when draining")
+    skip_stale_timeout: int = Field(15, description="Timeout in seconds to consider a worker stale")
+    worker_kill_timeout: int = Field(15, description="Timeout in seconds before force-killing workers")
+    worker_kill_poll: float = Field(3.0, description="Poll interval in seconds while waiting to kill workers")
     symlink_subdir_apps: bool = Field(
         False,
-        description="Allow symlinking for all apps with subdirectory configuration; can be overridden by per-app symlink setting."
+        description="Allow symlinking for all apps with subdirectory configuration; can be overridden by per-app symlink setting.",
     )
     rollback: bool = Field(False, description="Allow rollback")
-    maintenance_mode: bool = Field(True, description='Flag to use maintenance mode while restart and bench migrate and bench install-app.')
-    maintenance_mode_phases: List[str] = Field(["migrate","start"], description='Phases in which maintenance mode will be active')
+    maintenance_mode: bool = Field(
+        True, description="Flag to use maintenance mode while restart and bench migrate and bench install-app."
+    )
+    maintenance_mode_phases: List[str] = Field(
+        [], description="Phases in which maintenance mode is active: 'drain' and/or 'migrate'"
+    )
     backups: bool = Field(True, description="Flag to enable or disable backups.")
     configure: bool = Field(False, description="Flag to enable or disable site configuration for deployment.")
     configure_apps: bool = Field(True, description="Flag to enable or disable app configuration for deployment.")
@@ -90,13 +104,13 @@ class Config(BaseModel):
     reset_site: bool = Field(False, description="Flag to reset the site.")
     common_site_config: Optional[dict[str, Any]] = Field(None, description="Common site configuration dictionary.")
     site_config: Optional[dict[str, Any]] = Field(None, description="Site-specific configuration dictionary.")
-    mode: Literal['host', 'fm'] = Field(..., description="Mode of operation, either 'host' or 'fm'.")
+    mode: Literal["host", "fm"] = Field(..., description="Mode of operation, either 'host' or 'fm'.")
     restore_db_file_path: Optional[Path] = Field(None, description="Path to the database file to restore.")
     verbose: bool = Field(False, description="Flag to use 'uv' instead of 'pip' to manage and install packages.")
     uv: bool = Field(True, description="Flag to enable UV mode.")
     search_replace: bool = Field(True, description="Flag to enable search and replace in database.")
     host_pre_script: Optional[str] = Field(None, description="Script to run before bench migrate in host mode")
-    host_post_script: Optional[str] = Field(None, description="Script to run after bench migrate in host mode") 
+    host_post_script: Optional[str] = Field(None, description="Script to run after bench migrate in host mode")
     fm_pre_script: Optional[str] = Field(None, description="Script to run before bench migrate in FM mode")
     fm_post_script: Optional[str] = Field(None, description="Script to run after bench migrate in FM mode")
     fm_pre_build: Optional[str] = Field(None, description="Script to run before building each app in FM mode")
@@ -107,13 +121,15 @@ class Config(BaseModel):
     fm: Optional[FMConfig] = Field(None, description="FM configuration.")
     fc: Optional[FCConfig] = Field(None, description="FC configuration.")
     remote_worker: Optional[RemoteWorkerConfig] = Field(None, description="Remote worker configuration.")
-    sync_workers: Optional[bool] = Field(False, description="Flag to sync to remote workers. Effective only if `remote_worker.server_ip` is configured.")
+    sync_workers: Optional[bool] = Field(
+        False, description="Flag to sync to remote workers. Effective only if `remote_worker.server_ip` is configured."
+    )
 
-    @field_validator('restore_db_file_path',mode='before')
+    @field_validator("restore_db_file_path", mode="before")
     def validate_db_file_path(cls, value, values):
-        mode = values.data.get('mode', None)
+        mode = values.data.get("mode", None)
 
-        if not mode == 'fm':
+        if not mode == "fm":
             raise RuntimeError(f"Restore db feature not supported in 'host' mode. Please check config")
 
         path = Path(value)
@@ -123,11 +139,11 @@ class Config(BaseModel):
 
         return path
 
-    @field_validator('verbose',mode='before')
+    @field_validator("verbose", mode="before")
     def validate_verbose(cls, value):
 
         if value:
-            patcher = patch.object(richprint, 'change_head', new=patched_change_head(richprint.change_head))
+            patcher = patch.object(richprint, "change_head", new=patched_change_head(richprint.change_head))
             patcher.start()
 
         return value
@@ -139,8 +155,8 @@ class Config(BaseModel):
                 raise ValueError("Frappe build configuration requires bench_path")
             return self.build_frappe.bench_path
 
-        if self.mode == 'fm':
-            return CLI_BENCHES_DIRECTORY / self.site_name / 'workspace' / 'frappe-bench'
+        if self.mode == "fm":
+            return CLI_BENCHES_DIRECTORY / self.site_name / "workspace" / "frappe-bench"
 
         if self.host is None:
             raise ValueError("Host configuration is required when mode is 'host'")
@@ -151,7 +167,7 @@ class Config(BaseModel):
     def bench_name(self) -> str:
         return self.bench_path.name
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def configure_config(cls, config: Any) -> Any:
         FC_SPECIFIC_CONFIG_NAMES_TO_REMOVE = ["host_name", "plan_limit", "rate_limit", "ic_api_secret", "domains"]
 
@@ -163,6 +179,7 @@ class Config(BaseModel):
             urls = client.get_latest_backup_download_urls(fc.site_name)
             if urls:
                 from frappe_deployer.utils.download import download_file_with_progress
+
                 download_status = download_file_with_progress(urls, dest_dir=Path("/tmp"))
 
                 db = download_status.get("database", None)
@@ -170,7 +187,6 @@ class Config(BaseModel):
 
                 if config:
                     if not config.site_config or not config.site_config.get("encryption_key", None):
-
                         if site_config:
                             site_config_path = site_config.get("absolute_path", None)
 
@@ -243,7 +259,7 @@ class Config(BaseModel):
                         remove_remote=config.remove_remote,
                         remote_name=config.remote_name,
                         fm_pre_build=app.fm_pre_build or config.fm_pre_build,
-                        fm_post_build=app.fm_post_build or config.fm_post_build
+                        fm_post_build=app.fm_post_build or config.fm_post_build,
                     )
                     for app in config.apps
                 ]
@@ -261,14 +277,13 @@ class Config(BaseModel):
 
         return config
 
-
     @property
     def deploy_dir_path(self) -> Path:
         return self.bench_path.parent
 
-    @field_validator('mode')
+    @field_validator("mode")
     def validate_mode(cls, v):
-        if v not in ('host', 'fm'):
+        if v not in ("host", "fm"):
             raise ValueError('mode must be either "host" or "fm"')
         return v
 
@@ -281,6 +296,7 @@ class Config(BaseModel):
         file_path : Path
             The path where to save the TOML file.
         """
+
         def mask_sensitive_data(data: Any) -> Any:
             """Recursively mask sensitive data in config"""
             if isinstance(data, dict):
@@ -290,8 +306,8 @@ class Config(BaseModel):
                         masked_data[k] = "********"
                     elif k == "repo_url" and v and "@" in v:
                         # Mask token in URLs like https://token@github.com/...
-                        parts = v.split('@')
-                        protocol_token = parts[0].split('//')
+                        parts = v.split("@")
+                        protocol_token = parts[0].split("//")
                         masked_data[k] = f"{protocol_token[0]}//*********@{parts[1]}"
                     else:
                         masked_data[k] = mask_sensitive_data(v)
@@ -303,38 +319,39 @@ class Config(BaseModel):
         config_dict = self.model_dump(exclude_none=True)
         masked_config = mask_sensitive_data(config_dict)
 
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             toml.dump(masked_config, f)
 
-    @staticmethod 
-    def from_toml(config_file_path: Optional[Path] = None, config_string: Optional[str] = None, overrides: Optional[dict[str, Any]] = None ) -> 'Config':
+    @staticmethod
+    def from_toml(
+        config_file_path: Optional[Path] = None,
+        config_string: Optional[str] = None,
+        overrides: Optional[dict[str, Any]] = None,
+    ) -> "Config":
         config_data = {}
 
         if config_file_path:
-            with open(config_file_path, 'r') as file:
+            with open(config_file_path, "r") as file:
                 config_data = toml.load(file)
 
         if config_string:
             import io
+
             with io.StringIO(config_string) as f:
                 config_data = toml.load(f)
 
         if overrides:
             for key, value in overrides.items():
-                if key in [ "build_frappe", "build_nginx"]:
+                if key in ["build_frappe", "build_nginx"]:
                     config_data[key] = value | config_data.get(key, {})
                     continue
 
-                if key == 'apps':
+                if key == "apps":
                     # Use (repo.lower(), ref, subdir_path or None) as the unique key
                     def app_key(app):
-                        return (
-                            app.get('repo', '').lower(),
-                            app.get('ref', None),
-                            app.get('subdir_path', None)
-                        )
+                        return (app.get("repo", "").lower(), app.get("ref", None), app.get("subdir_path", None))
 
-                    existing_apps = {app_key(app): app for app in config_data.get('apps', [])}
+                    existing_apps = {app_key(app): app for app in config_data.get("apps", [])}
 
                     for app in value:
                         k = app_key(app)
@@ -345,7 +362,7 @@ class Config(BaseModel):
                         else:
                             existing_apps[k] = app
 
-                    config_data['apps'] = list(existing_apps.values())
+                    config_data["apps"] = list(existing_apps.values())
                     continue
 
                 if key in Config.model_fields:
