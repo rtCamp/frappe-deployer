@@ -93,6 +93,15 @@ inputs:
   config_content:
     description: "TOML config string content"
     required: false
+  app_env:
+    description: |
+      Per-app environment variables injected into fm_pre_build/fm_post_build scripts on the remote server.
+      Format: one entry per line as `app-name:KEY=VALUE`, where app-name matches the last path segment of
+      the app's repo (e.g. 'godam-core' for 'rtcamp/godam-core').
+      All declared vars are available to every app's build scripts; the app-name prefix is for readability.
+      Note: values must be single-line. For multiline content (e.g. a .env file), base64-encode the secret
+      and decode inside fm_pre_build with: echo "${MY_VAR}" | base64 -d > path/to/.env
+    required: false
 
 runs:
   using: "composite"
@@ -150,6 +159,7 @@ runs:
         FRAPPE_DEPLOYER_CONFIG_PATH: ${{ inputs.config_path }}
         FRAPPE_DEPLOYER_CONFIG_CONTENT: ${{ inputs.config_content }}
         FRAPPE_DEPLOYER_GITHUB_TOKEN: ${{ inputs.gh_token }}
+        INPUT_APP_ENV: ${{ inputs.app_env }}
 
     - name: Clean up temporary directory
       if: always()

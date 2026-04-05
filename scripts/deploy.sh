@@ -85,6 +85,30 @@ pull_command() {
 
 	current_datetime=$(date +"%Y-%m-%d_%H-%M-%S")
 
+	# Transfer per-app env vars to remote as a secure temp file.
+	# Format: one "app-name:KEY=VALUE" per line — app-name is stripped, KEY=VALUE is forwarded.
+	REMOTE_APP_ENV_FILE=""
+	if [[ -n "${INPUT_APP_ENV:-}" ]]; then
+		REMOTE_APP_ENV_FILE="/tmp/.fmd_app_env_${current_datetime}"
+		LOCAL_APP_ENV_TMP=$(mktemp)
+
+		while IFS= read -r line; do
+			[[ -z "${line// /}" ]] && continue
+			[[ "${line}" == \#* ]] && continue
+			kv="${line#*:}" # strip "app-name:" prefix
+			if [[ "${kv}" == *"="* ]]; then
+				printf "%s\n" "${kv}" >>"${LOCAL_APP_ENV_TMP}"
+			else
+				warn "app_env: skipping malformed line (expected 'app-name:KEY=VALUE'): ${line}"
+			fi
+		done <<<"${INPUT_APP_ENV}"
+
+		rsync -az -e "ssh -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no" \
+			"${LOCAL_APP_ENV_TMP}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_APP_ENV_FILE}"
+		ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "chmod 600 ${REMOTE_APP_ENV_FILE}"
+		rm -f "${LOCAL_APP_ENV_TMP}"
+	fi
+
 	REMOTE_FMD_SRC="/tmp/fmd_src_${current_datetime}"
 	rsync -az --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' \
 		-e "ssh -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no" \
@@ -109,10 +133,18 @@ pull_command() {
 		COMMAND_LINE="${COMMAND_LINE} --config-content '${FRAPPE_DEPLOYER_CONFIG_CONTENT}'"
 	fi
 
+	FRAPPE_DEPLOYER_CMD="/home/${REMOTE_USER}/.fmd/venv/bin/frappe-deployer ${COMMAND_LINE}"
+	if [[ -n "${REMOTE_APP_ENV_FILE}" ]]; then
+		FRAPPE_DEPLOYER_CMD="set -a && . ${REMOTE_APP_ENV_FILE} && set +a && ${FRAPPE_DEPLOYER_CMD}"
+	fi
+
 	remote_execute "/home/${REMOTE_USER}/.fmd/logs" \
-		"/home/${REMOTE_USER}/.fmd/venv/bin/frappe-deployer ${COMMAND_LINE} 2>&1"
+		"${FRAPPE_DEPLOYER_CMD} 2>&1"
 
 	ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "rm -rf ${REMOTE_FMD_SRC}" || true
+	if [[ -n "${REMOTE_APP_ENV_FILE}" ]]; then
+		ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "rm -f ${REMOTE_APP_ENV_FILE}" || true
+	fi
 }
 
 build_image_command() {
