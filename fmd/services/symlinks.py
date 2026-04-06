@@ -7,6 +7,16 @@ from fmd.helpers import get_relative_path
 from fmd.consts import DATA_DIR_NAME
 
 
+def _replace_with_symlink(path: Path, target: Path, target_is_directory: bool):
+    if path.is_symlink():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
+    elif path.exists():
+        path.unlink()
+    path.symlink_to(target, target_is_directory)
+
+
 class SymlinkService:
     def __init__(self, runner: Any, host_runner: Any, config: Any, printer: Any):
         self.runner = runner
@@ -22,15 +32,17 @@ class SymlinkService:
         if not data.common_site_config.exists():
             raise RuntimeError(f"{data.common_site_config.absolute()} doesn't exist. Please Check")
 
-        new.common_site_config.symlink_to(get_relative_path(new.common_site_config, data.common_site_config), True)
+        _replace_with_symlink(
+            new.common_site_config, get_relative_path(new.common_site_config, data.common_site_config), False
+        )
         self.printer.print(f"Symlink [blue]{new.common_site_config.name}[/blue] ")
 
         if data.config.exists():
-            new.config.symlink_to(get_relative_path(new.config, data.config), True)
+            _replace_with_symlink(new.config, get_relative_path(new.config, data.config), True)
             self.printer.print(f"Symlink [blue]{new.config.name}[/blue] ")
 
         if data.logs.exists():
-            new.logs.symlink_to(get_relative_path(new.logs, data.logs), True)
+            _replace_with_symlink(new.logs, get_relative_path(new.logs, data.logs), True)
             self.printer.print(f"Symlink [blue]{new.logs.name}[/blue] ")
 
     def sync_sites_to_data_dir(self, data: BenchDirectory, new: BenchDirectory):
@@ -81,6 +93,6 @@ class SymlinkService:
             self.printer.print("Moved logs and created symlink")
 
         if current.config.exists():
-            self.printer.change_head("Moving logs into data dir")
+            self.printer.change_head("Moving config into data dir")
             shutil.move(str(current.config.absolute()), str(data.config.absolute()))
-            self.printer.print("Moved logs and created symlink")
+            self.printer.print("Moved config")

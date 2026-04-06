@@ -65,11 +65,21 @@ def parse_app_option(app_strings: list[str]) -> list[dict]:
     return result
 
 
-def load_config(config_path: Path, overrides: Optional[dict] = None, create_if_missing: bool = False) -> Config:
+def load_config(
+    config_path: Optional[Path] = None,
+    overrides: Optional[dict] = None,
+    create_if_missing: bool = False,
+) -> Config:
     effective: dict = dict(overrides) if overrides else {}
     if _verbose is not None and "verbose" not in effective:
         effective["verbose"] = _verbose
     overrides = effective or None
+
+    if config_path is None:
+        if not overrides or "site_name" not in overrides:
+            raise ValueError("--site-name is required when no config file is specified.")
+        return Config.from_toml(overrides=overrides)
+
     if not config_path.exists():
         if create_if_missing and overrides and "site_name" in overrides:
             config = Config.from_toml(overrides=overrides)
