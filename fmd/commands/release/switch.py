@@ -8,8 +8,9 @@ from fmd.managers.release import ReleaseManager
 
 
 def switch(
-    config_path: Path = typer.Argument(..., help="Path to site config TOML file."),
+    bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
     release_name: str = typer.Argument(..., help="Release directory name to switch to."),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),
     migrate: Optional[bool] = typer.Option(None, "--migrate/--no-migrate", help="Run bench migrate after switch."),
     migrate_timeout: Optional[int] = typer.Option(
         None, "--migrate-timeout", help="Migrate timeout in seconds.", show_default=False
@@ -30,6 +31,10 @@ def switch(
     ),
 ):
     """Switch live bench symlink to a previously-created release."""
+    overrides: dict = {}
+    if bench_name is not None:
+        overrides["site_name"] = bench_name
+
     deploy: dict = {}
     if migrate is not None:
         deploy["migrate"] = migrate
@@ -47,9 +52,10 @@ def switch(
         deploy["drain_workers"] = drain_workers
     if sync_workers is not None:
         deploy["sync_workers"] = sync_workers
+    if deploy:
+        overrides["deploy"] = deploy
 
-    overrides = {"deploy": deploy} if deploy else None
-    config = load_config(config_path, overrides=overrides)
+    config = load_config(config_path, overrides=overrides or None)
     printer = get_printer()
     image_runner, exec_runner, host_runner = build_runners(config)
     printer.start("Switching release")

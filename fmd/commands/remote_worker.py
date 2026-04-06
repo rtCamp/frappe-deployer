@@ -11,7 +11,8 @@ app = typer.Typer()
 
 @app.command()
 def enable(
-    config_path: Path = typer.Argument(..., help="Path to site config TOML file."),
+    bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),
     force: bool = typer.Option(False, "--force", help="Overwrite existing worker configs if they exist."),
     rw_server: Optional[str] = typer.Option(
         None,
@@ -28,6 +29,9 @@ def enable(
     ),
 ):
     """Enable remote worker: expose DB + Redis ports, create worker site configs."""
+    overrides: dict = {}
+    if bench_name is not None:
+        overrides["site_name"] = bench_name
     remote_worker: dict = {}
     if rw_server is not None:
         remote_worker["server_ip"] = rw_server
@@ -35,8 +39,9 @@ def enable(
         remote_worker["ssh_user"] = rw_user
     if rw_port is not None:
         remote_worker["ssh_port"] = rw_port
-    overrides = {"remote_worker": remote_worker} if remote_worker else None
-    config = load_config(config_path, overrides=overrides)
+    if remote_worker:
+        overrides["remote_worker"] = remote_worker
+    config = load_config(config_path, overrides=overrides if overrides else None)
     printer = get_printer()
     printer.start("Working")
     manager = RemoteWorkerManager(config, printer)
@@ -46,7 +51,8 @@ def enable(
 
 @app.command()
 def sync(
-    config_path: Path = typer.Argument(..., help="Path to site config TOML file."),
+    bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),
     rw_server: Optional[str] = typer.Option(
         None,
         "--rw-server",
@@ -62,6 +68,9 @@ def sync(
     ),
 ):
     """Sync workspace to remote worker server."""
+    overrides: dict = {}
+    if bench_name is not None:
+        overrides["site_name"] = bench_name
     remote_worker: dict = {}
     if rw_server is not None:
         remote_worker["server_ip"] = rw_server
@@ -69,8 +78,9 @@ def sync(
         remote_worker["ssh_user"] = rw_user
     if rw_port is not None:
         remote_worker["ssh_port"] = rw_port
-    overrides = {"remote_worker": remote_worker} if remote_worker else None
-    config = load_config(config_path, overrides=overrides)
+    if remote_worker:
+        overrides["remote_worker"] = remote_worker
+    config = load_config(config_path, overrides=overrides if overrides else None)
     printer = get_printer()
     printer.start("Working")
     manager = RemoteWorkerManager(config, printer)

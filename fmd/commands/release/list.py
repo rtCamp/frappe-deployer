@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 import typer
 
@@ -7,10 +8,12 @@ from fmd.managers.release import ReleaseManager
 
 
 def list_releases(
-    config_path: Path = typer.Argument(..., help="Path to site config TOML file."),
+    bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),
 ):
     """List all releases, marking the currently active one."""
-    config = load_config(config_path)
+    overrides = {"site_name": bench_name} if bench_name else None
+    config = load_config(config_path, overrides=overrides)
     printer = get_printer()
     image_runner, exec_runner, host_runner = build_runners(config)
     manager = ReleaseManager(config, image_runner, exec_runner, host_runner, printer)

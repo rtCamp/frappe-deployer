@@ -8,10 +8,8 @@ from fmd.managers.release import ReleaseManager
 
 
 def create(
-    config_path: Path = typer.Argument(..., help="Path to site config TOML file."),
-    site_name: Optional[str] = typer.Option(
-        None, "--site-name", "-s", help="Site name (required when creating a new config file)."
-    ),
+    bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),
     apps: List[str] = typer.Option(
         [], "--app", "-a", help="App in format org/repo:ref[:subdir_path]. Repeatable.", show_default=False
     ),
@@ -32,8 +30,8 @@ def create(
 ):
     """Create a new release: clone apps, build assets, no live bench changes."""
     overrides: dict = {}
-    if site_name is not None:
-        overrides["site_name"] = site_name
+    if bench_name is not None:
+        overrides["site_name"] = bench_name
     if apps:
         overrides["apps"] = parse_app_option(apps)
     if github_token is not None:

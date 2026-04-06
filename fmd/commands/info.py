@@ -1,5 +1,6 @@
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 import toml
 import typer
@@ -8,10 +9,12 @@ from fmd.commands._utils import load_config
 
 
 def info(
-    config_path: Path = typer.Argument(..., help="Path to site config TOML file."),
+    bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),
 ):
     """Show release info by inspecting each app's git repository."""
-    config = load_config(config_path)
+    overrides = {"site_name": bench_name} if bench_name else None
+    config = load_config(config_path, overrides=overrides)
     apps_dir = config.bench_path / "apps"
     if not apps_dir.exists():
         typer.echo(f"No apps directory found at {apps_dir}", err=True)
