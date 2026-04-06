@@ -77,6 +77,7 @@ class SymlinkService:
             self.printer.print("Created release data dir")
 
         self.printer.change_head("Moving sites into data dir")
+        data.sites.mkdir(parents=True, exist_ok=True)
         for site in current.list_sites():
             data_site_path = data.sites / site.name
             shutil.move(str(site.absolute()), str(data_site_path.absolute()))

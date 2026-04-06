@@ -131,6 +131,25 @@ class BenchService:
             except Exception as e:
                 self.printer.warning(f"Failed to cleanup temporary script: {e}")
 
+    def clear_assets_json(self, bench_directory: BenchDirectory) -> None:
+        common_config_path = bench_directory.common_site_config
+        if not common_config_path.exists():
+            self.printer.warning("common_site_config.json not found, skipping assets_json clear")
+            return
+
+        try:
+            config = json.loads(common_config_path.read_text())
+            redis_cache_url = config.get("redis_cache")
+            if not redis_cache_url:
+                self.printer.warning("redis_cache not in common_site_config.json, skipping assets_json clear")
+                return
+            self.runner.run(
+                ["redis-cli", "-u", redis_cache_url, "DEL", "assets_json"], bench_directory, capture_output=False
+            )
+            self.printer.print("Cleared assets_json from Redis cache")
+        except Exception as e:
+            self.printer.warning(f"Failed to clear assets_json: {e}")
+
     def bench_clear_cache(self, bench_directory: BenchDirectory, bench_cli: str, website_cache: bool = False):
         clear_cache_command = [bench_cli, "clear-cache"]
         clear_website_cache_command = [bench_cli, "clear-website-cache"]
@@ -139,6 +158,8 @@ class BenchService:
         for command in [clear_cache_command, clear_website_cache_command]:
             self.runner.run(command, bench_directory, capture_output=False)
             self.printer.print(f"{' '.join(command)} done")
+
+        self.clear_assets_json(bench_directory)
 
     def bench_install_all_apps_in_python_env(
         self,

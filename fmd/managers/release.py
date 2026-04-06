@@ -139,10 +139,10 @@ class ReleaseManager:
         if self.current.path.is_symlink():
             raise SiteAlreadyConfigured(str(self.current.path))
 
+        renamed = False
         try:
             if backups:
                 self.printer.change_head("Creating backup")
-                shutil.copytree(self.bench_path, self.backup.path / "configure", symlinks=True)
                 self.backup_service.bench_db_and_configs_backup(
                     self.current, self.backup, self.site_name, self.bench_cli, self.deploy_dir_path
                 )
@@ -153,12 +153,9 @@ class ReleaseManager:
             self.symlink_service.configure_data_dir(self.data, self.current, self.deploy_dir_path)
 
             self.printer.change_head("Moving bench directory, creating initial release")
-            self.new.path.mkdir(parents=True, exist_ok=True)
-            for item in self.current.path.iterdir():
-                shutil.move(str(item.absolute()), str((self.new.path / item.name).absolute()))
-            self.current.path.rmdir()
+            self.current.path.rename(self.new.path)
+            renamed = True
             new_bench = self.new
-            (new_bench.path / "config" / "pids").mkdir(parents=True, exist_ok=True)
 
             self.symlink_service.configure_symlinks(self.data, new_bench)
 
@@ -180,36 +177,60 @@ class ReleaseManager:
                 self._host_run,
                 **self._restart_kwargs(),
             )
-            self.image_bench_service.bench_build(
-                new_bench,
-                self.config.apps,
-                self.bench_cli,
-                self.current,
-                self.bench_path,
-                self.site_name,
-                self._host_run,
-            )
-            self.site_installed_apps = self._get_site_installed_apps(self.current)
-            self.app_service.bench_install_apps(
-                self.current, self.config.apps, self.site_name, self.bench_cli, self._is_app_installed
-            )
 
-        except Exception as e:
-            if backups:
-                self.printer.print(f"Rollback\n{'--' * 10}")
-                if self.current.path.exists():
-                    if self.current.path.is_symlink():
-                        self.current.path.unlink()
-                    else:
-                        shutil.rmtree(self.current.path)
-                configure_backup = self.backup.path / "configure"
-                if configure_backup.exists():
-                    shutil.move(str(configure_backup), str(self.current.path))
-                if self.data.path.exists():
-                    shutil.rmtree(self.data.path)
-                if self.new.path.exists():
-                    shutil.rmtree(self.new.path)
+        except Exception:
+            self._rollback_configure(renamed)
             raise
+
+    def _rollback_configure(self, renamed: bool) -> None:
+        self.printer.print(f"Rollback\n{'--' * 10}")
+        restore = self.new if renamed else self.current
+
+        if self.bench_path.is_symlink():
+            self.bench_path.unlink()
+
+        for path in [restore.config, restore.logs, restore.common_site_config]:
+            if path.is_symlink():
+                path.unlink()
+            elif path.is_dir():
+                shutil.rmtree(path)
+
+        if restore.sites.exists():
+            for site_dir in list(restore.sites.iterdir()):
+                if not site_dir.is_dir():
+                    continue
+                for item in list(site_dir.iterdir()):
+                    if item.is_symlink():
+                        item.unlink()
+                try:
+                    site_dir.rmdir()
+                except OSError:
+                    pass
+
+        if self.data.config.exists() and not restore.config.exists():
+            shutil.move(str(self.data.config), str(restore.config))
+
+        if self.data.logs.exists() and not restore.logs.exists():
+            shutil.move(str(self.data.logs), str(restore.logs))
+
+        if self.data.sites.exists():
+            for site_dir in list(self.data.sites.iterdir()):
+                if site_dir.is_dir():
+                    restore_site = restore.sites / site_dir.name
+                    if restore_site.exists():
+                        try:
+                            restore_site.rmdir()
+                        except OSError:
+                            pass
+                    shutil.move(str(site_dir), str(restore_site))
+            if self.data.common_site_config.exists() and not restore.common_site_config.exists():
+                shutil.move(str(self.data.common_site_config), str(restore.common_site_config))
+
+        if self.data.path.exists():
+            shutil.rmtree(self.data.path)
+
+        if renamed and self.new.path.exists() and not self.current.path.exists():
+            self.new.path.rename(self.current.path)
 
     def create(self) -> str:
         if not self.bench_path.is_symlink():
