@@ -9,7 +9,9 @@ from fmd.ssh import SSHClient
 
 
 class ShipManager:
-    def __init__(self, config: Config, printer) -> None:
+    def __init__(
+        self, config: Config, release_runner: DockerRunner, exec_runner: DockerRunner, host_runner: HostRunner, printer
+    ) -> None:
         if not config.ship:
             raise RuntimeError("No [ship] section in config — cannot use ShipManager.")
 
@@ -26,20 +28,12 @@ class ShipManager:
             printer=printer,
             docker_host=docker_host,
         )
-        self.local_image_runner = DockerRunner(
-            mode="image",
-            config=config,
-            verbose=config.verbose,
-            printer=printer,
-            docker_host=None,
-        )
-        self.host_runner = HostRunner(verbose=config.verbose, printer=printer)
 
         self.release_manager = ReleaseManager(
             config,
-            self.local_image_runner,
-            None,
-            self.host_runner,
+            release_runner,
+            exec_runner,
+            host_runner,
             printer,
         )
 
