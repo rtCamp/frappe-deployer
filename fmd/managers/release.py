@@ -353,7 +353,6 @@ class ReleaseManager:
         self.symlink_service.configure_symlinks(self.data, new)
         self.bench_service.bench_symlink(self.bench_path, new)
         self._seed_release_runtimes(new.path)
-        self._setup_supervisor_config(new.path)
 
         try:
             if restore_db_file_path:
