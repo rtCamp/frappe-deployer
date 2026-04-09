@@ -3,7 +3,7 @@ from typing import List, Optional
 
 import typer
 
-from fmd.commands._utils import build_runners, get_printer, load_config, parse_app_option
+from fmd.commands._utils import build_runners, get_printer, is_exec_mode_available, load_config, parse_app_option
 from fmd.managers.release import ReleaseManager
 
 
@@ -88,6 +88,10 @@ def create(
         effective_mode = "image"
     else:
         effective_mode = mode or ("image" if config.ship else "exec")
+
+        if effective_mode == "exec" and not is_exec_mode_available(config.workspace_root):
+            printer.warning("Exec mode unavailable (frappe service not running), falling back to image mode")
+            effective_mode = "image"
 
     if effective_mode not in ("image", "exec"):
         typer.echo(f"Error: --mode must be 'image' or 'exec', got '{effective_mode}'.", err=True)
