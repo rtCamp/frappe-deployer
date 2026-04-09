@@ -76,6 +76,12 @@ releases_retain_limit = 7
 symlink_subdir_apps = false
 # Automatically symlink all apps with subdir_path. Can be overridden per-app. Default: false
 
+mode = ""
+# Runner mode for release creation: "image" or "exec". Empty = use default "exec".
+# - "exec": Run build commands in existing docker-compose containers (faster, requires running services)
+# - "image": Run build commands in temporary containers (works without running services)
+# Can be overridden with --mode CLI flag. --build-dir automatically activates image mode.
+
 python_version = ""
 # Python version for the release venv (e.g., "3.11", "3.12"). Empty = use system default.
 
