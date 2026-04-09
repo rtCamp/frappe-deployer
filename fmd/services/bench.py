@@ -177,12 +177,13 @@ class BenchService:
         dirs = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
 
         if self.config.uv:
+            python_path = f"{self.runner.workdir_for_bench(bench_directory)}/env/bin/python"
             install_cmd = [
                 "uv",
                 "pip",
                 "install",
                 "--python",
-                "env/bin/python",
+                python_path,
                 "-U",
                 "-e",
             ]
@@ -298,13 +299,33 @@ class BenchService:
         site_name: str,
         host_run: Callable,
     ):
+        from frappe_manager.site_manager.bench_config import (
+            extract_node_version_requirement,
+            extract_python_version_requirement,
+            parse_node_version_for_runtime,
+            parse_python_version_for_runtime,
+        )
+
+        frappe_app_path = bench_directory.apps / "frappe"
+        if frappe_app_path.exists():
+            if not self.config.release.python_version:
+                detected = extract_python_version_requirement(frappe_app_path)
+                if detected:
+                    self.config.release.python_version = parse_python_version_for_runtime(detected)
+                    self.printer.print(f"Auto-detected Python version: {self.config.release.python_version}")
+            if not self.config.release.node_version:
+                detected = extract_node_version_requirement(frappe_app_path)
+                if detected:
+                    self.config.release.node_version = parse_node_version_for_runtime(detected)
+                    self.printer.print(f"Auto-detected Node version: {self.config.release.node_version}")
+
         node_cmd = [bench_cli, "setup", "requirements", "--node"]
 
         if self.config.release.node_version:
-            self.printer.change_head(f"Installing Node {self.config.release.node_version} via fnm")
-            self.runner.run(["fnm", "install", self.config.release.node_version], bench_directory, capture_output=False)
-            self.runner.run(["fnm", "default", self.config.release.node_version], bench_directory, capture_output=False)
-            self.printer.print(f"Node {self.config.release.node_version} installed and set as default")
+            nv = self.config.release.node_version
+            self.printer.change_head(f"Installing Node {nv} via fnm")
+            self.runner.run(["fnm", "install", nv, "&&", "fnm", "default", nv], bench_directory, capture_output=False)
+            self.printer.print(f"Node {nv} installed and set as default")
 
         if apps:
             self.printer.change_head("Installing all apps node packages")
@@ -313,24 +334,28 @@ class BenchService:
         else:
             self.printer.print("Skipping node packages install (no apps)")
 
-        if not bench_directory.env.exists():
-            self.printer.change_head("Creating Python venv")
-            if self.config.uv:
-                venv_cmd = ["uv", "venv", "env"]
-                if self.config.release.python_version:
-                    pv = self.config.release.python_version
-                    if not pv.startswith("3."):
-                        pv = f"3.{pv}"
-                    venv_cmd += ["--python", pv]
-            else:
-                python_bin = (
-                    f"python{self.config.release.python_version}"
-                    if self.config.release.python_version
-                    else "/usr/bin/python3"
-                )
-                venv_cmd = [python_bin, "-m", "venv", "env"]
-            self.runner.run(venv_cmd, bench_directory, capture_output=False)
-            self.printer.print("Python venv created")
+        if bench_directory.env.exists():
+            self.printer.change_head("Backing up existing Python venv")
+            env_bak = bench_directory.path / "env.bak"
+            if env_bak.exists():
+                self.runner.run(["rm", "-rf", "env.bak"], bench_directory, capture_output=False)
+            self.runner.run(["mv", "env", "env.bak"], bench_directory, capture_output=False)
+            self.printer.print("Backed up env to env.bak")
+
+        self.printer.change_head("Creating Python venv")
+        if self.config.uv:
+            venv_cmd = ["uv", "venv", "env", "--seed", "--relocatable", "--no-project"]
+            if self.config.release.python_version:
+                venv_cmd += ["--python", self.config.release.python_version]
+        else:
+            python_bin = (
+                f"python{self.config.release.python_version}"
+                if self.config.release.python_version
+                else "/usr/bin/python3"
+            )
+            venv_cmd = [python_bin, "-m", "venv", "env"]
+        self.runner.run(venv_cmd, bench_directory, capture_output=False)
+        self.printer.print("Python venv created")
 
         start_time = time.time()
 
@@ -446,7 +471,7 @@ class BenchService:
     def bench_symlink(self, bench_path: Path, bench_directory: BenchDirectory):
         self.printer.change_head("Symlinking")
 
-        if bench_path.exists():
+        if bench_path.is_symlink() or bench_path.exists():
             bench_path.unlink()
 
         bench_path.symlink_to(get_relative_path(bench_path, bench_directory.path), True)

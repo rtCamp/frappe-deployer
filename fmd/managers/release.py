@@ -6,9 +6,9 @@ from typing import Optional
 
 from fmd.config.config import Config
 from fmd.config.app import AppConfig
-from fmd.consts import DATA_DIR_NAME, BACKUP_DIR_NAME, RELEASE_SUFFIX, RELEASE_DIR_NAME
+from fmd.consts import DATA_DIR_NAME, BACKUP_DIR_NAME, RELEASE_DIR_NAME
 from fmd.exceptions import SiteAlreadyConfigured, SiteNotConfigured
-from fmd.helpers import get_relative_path
+from fmd.helpers import get_relative_path, gen_name_with_timestamp
 from fmd.release_directory import BenchDirectory
 from fmd.services.apps import AppService
 from fmd.services.backup import BackupService
@@ -32,8 +32,8 @@ class ReleaseManager:
         self.workspace_path = self.workspace_root / "workspace"
         self.current = BenchDirectory(config.bench_path)
         self.data = BenchDirectory(self.workspace_path / DATA_DIR_NAME)
-        self.backup = BenchDirectory(self.workspace_root / BACKUP_DIR_NAME / RELEASE_SUFFIX)
-        self.new = BenchDirectory(self.workspace_path / RELEASE_SUFFIX)
+        self.backup = BenchDirectory(self.workspace_root / BACKUP_DIR_NAME / gen_name_with_timestamp(RELEASE_DIR_NAME))
+        self.new = BenchDirectory(self.workspace_path / gen_name_with_timestamp(RELEASE_DIR_NAME))
 
         self.app_service = AppService(exec_runner, host_runner, config, printer)
         self.backup_service = BackupService(exec_runner, host_runner, config, printer)
@@ -160,15 +160,17 @@ class ReleaseManager:
 
             self.symlink_service.configure_symlinks(self.data, new_bench)
 
-            self.image_bench_service.bench_setup_requirements(
-                new_bench,
-                self.config.apps,
-                self.bench_cli,
-                self.current,
-                self.bench_path,
-                self.site_name,
-                self._host_run,
-            )
+            has_apps = new_bench.apps.exists() and any(d for d in new_bench.apps.iterdir() if d.is_dir())
+            if has_apps:
+                self.image_bench_service.bench_setup_requirements(
+                    new_bench,
+                    self.config.apps,
+                    self.bench_cli,
+                    self.current,
+                    self.bench_path,
+                    self.site_name,
+                    self._host_run,
+                )
             self.bench_service.bench_symlink(self.bench_path, new_bench)
             self.bench_service.bench_restart(
                 new_bench,
@@ -273,6 +275,13 @@ class ReleaseManager:
         if self.data.path.exists():
             shutil.rmtree(self.data.path)
 
+        env_bak = restore.path / "env.bak"
+        env_dir = restore.path / "env"
+        if env_bak.exists():
+            if env_dir.exists() or env_dir.is_symlink():
+                shutil.rmtree(env_dir) if env_dir.is_dir() else env_dir.unlink()
+            shutil.move(str(env_bak), str(env_dir))
+
         if renamed and self.new.path.exists() and not self.current.path.exists():
             self.new.path.rename(self.current.path)
 
@@ -282,9 +291,6 @@ class ReleaseManager:
 
         self.printer.change_head("Configuring new release dirs")
 
-        if not self.config.ship:
-            self.site_installed_apps = self._get_site_installed_apps(self.current)
-
         apps = self.config.apps
 
         if self.config.switch.backups and not self.config.ship:
@@ -293,7 +299,7 @@ class ReleaseManager:
             )
 
         base_dir = build_dir.resolve() if build_dir is not None else self.workspace_path
-        self.new = BenchDirectory(base_dir / RELEASE_SUFFIX)
+        self.new = BenchDirectory(base_dir / gen_name_with_timestamp(RELEASE_DIR_NAME))
 
         for dir_path in [self.new.path, self.new.apps, self.new.sites]:
             dir_path.mkdir(exist_ok=True)

@@ -64,14 +64,24 @@ class DockerRunner(CommandRunner):
         exec_path = Path("/workspace/.cache/frappe-deployer-venv")
         return host, exec_path
 
+    def _host_to_container(self, host_path: Path) -> str:
+        workspace_mount = self.config.workspace_root / "workspace"
+        try:
+            relative = host_path.relative_to(workspace_mount)
+            return f"/workspace/{relative}"
+        except ValueError:
+            return "/workspace/frappe-bench"
+
     def workdir_for_bench(self, bench_directory) -> str:
-        return "/workspace/frappe-bench"
+        if self.mode == "image":
+            return "/workspace/frappe-bench"
+        return self._host_to_container(bench_directory.path)
 
     def workdir_for_sites(self, bench_directory) -> str:
-        return "/workspace/frappe-bench/sites"
+        return self._host_to_container(bench_directory.sites)
 
     def app_exec_path(self, bench_directory, app_name: str) -> str:
-        return f"/workspace/frappe-bench/apps/{app_name}"
+        return self._host_to_container(bench_directory.apps / app_name)
 
     def backup_path(self, host_backup_dir: Path, file_name: str) -> str:
         return f"/workspace/{'/'.join(host_backup_dir.parts[-2:])}/{file_name}"
@@ -144,6 +154,7 @@ class DockerRunner(CommandRunner):
             "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
             "UV_PYTHON_INSTALL_DIR": "/workspace/frappe-bench/.uv/python",
             "UV_CACHE_DIR": "/workspace/frappe-bench/.uv/cache",
+            "UV_PYTHON_DOWNLOADS": "never",
             "BENCH_USE_UV": "true",
             "PYTHONUNBUFFERED": "1",
             "LC_ALL": "en_US.UTF-8",
@@ -191,11 +202,20 @@ class DockerRunner(CommandRunner):
         compose_file = self._compose_project_dir() / "docker-compose.yml"
         compose = DockerComposeWrapper(compose_file)
 
-        effective_workdir = workdir or "/workspace/frappe-bench"
+        effective_workdir = workdir or self.workdir_for_bench(bench_directory)
+        bench_container_path = self.workdir_for_bench(bench_directory)
+
+        uv_env = {
+            "UV_PYTHON_INSTALL_DIR": f"{bench_container_path}/.uv/python",
+            "UV_CACHE_DIR": f"{bench_container_path}/.uv/cache",
+        }
+        if env:
+            uv_env.update(env)
+
         full_bash_cmd = f"source /etc/bash.bashrc; {' '.join(command)}"
         command_str = f"/bin/bash -c {shlex.quote(full_bash_cmd)}"
 
-        env_list = [f"{k}={v}" for k, v in env.items()] if env else None
+        env_list = [f"{k}={v}" for k, v in uv_env.items()]
 
         old_docker_host = None
         if self.docker_host:
