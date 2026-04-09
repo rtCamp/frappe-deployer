@@ -3,9 +3,9 @@ from fmd.managers.release import ReleaseManager
 
 
 class PullManager:
-    def __init__(self, config: Config, image_runner, exec_runner, host_runner, printer):
+    def __init__(self, config: Config, release_runner, exec_runner, host_runner, printer):
         self.config = config
-        self.release_manager = ReleaseManager(config, image_runner, exec_runner, host_runner, printer)
+        self.release_manager = ReleaseManager(config, release_runner, exec_runner, host_runner, printer)
         self.printer = printer
 
     def deploy(self) -> None:
