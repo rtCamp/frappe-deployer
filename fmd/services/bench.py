@@ -30,7 +30,7 @@ class BenchService:
 
         computed: dict[str, str] = {
             "BENCH_PATH": str(bench_path),
-            "DEPLOY_PATH": str(self.config.deploy_dir_path) if hasattr(self.config, "deploy_dir_path") else "",
+            "WORKSPACE_ROOT": str(self.config.workspace_root) if hasattr(self.config, "workspace_root") else "",
             "APPS": ",".join(d.name for d in current.apps.iterdir() if d.is_dir()),
         }
 

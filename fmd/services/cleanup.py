@@ -76,10 +76,10 @@ class CleanupService:
         else:
             return f"{total / 1024 / 1024 / 1024:.2f} GB"
 
-    def cleanup_releases(self, deploy_dir_path: Path, bench_path: Path):
+    def cleanup_releases(self, workspace_root: Path, bench_path: Path):
         retain_limit = self.config.release.releases_retain_limit
         current_release = bench_path.resolve()
-        workspace = deploy_dir_path / "workspace"
+        workspace = workspace_root / "workspace"
         release_dirs = [d for d in workspace.iterdir() if d.is_dir() and d.name.startswith(RELEASE_DIR_NAME)]
         release_dirs.sort(
             key=lambda x: int(x.name.split("_")[-1]) if x.name.split("_")[-1].isdigit() else 0, reverse=True
@@ -93,7 +93,7 @@ class CleanupService:
 
     def cleanup_workspace_cache(
         self,
-        deploy_dir_path: Path,
+        workspace_root: Path,
         bench_path: Path,
         backup_retain_limit: int = 0,
         release_retain_limit: int = 0,
@@ -150,7 +150,7 @@ class CleanupService:
                 except ValueError:
                     console.print("[red]Invalid input. Please enter numbers separated by commas or 'all'.[/red]")
 
-        host_venv_path, _ = self.runner.venv_paths(deploy_dir_path)
+        host_venv_path, _ = self.runner.venv_paths(workspace_root)
         cache_dir = host_venv_path.parent
 
         if not cache_dir.exists():
@@ -166,7 +166,7 @@ class CleanupService:
             except Exception as e:
                 console.print(f"[red]Failed to remove {cache_dir.absolute()} directory: {str(e)}[/red]")
 
-        prev_bench = deploy_dir_path / "prev_frappe_bench"
+        prev_bench = workspace_root / "prev_frappe_bench"
         if not prev_bench.exists():
             console.print("\n[blue]Previous bench directory doesn't exist - already clean[/blue]")
         else:
@@ -178,7 +178,7 @@ class CleanupService:
             except Exception as e:
                 console.print(f"[red]Failed to remove {prev_bench.absolute()}: {str(e)}[/red]")
 
-        backup_dir = deploy_dir_path / BACKUP_DIR_NAME
+        backup_dir = workspace_root / BACKUP_DIR_NAME
 
         if backup_dir.exists():
             backup_dirs = [d for d in backup_dir.iterdir() if d.is_dir()]
@@ -227,7 +227,7 @@ class CleanupService:
             console.print("\n[blue]No backup directory exists - already clean[/blue]")
 
         current_release = bench_path.resolve()
-        workspace = deploy_dir_path / "workspace"
+        workspace = workspace_root / "workspace"
         release_dirs = [d for d in workspace.iterdir() if d.is_dir() and d.name.startswith(RELEASE_DIR_NAME)]
 
         if not release_dirs:
@@ -252,7 +252,7 @@ class CleanupService:
                     if releases_to_remove:
                         if auto_approve:
                             self.config.release.releases_retain_limit = release_retain_limit
-                            self.cleanup_releases(deploy_dir_path, bench_path)
+                            self.cleanup_releases(workspace_root, bench_path)
                         else:
                             selected_indices = get_selected_indices(
                                 releases_to_remove,

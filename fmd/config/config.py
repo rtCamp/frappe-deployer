@@ -115,14 +115,14 @@ class Config(BaseModel):
         return self.bench_path.name
 
     @property
-    def deploy_dir_path(self) -> Path:
+    def workspace_root(self) -> Path:
         if self.ship and self._config_file_path is not None:
             return self._config_file_path.parent
         return CLI_BENCHES_DIRECTORY / self.site_name
 
     @property
     def bench_path(self) -> Path:
-        return self.deploy_dir_path / "workspace" / "frappe-bench"
+        return self.workspace_root / "workspace" / "frappe-bench"
 
     def to_toml(self, file_path: Path) -> None:
         def _mask(data: Any) -> Any:
