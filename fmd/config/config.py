@@ -21,6 +21,7 @@ except Exception:
 from fmd.config.app import AppConfig
 from fmd.config.bake import BakeConfig, BakeNginxConfig
 from fmd.config.deploy import DeployConfig
+from fmd.config.switch import SwitchConfig
 from fmd.config.fc import FCConfig
 from fmd.config.fm import FMConfig
 from fmd.config.release import ReleaseConfig
@@ -41,7 +42,8 @@ class Config(BaseModel):
     apps: List[AppConfig] = Field(default_factory=list, description="List of application configurations.")
 
     release: ReleaseConfig = Field(default_factory=ReleaseConfig)
-    deploy: DeployConfig = Field(default_factory=DeployConfig)
+    switch: SwitchConfig = Field(default_factory=SwitchConfig)
+    deploy: Optional[DeployConfig] = Field(None, description="DEPRECATED: Use [switch] instead.")
 
     bake: Optional[BakeConfig] = Field(None, description="Frappe image build configuration.")
     bake_nginx: Optional[BakeNginxConfig] = Field(None, description="Nginx image build configuration.")
@@ -52,6 +54,25 @@ class Config(BaseModel):
 
     @model_validator(mode="after")
     def _configure_apps(self) -> "Config":
+        if self.deploy is not None:
+            print("WARNING: [deploy] section is deprecated. Please rename to [switch] in your config.")
+            if self.switch == SwitchConfig():
+                deploy_data = self.deploy.model_dump()
+                build_hooks = [
+                    "before_bench_build",
+                    "after_bench_build",
+                    "host_before_bench_build",
+                    "host_after_bench_build",
+                    "before_python_install",
+                    "after_python_install",
+                    "host_before_python_install",
+                    "host_after_python_install",
+                ]
+                for hook in build_hooks:
+                    deploy_data.pop(hook, None)
+                self.switch = SwitchConfig(**deploy_data)
+            self.deploy = None
+
         for app in self.apps:
             if app.subdir_path:
                 app.symlink = app.symlink or self.release.symlink_subdir_apps
@@ -64,14 +85,15 @@ class Config(BaseModel):
                 executor.submit(
                     app.configure_app,
                     token=self.github_token,
-                    before_bench_build=app.before_bench_build or self.deploy.before_bench_build,
-                    after_bench_build=app.after_bench_build or self.deploy.after_bench_build,
-                    host_before_bench_build=app.host_before_bench_build or self.deploy.host_before_bench_build,
-                    host_after_bench_build=app.host_after_bench_build or self.deploy.host_after_bench_build,
-                    before_python_install=app.before_python_install or self.deploy.before_python_install,
-                    after_python_install=app.after_python_install or self.deploy.after_python_install,
-                    host_before_python_install=app.host_before_python_install or self.deploy.host_before_python_install,
-                    host_after_python_install=app.host_after_python_install or self.deploy.host_after_python_install,
+                    before_bench_build=app.before_bench_build or self.release.before_bench_build,
+                    after_bench_build=app.after_bench_build or self.release.after_bench_build,
+                    host_before_bench_build=app.host_before_bench_build or self.release.host_before_bench_build,
+                    host_after_bench_build=app.host_after_bench_build or self.release.host_after_bench_build,
+                    before_python_install=app.before_python_install or self.release.before_python_install,
+                    after_python_install=app.after_python_install or self.release.after_python_install,
+                    host_before_python_install=app.host_before_python_install
+                    or self.release.host_before_python_install,
+                    host_after_python_install=app.host_after_python_install or self.release.host_after_python_install,
                 )
                 for app in self.apps
             ]
@@ -143,7 +165,17 @@ class Config(BaseModel):
                 config_data = toml.load(f)
 
         if overrides:
-            _NESTED_SECTIONS = {"bake", "bake_nginx", "deploy", "release", "fm", "fc", "ship", "remote_worker"}
+            _NESTED_SECTIONS = {
+                "bake",
+                "bake_nginx",
+                "deploy",
+                "switch",
+                "release",
+                "fm",
+                "fc",
+                "ship",
+                "remote_worker",
+            }
 
             for key, value in overrides.items():
                 if key in _NESTED_SECTIONS:

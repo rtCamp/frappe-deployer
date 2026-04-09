@@ -37,7 +37,7 @@ class BackupService:
         bench_cli: str,
         deploy_dir_path: Path,
     ):
-        if self.config.deploy.backups:
+        if self.config.switch.backups:
             self.printer.change_head("Backing up db, common_site_config and site_config.json")
             (backup.sites / site_name).mkdir(exist_ok=True, parents=True)
             shutil.copyfile(current.common_site_config, backup.common_site_config)
@@ -174,13 +174,13 @@ class BackupService:
 
         site_config_path = current.sites / site_name / "site_config.json"
 
-        if self.config.deploy.common_site_config:
-            update_json_keys_in_file_path(common_site_config_path, self.config.deploy.common_site_config)
+        if self.config.switch.common_site_config:
+            update_json_keys_in_file_path(common_site_config_path, self.config.switch.common_site_config)
 
-        if self.config.deploy.site_config:
+        if self.config.switch.site_config:
             update_json_keys_in_file_path(
                 site_config_path,
-                self.config.deploy.site_config,
+                self.config.switch.site_config,
                 merge_data=True if self.config.fc else False,
             )
 
