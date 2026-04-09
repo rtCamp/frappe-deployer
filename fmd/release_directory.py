@@ -122,15 +122,13 @@ class BenchDirectory:
         json_site_config["maintenance_mode"] = int(value)
         site_config.write_text(json.dumps(json_site_config, indent=4))
 
-    def get_frappe_bench_app_path(
-        self, app: AppConfig, suffix: Optional[str] = None, append_release_name: Optional[str] = None
-    ) -> Path:
-        app_path = self.apps
+    def get_frappe_bench_app_path(self, app: AppConfig, suffix: Optional[str] = None) -> Path:
+        return self.apps / (app.dir_name + suffix if suffix else app.dir_name)
 
-        if append_release_name:
-            app_path = app_path / append_release_name
-
-        return app_path / (app.dir_name + suffix if suffix else app.dir_name)
+    def get_monorepo_clone_path(self, app: AppConfig) -> Path:
+        repo_slug = app.repo.replace("/", "_")
+        dir_name = f"{repo_slug}_{app.ref}"
+        return self.path / "monorepo-clones" / dir_name
 
     def get_app_python_module_name(self, app_path: Path):
 

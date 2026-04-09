@@ -29,15 +29,18 @@ class AppService:
             self.printer.change_head(f"Cloning repo {app.repo}")
 
             if app.symlink:
+                if not app.subdir_path:
+                    raise ValueError(
+                        f"App '{app.repo}' has symlink=true but no subdir_path defined. "
+                        "Symlinks are only supported for monorepo apps with subdir_path."
+                    )
                 key = (app.repo, app.ref)
                 if key in clone_map:
                     clone_path = clone_map[key]
                     self.printer.print(f"Reusing clone for {app.repo}@{app.ref} subdir: {app.subdir_path}")
                 else:
-                    clone_path = data.get_frappe_bench_app_path(
-                        app, append_release_name=bench_directory.path.resolve().name, suffix="_clone"
-                    )
-                    data.clone_app(app, clone_path=clone_path, move_to_subdir=False)
+                    clone_path = bench_directory.get_monorepo_clone_path(app)
+                    bench_directory.clone_app(app, clone_path=clone_path, move_to_subdir=False)
                     clone_map[key] = clone_path
             else:
                 clone_path = bench_directory.get_frappe_bench_app_path(app, suffix="_clone")
