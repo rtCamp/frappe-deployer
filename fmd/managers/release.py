@@ -392,7 +392,75 @@ class ReleaseManager:
                 self.printer.print("Rolled back to previous release")
             raise
 
-    def list_releases(self) -> list[dict]:
+    def _extract_python_version(self, release_path: Path) -> str:
+        uv_default = release_path / ".uv" / "python-default"
+        if not uv_default.is_symlink():
+            return "N/A"
+        try:
+            target = uv_default.readlink()
+            parts = str(target).split("/")
+            for part in parts:
+                if part.startswith("cpython-") or part.startswith("python-"):
+                    version_part = part.replace("cpython-", "").replace("python-", "")
+                    version = version_part.split("-")[0]
+                    return version
+        except Exception:
+            pass
+        return "N/A"
+
+    def _extract_node_version(self, release_path: Path) -> str:
+        fnm_default = release_path / ".fnm" / "aliases" / "default"
+        if fnm_default.is_symlink():
+            try:
+                target = fnm_default.readlink()
+                parts = str(target).split("/")
+                for part in parts:
+                    if part.startswith("v") and part[1:].replace(".", "").isdigit():
+                        return part[1:]
+            except Exception:
+                pass
+
+        node_versions = release_path / ".fnm" / "node-versions"
+        if node_versions.exists():
+            try:
+                versions = [d.name for d in node_versions.iterdir() if d.is_dir() and d.name.startswith("v")]
+                if versions:
+                    return versions[0][1:]
+            except Exception:
+                pass
+
+        return "N/A"
+
+    def _collect_release_metadata(self, release_dir: Path, current_release: Optional[Path]) -> dict:
+        apps_dir = release_dir / "apps"
+        app_count = 0
+        broken_symlinks = []
+
+        if apps_dir.exists():
+            for item in apps_dir.iterdir():
+                if item.name in [".DS_Store", "__pycache__"]:
+                    continue
+                app_count += 1
+                if item.is_symlink():
+                    if not item.exists():
+                        broken_symlinks.append(item.name)
+
+        size = self.cleanup_service.get_dir_size(release_dir)
+        python_version = self._extract_python_version(release_dir)
+        node_version = self._extract_node_version(release_dir)
+
+        return {
+            "name": release_dir.name,
+            "path": str(release_dir),
+            "current": current_release is not None and release_dir.resolve() == current_release,
+            "size": size,
+            "python_version": python_version,
+            "node_version": node_version,
+            "app_count": app_count,
+            "broken_symlinks": broken_symlinks,
+        }
+
+    def list_releases(self, callback=None) -> list[dict]:
         current_release = self.bench_path.resolve() if self.bench_path.is_symlink() else None
         workspace = self.workspace_path
         if not workspace.exists():
@@ -402,14 +470,47 @@ class ReleaseManager:
             key=lambda d: d.name,
             reverse=True,
         )
-        return [
-            {
-                "name": d.name,
-                "path": str(d),
-                "current": current_release is not None and d.resolve() == current_release,
+
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import os
+
+        max_workers = min(len(release_dirs), os.cpu_count() or 4)
+        releases_list: list[dict] = []
+        results_map = {}
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_index = {
+                executor.submit(self._collect_release_metadata, d, current_release): i
+                for i, d in enumerate(release_dirs)
             }
-            for d in release_dirs
-        ]
+
+            for future in as_completed(future_to_index):
+                index = future_to_index[future]
+                try:
+                    result = future.result()
+                    results_map[index] = result
+                    if callback:
+                        callback(result, index)
+                except Exception as e:
+                    error_result = {
+                        "name": release_dirs[index].name,
+                        "path": str(release_dirs[index]),
+                        "current": False,
+                        "size": "Error",
+                        "python_version": "N/A",
+                        "node_version": "N/A",
+                        "app_count": 0,
+                        "broken_symlinks": [],
+                        "error": str(e),
+                    }
+                    results_map[index] = error_result
+                    if callback:
+                        callback(error_result, index)
+
+        for i in range(len(release_dirs)):
+            releases_list.append(results_map[i])
+
+        return releases_list
 
     def _restart_kwargs(self) -> dict:
         d = self.config.deploy
