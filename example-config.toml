@@ -1,13 +1,281 @@
-site_name = 'site.localhost'
-mode = 'host'  # Can be 'host' or 'fm'
+# fmd example configuration
+# This file demonstrates all available configuration options for frappe-deployer (fmd)
+
+# ============================================================================
+# REQUIRED: Basic Configuration
+# ============================================================================
+
+site_name = "site.localhost"
+# The name of your Frappe site. Required.
+
+# ============================================================================
+# OPTIONAL: Top-level Settings
+# ============================================================================
+
+github_token = ""
+# GitHub personal access token for accessing private repositories.
+# Leave empty for public repos only.
+
+verbose = true
+# Enable verbose output for all commands. Default: false
+
+uv = true
+# Use uv instead of pip for faster Python package installation. Default: true
+
+# ============================================================================
+# APPS: Application Configuration
+# ============================================================================
+# Define the Frappe apps to install. Each app is a separate [[apps]] block.
 
 [[apps]]
-repo = 'frappe/frappe'
-ref = 'main'
+repo = "frappe/frappe"
+# Repository in format "org/repo" or full GitHub URL
+ref = "version-15"
+# Git branch, tag, or commit hash
+subdir_path = ""
+# Optional: path to app within monorepo (e.g., "apps/frappe")
+symlink = false
+# Symlink this app instead of copying (useful for development). Default: false
+shallow_clone = true
+# Use shallow clone (depth=1) for faster cloning. Default: true
+remote_name = "upstream"
+# Git remote name. Default: "upstream"
+
+# Per-app hooks (container):
+before_bench_build = ""
+# Script to run inside container before bench build for this app
+after_bench_build = ""
+# Script to run inside container after bench build for this app
+before_python_install = ""
+# Script to run inside container before pip install for this app
+after_python_install = ""
+# Script to run inside container after pip install for this app
+
+# Per-app hooks (host):
+host_before_bench_build = ""
+# Script to run on host before bench build for this app
+host_after_bench_build = ""
+# Script to run on host after bench build for this app
+host_before_python_install = ""
+# Script to run on host before pip install for this app
+host_after_python_install = ""
+# Script to run on host after pip install for this app
 
 [[apps]]
-repo = 'frappe/erpnext'
-ref = 'main'
+repo = "frappe/erpnext"
+ref = "version-15"
 
-[host]
-bench_path = '/home/frappe/frappe/sites/cicd.localhost/workspace'
+# ============================================================================
+# RELEASE: Release Management Configuration
+# ============================================================================
+
+[release]
+releases_retain_limit = 7
+# Number of releases to keep. Older releases are deleted automatically. Default: 7
+
+symlink_subdir_apps = false
+# Automatically symlink all apps with subdir_path. Can be overridden per-app. Default: false
+
+python_version = ""
+# Python version for the release venv (e.g., "3.11", "3.12"). Empty = use system default.
+
+node_version = ""
+# Node.js version for the release (e.g., "18", "20"). Empty = use fnm default.
+
+runner_image = ""
+# Docker image for release creation in image mode. Empty = auto-detect from frappe-manager.
+
+# ============================================================================
+# DEPLOY: Deployment Configuration
+# ============================================================================
+
+[deploy]
+migrate = true
+# Run bench migrate after switch. Default: true
+
+migrate_timeout = 300
+# Migrate command timeout in seconds. Default: 300
+
+migrate_command = ""
+# Custom migrate command override (e.g., "bench --site all migrate --skip-search-index")
+
+maintenance_mode = true
+# Enable maintenance mode during deploy operations. Default: true
+
+maintenance_mode_phases = []
+# Phases to enable maintenance mode: ["drain", "migrate"]. Empty = all phases.
+
+backups = true
+# Take database backup before switch. Default: true
+
+rollback = false
+# Automatically rollback to previous release on failure. Default: false
+
+search_replace = true
+# Run search-and-replace in DB after restore. Default: true
+
+sync_workers = false
+# Sync to remote workers after successful deploy. Default: false
+
+# Worker draining configuration:
+drain_workers = false
+# Gracefully drain workers before restart. Default: false
+
+drain_workers_timeout = 300
+# Seconds to wait for workers to finish current jobs. Default: 300
+
+drain_workers_poll = 5
+# Poll interval in seconds while draining. Default: 5
+
+skip_stale_workers = true
+# Skip workers that haven't checked in recently. Default: true
+
+skip_stale_timeout = 15
+# Seconds before a worker is considered stale. Default: 15
+
+worker_kill_timeout = 15
+# Seconds before force-killing workers. Default: 15
+
+worker_kill_poll = 3.0
+# Poll interval while waiting to kill workers. Default: 3.0
+
+# Config file modifications:
+[deploy.common_site_config]
+# Key-value pairs to merge into common_site_config.json
+# Example:
+# background_workers = 2
+# gunicorn_workers = 8
+
+[deploy.site_config]
+# Key-value pairs to merge into site_config.json
+# Example:
+# developer_mode = 1
+# maintain_timezones = false
+
+# Global hooks (container):
+before_restart = ""
+# Script inside container before bench restart
+after_restart = ""
+# Script inside container after bench restart
+before_bench_build = ""
+# Global script inside container before bench build (fallback for apps without their own)
+after_bench_build = ""
+# Global script inside container after bench build
+before_python_install = ""
+# Global script inside container before pip install
+after_python_install = ""
+# Global script inside container after pip install
+
+# Global hooks (host):
+host_before_restart = ""
+# Script on host before bench restart
+host_after_restart = ""
+# Script on host after bench restart
+host_before_bench_build = ""
+# Global script on host before bench build
+host_after_bench_build = ""
+# Global script on host after bench build
+host_before_python_install = ""
+# Global script on host before pip install
+host_after_python_install = ""
+# Global script on host after pip install
+
+# ============================================================================
+# FRAPPE CLOUD: Sync from Frappe Cloud
+# ============================================================================
+
+[fc]
+api_key = ""
+# Frappe Cloud API key
+api_secret = ""
+# Frappe Cloud API secret
+site_name = ""
+# Frappe Cloud site name
+team_name = ""
+# Frappe Cloud team name
+
+use_deps = false
+# Auto-set python_version from FC dependencies. Default: false
+
+use_db = false
+# Download latest FC backup and restore at switch time. Default: false
+
+use_apps = false
+# Replace [[apps]] with FC app list. Default: false
+
+# ============================================================================
+# REMOTE WORKER: Distributed Deployment
+# ============================================================================
+
+[remote_worker]
+server_ip = ""
+# IP address or domain of remote server (required if using remote workers)
+
+ssh_user = "frappe"
+# SSH username for remote server. Default: "frappe"
+
+ssh_port = 22
+# SSH port. Default: 22
+
+include_dirs = []
+# Additional directories to sync (beyond the standard bench directories)
+# Example: ["custom_scripts/", "data/"]
+
+include_files = []
+# Additional files to sync
+# Example: [".env", "secrets.json"]
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# 
+# 1. Config file location:
+#    - Pass via -c/--config flag: fmd release create -c site.toml
+#    - Or specify site_name and override: fmd release create site.localhost
+#
+# 2. Release creation modes:
+#    - exec mode: Uses docker compose exec (requires running FM site)
+#    - image mode: Uses fresh docker container (for CI/CD pre-building)
+#
+# 3. CI/CD workflow:
+#    fmd release create -c site.toml --mode image --output-dir /tmp/releases
+#    # → builds to /tmp/releases/release_YYYYMMDD_HHMMSS/
+#    # tar it, ship to prod, extract to workspace/, then:
+#    fmd release switch -c site.toml site.localhost release_YYYYMMDD_HHMMSS
+#
+# 4. Directory structure:
+#    ~/frappe/sites/<site_name>/
+#    ├── workspace/
+#    │   ├── frappe-bench → release_YYYYMMDD_HHMMSS  (symlink)
+#    │   ├── deployment-data/                          (persistent)
+#    │   │   ├── sites/                                (DB, files)
+#    │   │   ├── config/                               (supervisor configs)
+#    │   │   └── logs/                                 (application logs)
+#    │   └── release_YYYYMMDD_HHMMSS/                  (versioned code)
+#    │       ├── apps/                                 (frappe, erpnext, etc.)
+#    │       ├── sites/ → ../deployment-data/sites     (symlink)
+#    │       ├── config/ → ../deployment-data/config   (symlink)
+#    │       ├── logs/ → ../deployment-data/logs       (symlink)
+#    │       ├── env/                                  (Python venv)
+#    │       ├── .uv/                                  (Python runtime cache)
+#    │       ├── .fnm/                                 (Node runtime cache)
+#    │       └── .fmd.toml                             (config snapshot)
+#    └── deployment-backup/                            (backups)
+#        └── release_YYYYMMDD_HHMMSS/
+#
+# 5. Subdirectory apps (monorepos):
+#    [[apps]]
+#    repo = "my-org/monorepo"
+#    ref = "main"
+#    subdir_path = "packages/my-app"
+#    symlink = true  # Recommended for monorepo apps
+#
+# 6. Custom scripts example:
+#    [deploy]
+#    before_restart = """
+#    echo "Clearing custom cache..."
+#    bench --site all clear-cache
+#    """
+#    host_after_restart = """
+#    curl https://healthcheck.io/ping/xyz
+#    """
