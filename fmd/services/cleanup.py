@@ -48,6 +48,16 @@ class CleanupService:
         self.printer = printer
 
     def get_dir_size(self, path: Path) -> str:
+        import subprocess
+
+        try:
+            result = subprocess.run(["du", "-sh", str(path)], capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                size_str = result.stdout.split()[0]
+                return size_str
+        except Exception:
+            pass
+
         total = 0
         if path.is_file():
             return f"{path.stat().st_size / 1024 / 1024:.1f} MB"
