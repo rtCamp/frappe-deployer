@@ -87,30 +87,7 @@ class DockerRunner(CommandRunner):
         return f"/workspace/{'/'.join(host_backup_dir.parts[-2:])}/{file_name}"
 
     def restart_services(self, args: List[str], bench_directory) -> None:
-        if self.mode == "exec":
-            from frappe_manager.docker.docker_compose import DockerComposeWrapper
-
-            compose_file = self._compose_project_dir() / "docker-compose.yml"
-            compose = DockerComposeWrapper(compose_file)
-
-            old_docker_host = None
-            if self.docker_host:
-                old_docker_host = os.environ.get("DOCKER_HOST")
-                os.environ["DOCKER_HOST"] = self.docker_host
-
-            try:
-                output = compose.restart(services=["frappe"], stream=True)
-                self.printer.live_lines(output, lines=50)
-            finally:
-                if self.docker_host:
-                    if old_docker_host is None:
-                        os.environ.pop("DOCKER_HOST", None)
-                    else:
-                        os.environ["DOCKER_HOST"] = old_docker_host
-        else:
-            self.run(
-                ["fmx", "restart"] + args, bench_directory, capture_output=False, live_lines=50, workdir="/workspace"
-            )
+        self.run(["fmx", "restart"] + args, bench_directory, capture_output=False, live_lines=50, workdir="/workspace")
 
     def run(
         self,
