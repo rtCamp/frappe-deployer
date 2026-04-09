@@ -276,7 +276,7 @@ class ReleaseManager:
         if renamed and self.new.path.exists() and not self.current.path.exists():
             self.new.path.rename(self.current.path)
 
-    def create(self, output_dir: Optional[Path] = None) -> str:
+    def create(self, build_dir: Optional[Path] = None) -> str:
         if not self.config.ship and not self.bench_path.is_symlink():
             raise SiteNotConfigured(str(self.bench_path))
 
@@ -292,7 +292,7 @@ class ReleaseManager:
                 self.current, self.backup, self.site_name, self.bench_cli, self.workspace_root
             )
 
-        base_dir = output_dir.resolve() if output_dir is not None else self.workspace_path
+        base_dir = build_dir.resolve() if build_dir is not None else self.workspace_path
         self.new = BenchDirectory(base_dir / RELEASE_SUFFIX)
 
         for dir_path in [self.new.path, self.new.apps, self.new.sites]:
