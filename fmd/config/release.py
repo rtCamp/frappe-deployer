@@ -11,6 +11,7 @@ class ReleaseConfig(BaseModel):
         False,
         description="Symlink all apps that have a subdir_path configured. Can be overridden per-app.",
     )
+    mode: Optional[str] = Field(None, description="Runner mode: 'image' or 'exec'. Defaults to 'exec'.")
     python_version: Optional[str] = Field(None, description="Python version to bake into the release via uv.")
     node_version: Optional[str] = Field(None, description="Node.js version to bake into the release via fnm.")
     runner_image: str = Field(
