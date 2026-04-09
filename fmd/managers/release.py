@@ -72,7 +72,7 @@ class ReleaseManager:
 
     def _bench_restart_args(self) -> list[str]:
         args = []
-        d = self.config.deploy
+        d = self.config.switch
         if d.migrate:
             args += ["--migrate"]
             if d.migrate_timeout:
@@ -135,7 +135,7 @@ class ReleaseManager:
 
     def configure(self, backups: Optional[bool] = None) -> None:
         if backups is None:
-            backups = self.config.deploy.backups
+            backups = self.config.switch.backups
 
         if self.current.path.is_symlink():
             raise SiteAlreadyConfigured(str(self.current.path))
@@ -287,7 +287,7 @@ class ReleaseManager:
 
         apps = self.config.apps
 
-        if self.config.deploy.backups and not self.config.ship:
+        if self.config.switch.backups and not self.config.ship:
             self.backup_service.bench_db_and_configs_backup(
                 self.current, self.backup, self.site_name, self.bench_cli, self.deploy_dir_path
             )
@@ -338,7 +338,7 @@ class ReleaseManager:
 
         restore_db_file_path: Optional[Path] = None
 
-        if self.config.deploy.backups:
+        if self.config.switch.backups:
             self.backup_service.bench_db_and_configs_backup(
                 self.current, self.backup, self.site_name, self.bench_cli, self.deploy_dir_path
             )
@@ -376,7 +376,7 @@ class ReleaseManager:
             self.cleanup_service.cleanup_releases(self.deploy_dir_path, self.bench_path)
 
         except Exception as e:
-            if self.config.deploy.rollback:
+            if self.config.switch.rollback:
                 self.printer.error(f"Failed to switch to release {release_name}, rolling back")
                 if self.bench_path.exists() or self.bench_path.is_symlink():
                     self.bench_path.unlink()
@@ -513,7 +513,7 @@ class ReleaseManager:
         return releases_list
 
     def _restart_kwargs(self) -> dict:
-        d = self.config.deploy
+        d = self.config.switch
         return {
             "migrate": d.migrate,
             "migrate_timeout": getattr(d, "migrate_timeout", 300),

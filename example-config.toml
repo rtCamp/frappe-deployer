@@ -85,11 +85,31 @@ node_version = ""
 runner_image = ""
 # Docker image for release creation in image mode. Empty = auto-detect from frappe-manager.
 
+# Global build hooks (container):
+before_bench_build = ""
+# Global script inside container before bench build (fallback for apps without their own)
+after_bench_build = ""
+# Global script inside container after bench build
+before_python_install = ""
+# Global script inside container before pip install
+after_python_install = ""
+# Global script inside container after pip install
+
+# Global build hooks (host):
+host_before_bench_build = ""
+# Global script on host before bench build
+host_after_bench_build = ""
+# Global script on host after bench build
+host_before_python_install = ""
+# Global script on host before pip install
+host_after_python_install = ""
+# Global script on host after pip install
+
 # ============================================================================
-# DEPLOY: Deployment Configuration
+# SWITCH: Release Switch Configuration
 # ============================================================================
 
-[deploy]
+[switch]
 migrate = true
 # Run bench migrate after switch. Default: true
 
@@ -100,7 +120,7 @@ migrate_command = ""
 # Custom migrate command override (e.g., "bench --site all migrate --skip-search-index")
 
 maintenance_mode = true
-# Enable maintenance mode during deploy operations. Default: true
+# Enable maintenance mode during switch operations. Default: true
 
 maintenance_mode_phases = []
 # Phases to enable maintenance mode: ["drain", "migrate"]. Empty = all phases.
@@ -115,7 +135,7 @@ search_replace = true
 # Run search-and-replace in DB after restore. Default: true
 
 sync_workers = false
-# Sync to remote workers after successful deploy. Default: false
+# Sync to remote workers after successful switch. Default: false
 
 # Worker draining configuration:
 drain_workers = false
@@ -140,45 +160,29 @@ worker_kill_poll = 3.0
 # Poll interval while waiting to kill workers. Default: 3.0
 
 # Config file modifications:
-[deploy.common_site_config]
+[switch.common_site_config]
 # Key-value pairs to merge into common_site_config.json
 # Example:
 # background_workers = 2
 # gunicorn_workers = 8
 
-[deploy.site_config]
+[switch.site_config]
 # Key-value pairs to merge into site_config.json
 # Example:
 # developer_mode = 1
 # maintain_timezones = false
 
-# Global hooks (container):
+# Switch-time hooks (container):
 before_restart = ""
 # Script inside container before bench restart
 after_restart = ""
 # Script inside container after bench restart
-before_bench_build = ""
-# Global script inside container before bench build (fallback for apps without their own)
-after_bench_build = ""
-# Global script inside container after bench build
-before_python_install = ""
-# Global script inside container before pip install
-after_python_install = ""
-# Global script inside container after pip install
 
-# Global hooks (host):
+# Switch-time hooks (host):
 host_before_restart = ""
 # Script on host before bench restart
 host_after_restart = ""
 # Script on host after bench restart
-host_before_bench_build = ""
-# Global script on host before bench build
-host_after_bench_build = ""
-# Global script on host after bench build
-host_before_python_install = ""
-# Global script on host before pip install
-host_after_python_install = ""
-# Global script on host after pip install
 
 # ============================================================================
 # FRAPPE CLOUD: Sync from Frappe Cloud
@@ -271,7 +275,7 @@ include_files = []
 #    symlink = true  # Recommended for monorepo apps
 #
 # 6. Custom scripts example:
-#    [deploy]
+#    [switch]
 #    before_restart = """
 #    echo "Clearing custom cache..."
 #    bench --site all clear-cache

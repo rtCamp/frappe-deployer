@@ -435,7 +435,7 @@ class BenchService:
         self.printer.print("Built all apps")
 
     def run_bench_migrate(self, bench_directory: BenchDirectory, bench_cli: str) -> None:
-        if not self.config.deploy.migrate:
+        if not self.config.switch.migrate:
             self.printer.print("Skipped. Bench migrate")
             return
 
@@ -502,9 +502,9 @@ class BenchService:
             for phase in maintenance_phases:
                 args += ["--maintenance-mode", phase]
 
-        if self.config.deploy.host_before_restart:
+        if self.config.switch.host_before_restart:
             self._run_script(
-                self.config.deploy.host_before_restart,
+                self.config.switch.host_before_restart,
                 bench_directory,
                 current,
                 bench_path,
@@ -513,9 +513,9 @@ class BenchService:
                 "host pre-restart",
             )
 
-        if self.config.deploy.before_restart:
+        if self.config.switch.before_restart:
             self._run_script(
-                self.config.deploy.before_restart,
+                self.config.switch.before_restart,
                 bench_directory,
                 current,
                 bench_path,
@@ -538,9 +538,9 @@ class BenchService:
         self.printer.start("Working")
         self.printer.print("Symlinked and restarted")
 
-        if self.config.deploy.after_restart:
+        if self.config.switch.after_restart:
             self._run_script(
-                self.config.deploy.after_restart,
+                self.config.switch.after_restart,
                 bench_directory,
                 current,
                 bench_path,
@@ -550,9 +550,9 @@ class BenchService:
                 container=True,
             )
 
-        if self.config.deploy.host_after_restart:
+        if self.config.switch.host_after_restart:
             self._run_script(
-                self.config.deploy.host_after_restart,
+                self.config.switch.host_after_restart,
                 bench_directory,
                 current,
                 bench_path,
