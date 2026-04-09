@@ -87,7 +87,7 @@ def create(
     if build_dir is not None:
         effective_mode = "image"
     else:
-        effective_mode = mode or ("image" if config.ship else "exec")
+        effective_mode = mode or "exec"
 
         if effective_mode == "exec" and not is_exec_mode_available(config.workspace_root):
             printer.warning("Exec mode unavailable (frappe service not running), falling back to image mode")
