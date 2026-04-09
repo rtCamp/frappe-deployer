@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any, Optional
+import subprocess
 
 try:
     import typer
@@ -99,3 +100,25 @@ def build_runners(config: Config):
 
 def get_printer():
     return _printer
+
+
+def is_exec_mode_available(workspace_root: Path) -> bool:
+    compose_file = workspace_root / "docker-compose.yml"
+
+    if not compose_file.exists():
+        return False
+
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "-f", str(compose_file), "ps", "--services", "--filter", "status=running"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return False
+
+        services = result.stdout.strip().split("\n")
+        return "frappe" in [s for s in services if s]
+    except Exception:
+        return False
