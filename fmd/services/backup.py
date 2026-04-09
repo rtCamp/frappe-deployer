@@ -35,7 +35,7 @@ class BackupService:
         backup: BenchDirectory,
         site_name: str,
         bench_cli: str,
-        deploy_dir_path: Path,
+        workspace_root: Path,
     ):
         if self.config.switch.backups:
             self.printer.change_head("Backing up db, common_site_config and site_config.json")
@@ -43,7 +43,7 @@ class BackupService:
             shutil.copyfile(current.common_site_config, backup.common_site_config)
             frappe_app_dir = current.apps / "frappe"
             if frappe_app_dir.exists():
-                self.bench_backup(current, backup, site_name, bench_cli, deploy_dir_path)
+                self.bench_backup(current, backup, site_name, bench_cli, workspace_root)
                 self.printer.print("Backed up db, common_site_config and site_config.json")
             else:
                 self.printer.print("Skipped DB backup: apps/frappe does not exist in current bench.")
@@ -54,7 +54,7 @@ class BackupService:
         backup: BenchDirectory,
         site_name: str,
         bench_cli: str,
-        deploy_dir_path: Path,
+        workspace_root: Path,
         file_name: Optional[str] = None,
         using_bench_backup: bool = True,
         compress: bool = True,
@@ -83,11 +83,11 @@ class BackupService:
 
             return host_backup_db_path
 
-        backup_bench = _create_migration_bench(name=site_name, path=deploy_dir_path)
+        backup_bench = _create_migration_bench(name=site_name, path=workspace_root)
         backup_bench_db_info = backup_bench.get_db_connection_info()
 
         bench_db_name = backup_bench_db_info.get("name")
-        mariadb_client = self._get_mariadb_client(site_name, deploy_dir_path)
+        mariadb_client = self._get_mariadb_client(site_name, workspace_root)
 
         host_backup_db_path = host_backup_db_path.parent / host_backup_db_path.name.rstrip(".gz")
 
@@ -113,7 +113,7 @@ class BackupService:
 
         return host_backup_db_path
 
-    def bench_restore(self, site_name: str, deploy_dir_path: Path, db_file_path: Path):
+    def bench_restore(self, site_name: str, workspace_root: Path, db_file_path: Path):
         if not self.runner.supports_db_restore:
             self.printer.warning("db restore is not implemented in host mode")
             return
@@ -126,7 +126,7 @@ class BackupService:
                     shutil.copyfileobj(f_in, f_out)
             db_file_path = decompressed_path
 
-        backup_bench = _create_migration_bench(name=site_name, path=deploy_dir_path)
+        backup_bench = _create_migration_bench(name=site_name, path=workspace_root)
 
         self.printer.change_head(f"Restoring {site_name} with db from {db_file_path}")
 
@@ -134,19 +134,19 @@ class BackupService:
 
         bench_db_name = backup_bench_db_info.get("name")
 
-        mariadb_client = self._get_mariadb_client(site_name, deploy_dir_path)
+        mariadb_client = self._get_mariadb_client(site_name, workspace_root)
 
         mariadb_client.db_import(db_name=bench_db_name, host_db_file_path=db_file_path)
         self.printer.print(f"Restored {site_name} with db from {db_file_path}")
 
-    def _get_mariadb_client(self, site_name: str, deploy_dir_path: Path) -> Any:
+    def _get_mariadb_client(self, site_name: str, workspace_root: Path) -> Any:
         from frappe_manager.compose_manager.ComposeFile import ComposeFile
         from frappe_manager.site_manager.site_compose import ComposeProject
         from frappe_manager.migration_manager.migration_helpers import MigrationServicesManager
         from frappe_manager.site_manager.workers_manager.SiteWorker import DatabaseServerServiceInfo
         from frappe_manager.migration_manager.version_migrations.mariadb_manager import MariaDBManager
 
-        compose_file = ComposeFile(deploy_dir_path / "docker-compose.yml")
+        compose_file = ComposeFile(workspace_root / "docker-compose.yml")
         compose_project = ComposeProject(compose_file)
         services_manager = MigrationServicesManager(compose_project)
         db_info = DatabaseServerServiceInfo.from_compose(services_manager)

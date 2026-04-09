@@ -42,17 +42,17 @@ def list_releases(
 
         ship_config = config_data.get("ship")
         if ship_config:
-            deploy_dir_path = config_path.parent
+            workspace_root = config_path.parent
         else:
-            deploy_dir_path = CLI_BENCHES_DIRECTORY / site_name
+            workspace_root = CLI_BENCHES_DIRECTORY / site_name
     elif bench_name:
         site_name = bench_name
-        deploy_dir_path = CLI_BENCHES_DIRECTORY / site_name
+        workspace_root = CLI_BENCHES_DIRECTORY / site_name
     else:
         typer.echo("Error: bench_name argument or --config/-c is required.")
         raise typer.Exit(1)
 
-    workspace = deploy_dir_path / "workspace"
+    workspace = workspace_root / "workspace"
     bench_path = workspace / "frappe-bench"
 
     if not workspace.exists():

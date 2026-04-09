@@ -25,7 +25,7 @@ def cleanup(
     printer.start("Working")
     service = CleanupService(exec_runner, host_runner, config, printer)
     service.cleanup_workspace_cache(
-        config.deploy_dir_path,
+        config.workspace_root,
         config.bench_path,
         backup_retain_limit,
         release_retain_limit,

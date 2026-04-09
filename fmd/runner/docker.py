@@ -53,7 +53,7 @@ class DockerRunner(CommandRunner):
         return f"ghcr.io/rtcamp/frappe-manager-frappe:v{version}"
 
     def _compose_project_dir(self) -> Path:
-        return self.config.deploy_dir_path
+        return self.config.workspace_root
 
     @property
     def supports_db_restore(self) -> bool:

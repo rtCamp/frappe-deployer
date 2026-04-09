@@ -51,7 +51,7 @@ class ShipManager:
         self.printer.print(f"Image [blue]{image}[/blue] ready")
 
     def _rsync_release(self, release_name: str) -> None:
-        local_src = str(self.config.deploy_dir_path / "workspace" / release_name) + "/"
+        local_src = str(self.config.workspace_root / "workspace" / release_name) + "/"
         remote_dest = f"{self.config.ship.remote_path}/workspace/{release_name}/"
         self.printer.change_head(f"Syncing release {release_name} to remote")
         self.ssh.rsync(local_src, remote_dest, self.config.ship.rsync_options)

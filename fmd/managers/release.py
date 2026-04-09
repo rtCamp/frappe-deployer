@@ -27,12 +27,12 @@ class ReleaseManager:
 
         self.site_name = config.site_name
         self.bench_path = config.bench_path
-        self.deploy_dir_path = config.deploy_dir_path
+        self.workspace_root = config.workspace_root
 
-        self.workspace_path = self.deploy_dir_path / "workspace"
+        self.workspace_path = self.workspace_root / "workspace"
         self.current = BenchDirectory(config.bench_path)
         self.data = BenchDirectory(self.workspace_path / DATA_DIR_NAME)
-        self.backup = BenchDirectory(self.deploy_dir_path / BACKUP_DIR_NAME / RELEASE_SUFFIX)
+        self.backup = BenchDirectory(self.workspace_root / BACKUP_DIR_NAME / RELEASE_SUFFIX)
         self.new = BenchDirectory(self.workspace_path / RELEASE_SUFFIX)
 
         self.app_service = AppService(exec_runner, host_runner, config, printer)
@@ -145,13 +145,13 @@ class ReleaseManager:
             if backups:
                 self.printer.change_head("Creating backup")
                 self.backup_service.bench_db_and_configs_backup(
-                    self.current, self.backup, self.site_name, self.bench_cli, self.deploy_dir_path
+                    self.current, self.backup, self.site_name, self.bench_cli, self.workspace_root
                 )
                 self.printer.print("Backup completed")
             else:
                 self.printer.print("Taking backup is disabled.")
 
-            self.symlink_service.configure_data_dir(self.data, self.current, self.deploy_dir_path)
+            self.symlink_service.configure_data_dir(self.data, self.current, self.workspace_root)
 
             self.printer.change_head("Moving bench directory, creating initial release")
             self.current.path.rename(self.new.path)
@@ -289,7 +289,7 @@ class ReleaseManager:
 
         if self.config.switch.backups and not self.config.ship:
             self.backup_service.bench_db_and_configs_backup(
-                self.current, self.backup, self.site_name, self.bench_cli, self.deploy_dir_path
+                self.current, self.backup, self.site_name, self.bench_cli, self.workspace_root
             )
 
         base_dir = output_dir.resolve() if output_dir is not None else self.workspace_path
@@ -340,14 +340,14 @@ class ReleaseManager:
 
         if self.config.switch.backups:
             self.backup_service.bench_db_and_configs_backup(
-                self.current, self.backup, self.site_name, self.bench_cli, self.deploy_dir_path
+                self.current, self.backup, self.site_name, self.bench_cli, self.workspace_root
             )
 
         if self.config.fc and self.config.fc.use_db:
             from fmd.fc.data_source import FCDataSource
 
             fc_source = FCDataSource(self.config.fc)
-            restore_db_file_path = fc_source.download_db_backup(self.deploy_dir_path / "deployment-backup" / "fc-db")
+            restore_db_file_path = fc_source.download_db_backup(self.workspace_root / "deployment-backup" / "fc-db")
 
         self.backup_service.sync_configs_with_files(self.current, self.site_name)
         self.symlink_service.configure_symlinks(self.data, new)
@@ -356,7 +356,7 @@ class ReleaseManager:
 
         try:
             if restore_db_file_path:
-                self.backup_service.bench_restore(self.site_name, self.deploy_dir_path, restore_db_file_path)
+                self.backup_service.bench_restore(self.site_name, self.workspace_root, restore_db_file_path)
                 if restore_db_file_path.exists():
                     restore_db_file_path.unlink()
 
@@ -373,7 +373,7 @@ class ReleaseManager:
             self.app_service.bench_install_apps(
                 self.current, self.config.apps, self.site_name, self.bench_cli, self._is_app_installed
             )
-            self.cleanup_service.cleanup_releases(self.deploy_dir_path, self.bench_path)
+            self.cleanup_service.cleanup_releases(self.workspace_root, self.bench_path)
 
         except Exception as e:
             if self.config.switch.rollback:
