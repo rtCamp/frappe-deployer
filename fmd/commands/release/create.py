@@ -42,10 +42,10 @@ def create(
         help="Runner mode: 'image' (docker run) or 'exec' (docker compose exec). Auto-detected from config if not set.",
         show_default=False,
     ),
-    output_dir: Optional[Path] = typer.Option(
+    build_dir: Optional[Path] = typer.Option(
         None,
-        "--output-dir",
-        help="Base directory where the release folder is created. Image mode only. Defaults to workspace/.",
+        "--build-dir",
+        help="Base directory where the release folder is created. Activates image mode. Defaults to workspace/.",
         show_default=False,
     ),
 ):
@@ -84,20 +84,24 @@ def create(
     printer = get_printer()
     image_runner, exec_runner, host_runner = build_runners(config)
 
-    effective_mode = mode or ("image" if config.ship else "exec")
+    if build_dir is not None:
+        effective_mode = "image"
+    else:
+        effective_mode = mode or ("image" if config.ship else "exec")
+
     if effective_mode not in ("image", "exec"):
         typer.echo(f"Error: --mode must be 'image' or 'exec', got '{effective_mode}'.", err=True)
         raise typer.Exit(code=1)
 
-    if output_dir is not None and effective_mode != "image":
-        typer.echo("Error: --output-dir is only valid with --mode image.", err=True)
+    if mode == "exec" and build_dir is not None:
+        typer.echo("Error: --build-dir automatically activates image mode, cannot use with --mode exec.", err=True)
         raise typer.Exit(code=1)
 
     release_image_runner = image_runner if effective_mode == "image" else exec_runner
 
     printer.start("Creating release")
     manager = ReleaseManager(config, release_image_runner, exec_runner, host_runner, printer)
-    release_name = manager.create(output_dir=output_dir)
+    release_name = manager.create(build_dir=build_dir)
     printer.stop()
-    release_path = (output_dir.resolve() / release_name) if output_dir else release_name
+    release_path = (build_dir.resolve() / release_name) if build_dir else release_name
     typer.echo(f"Release created: {release_path}")
