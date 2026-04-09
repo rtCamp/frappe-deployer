@@ -3,7 +3,7 @@ import io
 from pathlib import Path
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 try:
     from frappe_manager import CLI_BENCHES_DIRECTORY
@@ -31,9 +31,10 @@ from fmd.config.ship import ShipConfig
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    _config_file_path: Optional[Path] = PrivateAttr(default=None)
+
     site_name: str = Field(..., description="The name of the site.")
     github_token: Optional[str] = Field(None, description="GitHub personal access token.")
-    python_version: Optional[str] = Field(None, description="Python version for venv creation.")
     verbose: bool = Field(False, description="Enable verbose output.")
     uv: bool = Field(True, description="Use uv instead of pip.")
 
@@ -88,16 +89,18 @@ class Config(BaseModel):
         return self
 
     @property
-    def bench_path(self) -> Path:
-        return CLI_BENCHES_DIRECTORY / self.site_name / "workspace" / "frappe-bench"
-
-    @property
     def bench_name(self) -> str:
         return self.bench_path.name
 
     @property
     def deploy_dir_path(self) -> Path:
-        return self.bench_path.parent.parent
+        if self.ship and self._config_file_path is not None:
+            return self._config_file_path.parent
+        return CLI_BENCHES_DIRECTORY / self.site_name
+
+    @property
+    def bench_path(self) -> Path:
+        return self.deploy_dir_path / "workspace" / "frappe-bench"
 
     def to_toml(self, file_path: Path) -> None:
         def _mask(data: Any) -> Any:
@@ -166,4 +169,7 @@ class Config(BaseModel):
                 elif key in Config.model_fields:
                     config_data[key] = value
 
-        return Config(**config_data)
+        obj = Config(**config_data)
+        if config_file_path:
+            obj._config_file_path = config_file_path
+        return obj

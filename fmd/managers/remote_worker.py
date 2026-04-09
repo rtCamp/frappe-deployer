@@ -8,7 +8,7 @@ import frappe_manager
 import requests
 
 try:
-    from frappe_manager.compose_manager.ComposeFile import ComposeFile as _ComposeFile
+    from frappe_manager.docker import ComposeFile as _ComposeFile
 except ImportError:
     _ComposeFile = None
 
@@ -82,7 +82,7 @@ class RemoteWorkerManager:
         self._remote_base = Path(rw.fm_benches_path) / config.site_name / "workspace"
 
     def _fm_bench(self):
-        from frappe_manager.compose_manager.ComposeFile import ComposeFile
+        from frappe_manager.docker import ComposeFile
         from frappe_manager.compose_project.compose_project import ComposeProject
 
         bench_path = frappe_manager.CLI_BENCHES_DIRECTORY / self.config.site_name
@@ -90,33 +90,18 @@ class RemoteWorkerManager:
         class _Bench:
             def __init__(self, path):
                 self.path = path
-                self.compose_project = ComposeProject(
-                    ComposeFile(
-                        path / "docker-compose.yml",
-                        "docker-compose.tmpl",
-                        template_dir="migration_manager/base_templates",
-                    )
-                )
+                self.compose_project = ComposeProject(ComposeFile(path / "docker-compose.yml"))
 
         return _Bench(bench_path)
 
     def _fm_services_manager(self):
         from frappe_manager import CLI_SERVICES_DIRECTORY
-        from frappe_manager.compose_manager.ComposeFile import ComposeFile
+        from frappe_manager.docker import ComposeFile
         from frappe_manager.compose_project.compose_project import ComposeProject
-        import platform
-
-        tmpl = "docker-compose.services.osx.tmpl" if platform.system() == "Darwin" else "docker-compose.services.tmpl"
 
         class _Services:
             def __init__(self, services_path):
-                self.compose_project = ComposeProject(
-                    ComposeFile(
-                        services_path / "docker-compose.yml",
-                        tmpl,
-                        template_dir="migration_manager/base_templates",
-                    )
-                )
+                self.compose_project = ComposeProject(ComposeFile(services_path / "docker-compose.yml"))
 
         return _Services(CLI_SERVICES_DIRECTORY)
 

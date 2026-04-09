@@ -18,18 +18,26 @@ class ShipManager:
         self.ssh = SSHClient(config.ship.host, config.ship.ssh_user, config.ship.ssh_port)
 
         docker_host = f"ssh://{config.ship.ssh_user}@{config.ship.host}"
-        self.image_runner = DockerRunner(
+
+        self.remote_image_runner = DockerRunner(
             mode="image",
             config=config,
             verbose=config.verbose,
             printer=printer,
             docker_host=docker_host,
         )
+        self.local_image_runner = DockerRunner(
+            mode="image",
+            config=config,
+            verbose=config.verbose,
+            printer=printer,
+            docker_host=None,
+        )
         self.host_runner = HostRunner(verbose=config.verbose, printer=printer)
 
         self.release_manager = ReleaseManager(
             config,
-            self.image_runner,
+            self.local_image_runner,
             None,
             self.host_runner,
             printer,
@@ -43,9 +51,8 @@ class ShipManager:
         self.printer.print(f"Image [blue]{image}[/blue] ready")
 
     def _rsync_release(self, release_name: str) -> None:
-        deploy_dir = self.config.deploy_dir_path
-        local_src = str(deploy_dir / release_name) + "/"
-        remote_dest = f"{self.config.ship.remote_path}/{release_name}/"
+        local_src = str(self.config.deploy_dir_path / "workspace" / release_name) + "/"
+        remote_dest = f"{self.config.ship.remote_path}/workspace/{release_name}/"
         self.printer.change_head(f"Syncing release {release_name} to remote")
         self.ssh.rsync(local_src, remote_dest, self.config.ship.rsync_options)
         self.printer.print("Release synced")
@@ -67,17 +74,19 @@ class ShipManager:
         remote_bench = f"{self.config.ship.remote_path}/workspace/frappe-bench"
         if not self.ssh.is_symlink(remote_bench):
             self.printer.change_head("Remote bench not configured — running fmd release configure")
-            self.ssh.run_list(["fmd", "release", "configure", remote_config_path], capture=False)
+            self.ssh.run_list(["fmd", "release", "configure", "--config", remote_config_path], capture=False)
             self.printer.print("Remote configure complete")
 
     def _remote_switch(self, release_name: str, remote_config_path: str) -> None:
         self.printer.change_head(f"Switching remote to release {release_name}")
-        self.ssh.run_list(["fmd", "release", "switch", remote_config_path, release_name], capture=False)
+        self.ssh.run_list(["fmd", "release", "switch", "--config", remote_config_path, release_name], capture=False)
         self.printer.print(f"Remote switched to [blue]{release_name}[/blue]")
 
     def deploy(self, config_path: Path) -> None:
-        image = self.image_runner._resolve_image()
+        image = self.remote_image_runner._resolve_image()
         self._pull_image_locally(image)
+
+        self.config.release.runner_image = image
 
         release_name = self.release_manager.create()
         self.printer.print(f"Release [blue]{release_name}[/blue] created locally")

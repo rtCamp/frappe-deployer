@@ -19,6 +19,9 @@ def create(
     python_version: Optional[str] = typer.Option(
         None, "--python-version", "-p", help="Python version for venv.", show_default=False
     ),
+    node_version: Optional[str] = typer.Option(
+        None, "--node-version", "-n", help="Node.js version to install via fnm.", show_default=False
+    ),
     uv: Optional[bool] = typer.Option(None, "--uv/--no-uv", help="Use uv instead of pip."),
     backups: Optional[bool] = typer.Option(None, "--backups/--no-backups", help="Take DB backup before create."),
     symlink_subdir_apps: Optional[bool] = typer.Option(
@@ -26,6 +29,24 @@ def create(
     ),
     releases_retain_limit: Optional[int] = typer.Option(
         None, "--releases-retain-limit", help="Number of releases to retain.", show_default=False
+    ),
+    runner_image: Optional[str] = typer.Option(
+        None,
+        "--runner-image",
+        help="Docker image to use for release creation. Overrides auto-detection.",
+        show_default=False,
+    ),
+    mode: Optional[str] = typer.Option(
+        None,
+        "--mode",
+        help="Runner mode: 'image' (docker run) or 'exec' (docker compose exec). Auto-detected from config if not set.",
+        show_default=False,
+    ),
+    output_dir: Optional[Path] = typer.Option(
+        None,
+        "--output-dir",
+        help="Base directory where the release folder is created. Image mode only. Defaults to workspace/.",
+        show_default=False,
     ),
 ):
     """Create a new release: clone apps, build assets, no live bench changes."""
@@ -36,8 +57,6 @@ def create(
         overrides["apps"] = parse_app_option(apps)
     if github_token is not None:
         overrides["github_token"] = github_token
-    if python_version is not None:
-        overrides["python_version"] = python_version
     if uv is not None:
         overrides["uv"] = uv
 
@@ -52,14 +71,33 @@ def create(
         release["releases_retain_limit"] = releases_retain_limit
     if symlink_subdir_apps is not None:
         release["symlink_subdir_apps"] = symlink_subdir_apps
+    if python_version is not None:
+        release["python_version"] = python_version
+    if node_version is not None:
+        release["node_version"] = node_version
+    if runner_image is not None:
+        release["runner_image"] = runner_image
     if release:
         overrides["release"] = release
 
     config = load_config(config_path, overrides=overrides or None, create_if_missing=True)
     printer = get_printer()
     image_runner, exec_runner, host_runner = build_runners(config)
+
+    effective_mode = mode or ("image" if config.ship else "exec")
+    if effective_mode not in ("image", "exec"):
+        typer.echo(f"Error: --mode must be 'image' or 'exec', got '{effective_mode}'.", err=True)
+        raise typer.Exit(code=1)
+
+    if output_dir is not None and effective_mode != "image":
+        typer.echo("Error: --output-dir is only valid with --mode image.", err=True)
+        raise typer.Exit(code=1)
+
+    release_image_runner = image_runner if effective_mode == "image" else exec_runner
+
     printer.start("Creating release")
-    manager = ReleaseManager(config, image_runner, exec_runner, host_runner, printer)
-    release_name = manager.create()
+    manager = ReleaseManager(config, release_image_runner, exec_runner, host_runner, printer)
+    release_name = manager.create(output_dir=output_dir)
     printer.stop()
-    typer.echo(f"Release created: {release_name}")
+    release_path = (output_dir.resolve() / release_name) if output_dir else release_name
+    typer.echo(f"Release created: {release_path}")

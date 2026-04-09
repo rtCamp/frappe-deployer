@@ -77,7 +77,7 @@ def load_config(
 
     if config_path is None:
         if not overrides or "site_name" not in overrides:
-            raise ValueError("--site-name is required when no config file is specified.")
+            raise ValueError("bench_name argument or --config/-c is required.")
         return Config.from_toml(overrides=overrides)
 
     if not config_path.exists():
