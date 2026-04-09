@@ -1,7 +1,6 @@
 import importlib
 import os
 import shlex
-import subprocess
 import time
 from pathlib import Path
 from typing import Iterable, List, Literal, Optional, Tuple, Union
@@ -43,35 +42,15 @@ class DockerRunner(CommandRunner):
         self.docker_host = docker_host
 
     def _resolve_image(self) -> str:
-        if self.config.bake and self.config.bake.builder_image:
-            return self.config.bake.builder_image
+        if self.config.release.runner_image:
+            return self.config.release.runner_image
         return self._detect_image()
 
     def _detect_image(self) -> str:
-        env = os.environ.copy()
-        if self.docker_host:
-            env["DOCKER_HOST"] = self.docker_host
+        import importlib.metadata
 
-        compose_project = self.config.site_name.replace(".", "").replace("-", "")
-
-        cmd = [
-            "docker",
-            "ps",
-            "--filter",
-            f"label=com.docker.compose.service=frappe",
-            "--filter",
-            f"label=com.docker.compose.project={compose_project}",
-            "--format",
-            "{{.Image}}",
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
-        image = result.stdout.strip().splitlines()[0] if result.stdout.strip() else ""
-        if not image:
-            raise RuntimeError(
-                f"Could not auto-detect Docker image for site '{self.config.site_name}'. "
-                "Set bake.builder_image in config to override."
-            )
-        return image
+        version = importlib.metadata.version("frappe-manager")
+        return f"ghcr.io/rtcamp/frappe-manager-frappe:v{version}"
 
     def _compose_project_dir(self) -> Path:
         return self.config.deploy_dir_path
@@ -153,8 +132,27 @@ class DockerRunner(CommandRunner):
         if _DockerClient is None:
             raise RuntimeError("frappe_manager.docker.docker_client.DockerClient unavailable")
 
-        base_env = os.environ.copy()
-        base_env["COREPACK_ENABLE_DOWNLOAD_PROMPT"] = "0"
+        base_env = {
+            "HOME": "/workspace",
+            "USER": "frappe",
+            "GROUP": "frappe",
+            "PATH": "/workspace/frappe-bench/.uv/python-default/bin:/workspace/frappe-bench/.fnm/aliases/default/bin:/usr/local/bin:/opt/user/.bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "FNM_DIR": "/workspace/frappe-bench/.fnm",
+            "FNM_MULTISHELL_PATH": "/workspace/frappe-bench/.fnm",
+            "FNM_COREPACK_ENABLED": "true",
+            "COREPACK_HOME": "/workspace/frappe-bench/.fnm/corepack",
+            "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
+            "UV_PYTHON_INSTALL_DIR": "/workspace/frappe-bench/.uv/python",
+            "UV_CACHE_DIR": "/workspace/frappe-bench/.uv/cache",
+            "BENCH_USE_UV": "true",
+            "PYTHONUNBUFFERED": "1",
+            "LC_ALL": "en_US.UTF-8",
+            "LANG": "en_US.UTF-8",
+            "LANGUAGE": "en_US.UTF-8",
+        }
+        for _k in ("DOCKER_HOST", "GITHUB_TOKEN", "GIT_TOKEN", "UV_LINK_MODE"):
+            if _k in os.environ:
+                base_env[_k] = os.environ[_k]
         if env:
             base_env.update(env)
         if self.docker_host:
@@ -166,6 +164,8 @@ class DockerRunner(CommandRunner):
         effective_workdir = workdir or "/workspace/frappe-bench"
         image = self._resolve_image()
 
+        volumes = [f"{bench_directory.path}:/workspace/frappe-bench"]
+
         output = _DockerClient().run(
             image=image,
             user="frappe",
@@ -174,7 +174,7 @@ class DockerRunner(CommandRunner):
             env=base_env,
             entrypoint="/bin/bash",
             pull="missing",
-            volume=[f"{bench_directory.path}:/workspace/frappe-bench"],
+            volume=volumes,
             stream=not capture_output,
             rm=True,
         )

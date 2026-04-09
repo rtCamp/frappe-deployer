@@ -19,6 +19,9 @@ def configure(
     python_version: Optional[str] = typer.Option(
         None, "--python-version", "-p", help="Python version for venv.", show_default=False
     ),
+    node_version: Optional[str] = typer.Option(
+        None, "--node-version", "-n", help="Node.js version to install via fnm.", show_default=False
+    ),
     uv: Optional[bool] = typer.Option(None, "--uv/--no-uv", help="Use uv instead of pip."),
     backups: Optional[bool] = typer.Option(None, "--backups/--no-backups", help="Take backup before configure."),
     symlink_subdir_apps: Optional[bool] = typer.Option(
@@ -33,8 +36,6 @@ def configure(
         overrides["apps"] = parse_app_option(apps)
     if github_token is not None:
         overrides["github_token"] = github_token
-    if python_version is not None:
-        overrides["python_version"] = python_version
     if uv is not None:
         overrides["uv"] = uv
 
@@ -47,6 +48,10 @@ def configure(
     release: dict = {}
     if symlink_subdir_apps is not None:
         release["symlink_subdir_apps"] = symlink_subdir_apps
+    if python_version is not None:
+        release["python_version"] = python_version
+    if node_version is not None:
+        release["node_version"] = node_version
     if release:
         overrides["release"] = release
 

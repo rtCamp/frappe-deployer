@@ -102,7 +102,6 @@ class BakeConfig(ImageBuildConfig):
     base_name: str = "python"
     base_tag: str = "3.12.12-slim"
 
-    builder_image: str = Field("", description="Direct override for docker run image. Auto-detected if empty.")
     python: PythonConfig = Field(default_factory=PythonConfig)
     nodejs: NodeJSConfig = Field(default_factory=NodeJSConfig)
     distro: str = "slim"

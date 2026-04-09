@@ -1,5 +1,6 @@
 import json
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -182,6 +183,49 @@ class ReleaseManager:
             self._rollback_configure(renamed)
             raise
 
+    def _seed_release_runtimes(self, release_path: Path) -> None:
+        current_bench = self.bench_path.resolve() if self.bench_path.is_symlink() else self.bench_path
+        release_uv = release_path / ".uv"
+        release_fnm = release_path / ".fnm"
+
+        src_uv = current_bench / ".uv"
+        src_fnm = current_bench / ".fnm"
+
+        if src_uv.is_dir() and not release_uv.exists():
+            shutil.copytree(src_uv, release_uv, symlinks=True)
+
+        if src_fnm.is_dir() and not release_fnm.exists():
+            shutil.copytree(src_fnm, release_fnm, symlinks=True)
+
+    def _setup_supervisor_config(self, release_path: Path) -> None:
+        try:
+            _bs_mod = __import__(
+                "frappe_manager.site_manager.modules.bench_supervisor",
+                fromlist=["BenchSupervisor"],
+            )
+            BenchSupervisor = _bs_mod.BenchSupervisor
+            _cl_mod = __import__("frappe_manager.logger.contextual", fromlist=["ContextualLogger"])
+            ContextualLogger = _cl_mod.ContextualLogger
+            _ctx_mod = __import__("frappe_manager.logger.context", fromlist=["LoggerContext"])
+            LoggerContext = _ctx_mod.LoggerContext
+        except Exception as e:
+            self.printer.warning(f"Could not import FM BenchSupervisor, skipping supervisor config: {e}")
+            return
+
+        import logging
+
+        _logger = ContextualLogger(logging.getLogger("fmd"), LoggerContext())
+        supervisor = BenchSupervisor(logger=_logger, docker_client=None, config=None, bench_name=self.site_name)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / "workspace").mkdir()
+            (tmp_path / "workspace" / "frappe-bench").symlink_to(release_path)
+            try:
+                supervisor.setup_supervisor(tmp_path, force=True)
+            except Exception as e:
+                self.printer.warning(f"Failed to generate supervisor config: {e}")
+
     def _rollback_configure(self, renamed: bool) -> None:
         self.printer.print(f"Rollback\n{'--' * 10}")
         restore = self.new if renamed else self.current
@@ -232,27 +276,34 @@ class ReleaseManager:
         if renamed and self.new.path.exists() and not self.current.path.exists():
             self.new.path.rename(self.current.path)
 
-    def create(self) -> str:
-        if not self.bench_path.is_symlink():
+    def create(self, output_dir: Optional[Path] = None) -> str:
+        if not self.config.ship and not self.bench_path.is_symlink():
             raise SiteNotConfigured(str(self.bench_path))
 
         self.printer.change_head("Configuring new release dirs")
-        self.site_installed_apps = self._get_site_installed_apps(self.current)
+
+        if not self.config.ship:
+            self.site_installed_apps = self._get_site_installed_apps(self.current)
 
         apps = self.config.apps
 
-        if self.config.deploy.backups:
+        if self.config.deploy.backups and not self.config.ship:
             self.backup_service.bench_db_and_configs_backup(
                 self.current, self.backup, self.site_name, self.bench_cli, self.deploy_dir_path
             )
+
+        base_dir = output_dir.resolve() if output_dir is not None else self.workspace_path
+        self.new = BenchDirectory(base_dir / RELEASE_SUFFIX)
 
         for dir_path in [self.new.path, self.new.apps, self.new.sites]:
             dir_path.mkdir(exist_ok=True)
             self.printer.print(f"Created dir [blue]{dir_path.name}[/blue]")
         (self.new.path / "config" / "pids").mkdir(parents=True, exist_ok=True)
+        (self.new.path / "logs").mkdir(parents=True, exist_ok=True)
 
-        self.config.to_toml(self.new.path / f"{self.site_name}.toml")
-        self.symlink_service.configure_symlinks(self.data, self.new)
+        self._seed_release_runtimes(self.new.path)
+
+        self.config.to_toml(self.new.path / ".fmd.toml")
 
         self.app_service.clone_apps(self.data, self.new, apps, self.site_name, self._is_app_installed)
 
@@ -274,8 +325,6 @@ class ReleaseManager:
             self.site_name,
             self._host_run,
         )
-        if apps:
-            self.image_bench_service.bench_clear_cache(self.new, self.bench_cli)
 
         return self.new.path.name
 
@@ -301,7 +350,10 @@ class ReleaseManager:
             restore_db_file_path = fc_source.download_db_backup(self.deploy_dir_path / "deployment-backup" / "fc-db")
 
         self.backup_service.sync_configs_with_files(self.current, self.site_name)
+        self.symlink_service.configure_symlinks(self.data, new)
         self.bench_service.bench_symlink(self.bench_path, new)
+        self._seed_release_runtimes(new.path)
+        self._setup_supervisor_config(new.path)
 
         try:
             if restore_db_file_path:
@@ -317,6 +369,7 @@ class ReleaseManager:
                 self._host_run,
                 **self._restart_kwargs(),
             )
+            self.bench_service.bench_clear_cache(self.current, self.bench_cli, self.site_name)
             self.site_installed_apps = self._get_site_installed_apps(self.current)
             self.app_service.bench_install_apps(
                 self.current, self.config.apps, self.site_name, self.bench_cli, self._is_app_installed

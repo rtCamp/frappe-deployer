@@ -150,9 +150,11 @@ class BenchService:
         except Exception as e:
             self.printer.warning(f"Failed to clear assets_json: {e}")
 
-    def bench_clear_cache(self, bench_directory: BenchDirectory, bench_cli: str, website_cache: bool = False):
-        clear_cache_command = [bench_cli, "clear-cache"]
-        clear_website_cache_command = [bench_cli, "clear-website-cache"]
+    def bench_clear_cache(
+        self, bench_directory: BenchDirectory, bench_cli: str, site_name: str, website_cache: bool = False
+    ):
+        clear_cache_command = [bench_cli, "--site", site_name, "clear-cache"]
+        clear_website_cache_command = [bench_cli, "--site", site_name, "clear-website-cache"]
 
         self.printer.change_head(f"Clearing cache{' and website cache' if website_cache else ''}")
         for command in [clear_cache_command, clear_website_cache_command]:
@@ -298,12 +300,37 @@ class BenchService:
     ):
         node_cmd = [bench_cli, "setup", "requirements", "--node"]
 
+        if self.config.release.node_version:
+            self.printer.change_head(f"Installing Node {self.config.release.node_version} via fnm")
+            self.runner.run(["fnm", "install", self.config.release.node_version], bench_directory, capture_output=False)
+            self.runner.run(["fnm", "default", self.config.release.node_version], bench_directory, capture_output=False)
+            self.printer.print(f"Node {self.config.release.node_version} installed and set as default")
+
         if apps:
             self.printer.change_head("Installing all apps node packages")
             self.runner.run(node_cmd, bench_directory, capture_output=False)
             self.printer.print("Installed all apps node packages")
         else:
             self.printer.print("Skipping node packages install (no apps)")
+
+        if not bench_directory.env.exists():
+            self.printer.change_head("Creating Python venv")
+            if self.config.uv:
+                venv_cmd = ["uv", "venv", "env"]
+                if self.config.release.python_version:
+                    pv = self.config.release.python_version
+                    if not pv.startswith("3."):
+                        pv = f"3.{pv}"
+                    venv_cmd += ["--python", pv]
+            else:
+                python_bin = (
+                    f"python{self.config.release.python_version}"
+                    if self.config.release.python_version
+                    else "/usr/bin/python3"
+                )
+                venv_cmd = [python_bin, "-m", "venv", "env"]
+            self.runner.run(venv_cmd, bench_directory, capture_output=False)
+            self.printer.print("Python venv created")
 
         start_time = time.time()
 
