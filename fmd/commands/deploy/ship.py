@@ -16,7 +16,6 @@ def ship(
     github_token: Optional[str] = typer.Option(
         None, "--github-token", help="GitHub personal access token.", show_default=False
     ),
-    uv: Optional[bool] = typer.Option(None, "--uv/--no-uv", help="Use uv instead of pip."),
     python_version: Optional[str] = typer.Option(
         None,
         "--python-version",
@@ -105,8 +104,6 @@ def ship(
         overrides["apps"] = parse_app_option(apps)
     if github_token is not None:
         overrides["github_token"] = github_token
-    if uv is not None:
-        overrides["uv"] = uv
 
     switch: dict = {}
     if migrate is not None:

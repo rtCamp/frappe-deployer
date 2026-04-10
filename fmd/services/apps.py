@@ -92,10 +92,12 @@ class AppService:
         bench_cli: str,
         is_app_installed: Callable[[str, str], bool],
     ) -> None:
-        dirs = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
-        for app in dirs:
+        for app in apps:
+            app_path = bench_directory.apps / app.dir_name
+            if not app_path.is_dir():
+                continue
             self._install_app(
-                bench_directory.apps / app.name,
+                app_path,
                 bench_directory,
                 site_name,
                 bench_cli,

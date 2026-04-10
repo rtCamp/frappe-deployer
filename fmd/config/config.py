@@ -37,7 +37,6 @@ class Config(BaseModel):
     site_name: str = Field(..., description="The name of the site.")
     github_token: Optional[str] = Field(None, description="GitHub personal access token.")
     verbose: bool = Field(False, description="Enable verbose output.")
-    uv: bool = Field(True, description="Use uv instead of pip.")
 
     apps: List[AppConfig] = Field(default_factory=list, description="List of application configurations.")
 

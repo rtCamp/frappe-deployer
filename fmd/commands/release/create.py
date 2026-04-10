@@ -22,7 +22,6 @@ def create(
     node_version: Optional[str] = typer.Option(
         None, "--node-version", "-n", help="Node.js version to install via fnm.", show_default=False
     ),
-    uv: Optional[bool] = typer.Option(None, "--uv/--no-uv", help="Use uv instead of pip."),
     backups: Optional[bool] = typer.Option(None, "--backups/--no-backups", help="Take DB backup before create."),
     symlink_subdir_apps: Optional[bool] = typer.Option(
         None, "--symlink-subdir-apps/--no-symlink-subdir-apps", help="Symlink all subdir apps."
@@ -57,8 +56,6 @@ def create(
         overrides["apps"] = parse_app_option(apps)
     if github_token is not None:
         overrides["github_token"] = github_token
-    if uv is not None:
-        overrides["uv"] = uv
 
     deploy: dict = {}
     if backups is not None:

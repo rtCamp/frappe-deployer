@@ -172,120 +172,75 @@ class BenchService:
         site_name: str,
         host_run: Callable,
     ):
-        self.printer.change_head(f"Installing all apps in python env {'using uv' if self.config.uv else ''}")
+        self.printer.change_head("Installing all apps in python env using uv")
 
-        dirs = [d for d in bench_directory.apps.iterdir() if d.is_dir()]
+        python_path = f"{self.runner.workdir_for_bench(bench_directory)}/env/bin/python"
+        install_cmd = [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            python_path,
+            "-U",
+            "-e",
+        ]
+        for app in apps:
+            app_path = bench_directory.apps / app.dir_name
+            if not app_path.is_dir():
+                continue
+            if app.host_before_python_install:
+                self._run_script(
+                    app.host_before_python_install,
+                    bench_directory,
+                    current,
+                    bench_path,
+                    site_name,
+                    host_run,
+                    f"host pre-python-install for {app.dir_name}",
+                    app_name=app.dir_name,
+                )
+            if app.before_python_install:
+                self._run_script(
+                    app.before_python_install,
+                    bench_directory,
+                    current,
+                    bench_path,
+                    site_name,
+                    host_run,
+                    f"pre-python-install for {app.dir_name}",
+                    container=True,
+                    app_name=app.dir_name,
+                )
 
-        if self.config.uv:
-            python_path = f"{self.runner.workdir_for_bench(bench_directory)}/env/bin/python"
-            install_cmd = [
-                "uv",
-                "pip",
-                "install",
-                "--python",
-                python_path,
-                "-U",
-                "-e",
-            ]
-            for app in dirs:
-                app_config = next((c for c in apps if c.dir_name == app.name), None)
-                if app_config and app_config.host_before_python_install:
-                    self._run_script(
-                        app_config.host_before_python_install,
-                        bench_directory,
-                        current,
-                        bench_path,
-                        site_name,
-                        host_run,
-                        f"host pre-python-install for {app.name}",
-                        app_name=app.name,
-                    )
-                if app_config and app_config.before_python_install:
-                    self._run_script(
-                        app_config.before_python_install,
-                        bench_directory,
-                        current,
-                        bench_path,
-                        site_name,
-                        host_run,
-                        f"pre-python-install for {app.name}",
-                        container=True,
-                        app_name=app.name,
-                    )
-                self.runner.run(install_cmd + [f"apps/{app.name}"], bench_directory, capture_output=False)
-                if app_config and app_config.after_python_install:
-                    self._run_script(
-                        app_config.after_python_install,
-                        bench_directory,
-                        current,
-                        bench_path,
-                        site_name,
-                        host_run,
-                        f"post-python-install for {app.name}",
-                        container=True,
-                        app_name=app.name,
-                    )
-                if app_config and app_config.host_after_python_install:
-                    self._run_script(
-                        app_config.host_after_python_install,
-                        bench_directory,
-                        current,
-                        bench_path,
-                        site_name,
-                        host_run,
-                        f"host post-python-install for {app.name}",
-                        app_name=app.name,
-                    )
-        else:
-            for app in dirs:
-                app_config = next((c for c in apps if c.dir_name == app.name), None)
-                if app_config and app_config.host_before_python_install:
-                    self._run_script(
-                        app_config.host_before_python_install,
-                        bench_directory,
-                        current,
-                        bench_path,
-                        site_name,
-                        host_run,
-                        f"host pre-python-install for {app.name}",
-                        app_name=app.name,
-                    )
-                if app_config and app_config.before_python_install:
-                    self._run_script(
-                        app_config.before_python_install,
-                        bench_directory,
-                        current,
-                        bench_path,
-                        site_name,
-                        host_run,
-                        f"pre-python-install for {app.name}",
-                        container=True,
-                        app_name=app.name,
-                    )
-                self.runner.run(["pip", "install", "-e", f"apps/{app.name}"], bench_directory, capture_output=False)
-                if app_config and app_config.after_python_install:
-                    self._run_script(
-                        app_config.after_python_install,
-                        bench_directory,
-                        current,
-                        bench_path,
-                        site_name,
-                        host_run,
-                        f"post-python-install for {app.name}",
-                        container=True,
-                        app_name=app.name,
-                    )
-                if app_config and app_config.host_after_python_install:
-                    self._run_script(
-                        app_config.host_after_python_install,
-                        bench_directory,
-                        current,
-                        bench_path,
-                        site_name,
-                        host_run,
-                        f"host post-python-install for {app.name}",
-                        app_name=app.name,
-                    )
+            try:
+                self.runner.run(install_cmd + [f"apps/{app.dir_name}"], bench_directory, capture_output=False)
+            except Exception:
+                self.printer.print(f"uv failed for {app.dir_name}, falling back to pip")
+                self.runner.run(["pip", "install", "-e", f"apps/{app.dir_name}"], bench_directory, capture_output=False)
+
+            if app.after_python_install:
+                self._run_script(
+                    app.after_python_install,
+                    bench_directory,
+                    current,
+                    bench_path,
+                    site_name,
+                    host_run,
+                    f"post-python-install for {app.dir_name}",
+                    container=True,
+                    app_name=app.dir_name,
+                )
+            if app.host_after_python_install:
+                self._run_script(
+                    app.host_after_python_install,
+                    bench_directory,
+                    current,
+                    bench_path,
+                    site_name,
+                    host_run,
+                    f"host post-python-install for {app.dir_name}",
+                    app_name=app.dir_name,
+                )
 
         self.printer.print("Installed apps in python env")
 
@@ -342,18 +297,10 @@ class BenchService:
             self.runner.run(["mv", "env", "env.bak"], bench_directory, capture_output=False)
             self.printer.print("Backed up env to env.bak")
 
-        self.printer.change_head("Creating Python venv")
-        if self.config.uv:
-            venv_cmd = ["uv", "venv", "env", "--seed", "--relocatable", "--no-project"]
-            if self.config.release.python_version:
-                venv_cmd += ["--python", self.config.release.python_version]
-        else:
-            python_bin = (
-                f"python{self.config.release.python_version}"
-                if self.config.release.python_version
-                else "/usr/bin/python3"
-            )
-            venv_cmd = [python_bin, "-m", "venv", "env"]
+        self.printer.change_head("Creating Python venv using uv")
+        venv_cmd = ["uv", "venv", "env", "--seed", "--relocatable", "--no-project"]
+        if self.config.release.python_version:
+            venv_cmd += ["--python", self.config.release.python_version]
         self.runner.run(venv_cmd, bench_directory, capture_output=False)
         self.printer.print("Python venv created")
 
@@ -366,16 +313,16 @@ class BenchService:
         self.printer.print(f"Apps python env install time: {elapsed_time:.2f} seconds")
 
         self.printer.change_head("Configuring apps.txt")
-        apps_dir = bench_directory.apps
-        app_names = [d.name for d in apps_dir.iterdir() if d.is_dir()]
-
         apps_txt_path = bench_directory.sites / "apps.txt"
         apps_txt_path.parent.mkdir(parents=True, exist_ok=True)
 
         with apps_txt_path.open("w") as f:
-            for app_name in app_names:
-                app_name = bench_directory.get_app_python_module_name(bench_directory.apps / app_name)
-                f.write(f"{app_name}\n")
+            for app in apps:
+                app_path = bench_directory.apps / app.dir_name
+                if not app_path.is_dir():
+                    continue
+                app_python_module_name = bench_directory.get_app_python_module_name(app_path)
+                f.write(f"{app_python_module_name}\n")
         self.printer.print("Configured apps.txt")
 
     def bench_build(
