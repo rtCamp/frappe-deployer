@@ -10,7 +10,7 @@ fmd = "fmd.app:cli_entrypoint"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-frappe-manager = { git = "https://github.com/rtcamp/frappe-manager.git", rev = "e8eebeef1872106d3516992ed94325754ed31af2" }
+frappe-manager = { git = "https://github.com/rtcamp/frappe-manager.git", rev = "fmx/0" }
 gitpython = "^3.1.43"
 typer = ">=0.21.0,<0.22.0"
 toml = "^0.10.2"
