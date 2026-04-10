@@ -1,274 +1,252 @@
-# Frappe Deployer
+# fmd — Frappe Manager Deployer
 
-A powerful CLI tool for managing and deploying Frappe applications with support for both host and Frappe Manager (FM) modes. Create timestamped releases, manage backups, and deploy with confidence.
+Zero-downtime Frappe deployments with atomic releases and rollback capability.
 
-## Key Features
+## Features
 
-- **Dual Deployment Modes:** Host and Frappe Manager (FM) support
-- **Release Management:** Timestamped releases with rollback capability  
-- **Backup & Restore:** Automated backups with compression and retention policies
-- **Database Operations:** Cross-site migration, restore, and search/replace functionality
-- **Symlink & Subdirectory App Support:** Symlink apps (including subdirectory apps) for efficient workspace management; configurable globally or per-app
-- **Custom Scripts:** Pre/post deployment hooks and per-app build commands (`fm_pre_build`, `fm_post_build`)
-- **Remote Workers:** Distributed deployment across multiple servers
-- **Maintenance Mode:** Built-in maintenance pages with developer bypass tokens
-- **Configuration Management:** TOML-based configuration with CLI overrides
-- **Frappe Cloud Integration:** Import backups and config directly from Frappe Cloud
-- **Python Version Management:** Specify Python versions; UV support for fast Python environments
+- **Atomic Releases**: Timestamped releases with instant symlink-based switching
+- **Zero Downtime**: Workers drain gracefully, maintenance mode during migrations only
+- **Rollback**: Keep N previous releases, instant rollback on failure
+- **4 Deploy Modes**: pull, ship, bake, publish — dev to CI/CD production
+- **Frappe Cloud Sync**: Import apps, deps, and DB backups from FC
+- **Monorepo Support**: Symlink subdirectory apps for efficient workspace management
+
+## Install
+
+```bash
+pip install frappe-deployer  # When available on PyPI
+
+# Or from source
+git clone <repo-url>
+cd fmd
+pip install -e .
+```
+
+**Requirements**: Python 3.10+, Docker + Frappe Manager
 
 ## Quick Start
 
 ```bash
-# Install frappe-deployer
-pip install frappe-deployer
+# 1. Configure workspace (one-time setup)
+fmd release configure site.localhost
 
-# Configure a new site (FM mode)
-frappe-deployer configure my-site-name --mode fm
+# 2. Deploy Frappe + ERPNext
+fmd deploy pull site.localhost \
+  --app frappe/frappe:version-15 \
+  --app frappe/erpnext:version-15 \
+  --maintenance-mode --backups
 
-# Deploy Frappe and ERPNext
-frappe-deployer pull my-site-name \
-  -a frappe/frappe:version-14 \
-  -a frappe/erpnext:version-14 \
-  --maintenance-mode \
-  --verbose
-
-# Check deployment status
-frappe-deployer --version
+# 3. Verify deployment
+fmd release list site.localhost
+fmd info site.localhost
 ```
 
-## Installation
+## Key Commands
 
 ```bash
-# Install from PyPI (when available)
-pip install frappe-deployer
+# Deploy: Full automated deployment (configure → create → switch)
+fmd deploy pull <site>            # Minimal, uses config file
+fmd deploy pull <site> --app frappe/frappe:version-15 --maintenance-mode
 
-# Install from source
-git clone <repository-url>
-cd frappe-deployer  
-pip install -e .
+# Release: Manual control for CI/CD
+fmd release configure <site>      # One-time workspace setup
+fmd release create <site>         # Build new release (safe, no live changes)
+fmd release switch <site> <rel>   # Atomically activate release
+fmd release list <site>           # Show all releases
+
+# Maintenance
+fmd cleanup <site> -r 3 -b 5 -y   # Keep 3 releases, 5 backups
+fmd search-replace <site> "old.com" "new.com" --dry-run
+
+# Remote deploy (build locally, deploy to remote server)
+fmd deploy ship --config site.toml
 ```
 
-### CLI Command Reference
-
-```bash
-# Configure a new site
-frappe-deployer configure <site-name> --mode <fm|host> [--backups] [--config-path <path>]
-
-# Deploy apps from repositories
-frappe-deployer pull <site-name> \
-  --apps frappe/frappe:version-14 \
-  --apps frappe/erpnext:version-14 \
-  --maintenance-mode
-
-# Clone apps (with symlink/subdir support)
-frappe-deployer clone <site-name> \
-  --apps custom-org/custom-app:main:apps/custom-app --symlink-subdir-apps
-
-# Show release info
-frappe-deployer info <site-name>
-
-# Search and replace in database
-frappe-deployer search-replace <site-name> "old-text" "new-text" --dry-run
-
-# Cleanup old releases and backups
-frappe-deployer cleanup <site-name> \
-  --backup-retain-limit 5 \
-  --release-retain-limit 3 \
-  --show-sizes \
-  --yes
-
-# Remote worker management
-frappe-deployer remote-worker enable <site-name> \
-  --server 192.168.1.100 \
-  --ssh-user frappe
-
-frappe-deployer remote-worker sync <site-name> \
-  --server 192.168.1.100
-```
+**App format**: `org/repo:ref` or `org/repo:ref:subdir/path` (for monorepos)
 
 ## Configuration
 
-Create a `config.toml` file:
+Create `site.toml`:
 
 ```toml
-site_name = "my-site"
-mode = "fm"  # or "host"
-python_version = "3.10"
-github_token = "ghp_xxxxxxxxxxxx"  # Optional for private repos
+site_name = "site.localhost"
+bench_name = "site"  # Optional, defaults to site_name
+github_token = "ghp_xxx"  # For private repos
 
-# Deployment settings
-maintenance_mode = true
-maintenance_mode_phases = ["migrate"]
-backups = true
-rollback = true
-releases_retain_limit = 3
-verbose = false
-uv = true
-symlink_subdir_apps = true  # Symlink all subdirectory apps by default
-
-# App configurations
 [[apps]]
 repo = "frappe/frappe"
-ref = "version-14"
-symlink = false (default)
+ref = "version-15"
 
 [[apps]]
-repo = "frappe/erpnext"  
-ref = "version-14"
-symlink = false (default)
+repo = "frappe/erpnext"
+ref = "version-15"
 
-[[apps]]
-repo = "custom-org/custom-app"
-ref = "main"
-subdir_path = "apps/custom-app"
-symlink = true  # Symlink only this app
+[release]
+releases_retain_limit = 7
+symlink_subdir_apps = false  # Auto-symlink monorepo apps
+python_version = "3.11"      # Pin Python version
+use_fc_apps = false          # Import app list from Frappe Cloud
+use_fc_deps = false          # Import Python version from FC
 
-# Custom scripts (FM mode)
-fm_pre_script = '''
-echo "Running pre-deployment checks..."
-'''
+[switch]
+migrate = true
+migrate_timeout = 300
+maintenance_mode = true
+maintenance_mode_phases = ["migrate"]  # Valid: "drain", "migrate"
+backups = true
+rollback = false
+search_replace = true
 
-fm_post_script = '''
-echo "Running post-deployment tasks..."
-bench migrate --site all
-'''
-
-fm_pre_build = '''
-echo "Pre-build for all apps"
-'''
-
-fm_post_build = '''
-echo "Post-build for all apps"
-'''
-
-# Host mode configuration
-[host]
-bench_path = "/home/frappe/frappe-bench"
+# Worker draining
+drain_workers = false
+drain_workers_timeout = 300
+skip_stale_workers = true
+skip_stale_timeout = 15
+worker_kill_timeout = 15
 
 # Frappe Cloud integration
 [fc]
+api_key = "fc_xxx"
+api_secret = "fc_xxx"
+site_name = "mysite.frappe.cloud"
 team_name = "my-team"
-api_key = "fc_xxxxxxxxxxxx"
-api_secret = "fc_yyyyyyyyyyyy"
-site_name = "my-site"
-use_apps = true
-use_deps = true
 
-# Remote worker configuration
+# Remote worker
 [remote_worker]
-server = "192.168.1.100"
+server_ip = "192.168.1.100"
 ssh_user = "frappe"
 ssh_port = 22
 ```
 
+See [`example-config.toml`](example-config.toml) for complete schema with all hooks and options.
+
+## Deploy Modes
+
+| Mode | Use Case | Build Location | Deploy Target |
+|------|----------|----------------|---------------|
+| **pull** | Standard deploy | On-server | Same server |
+| **ship** | Remote deploy | Local machine | Remote server via SSH/rsync |
+| **bake** | CI/CD pre-build | CI runner | Tarball artifact → ship to prod |
+| **publish** | Future: Registry push | CI runner | Image registry |
+
 ## Directory Structure
 
 ```
-./                                    # Your project root
-├── deployment-data/                  # Persistent data directory
-│   ├── sites/                        # Site files and databases
-│   │   ├── common_site_config.json   # Shared configuration
-│   │   └── <site-name>/              # Site-specific data
-│   ├── apps/                         # Symlinked app directories, organized by release
-│   │   └── release_YYYYMMDD_HHMMSS/  # Release-specific symlinked apps
-│   │       └── <app>_clone /         # Symlinked app directory for this release
-│   ├── config/                       # Configuration files  
-│   └── logs/                         # Application logs
-├── deployment-backup/                # Backup storage
-│   └── release_YYYYMMDD_HHMMSS/      # Timestamped backups
-├── .cache/                           # Python venv and workspace cache
-├── prev_frappe_bench/                # Previous bench directory (for rollback)
-└── release_YYYYMMDD_HHMMSS/          # Current release directory
-    ├── apps/                         # Installed applications
-    ├── sites -> ../deployment-data/sites  # Symlinked to data
-    └── env/                          # Python virtual environment
+~/frappe/sites/<site>/
+├── workspace/
+│   ├── frappe-bench → release_YYYYMMDD_HHMMSS  (symlink to current)
+│   ├── deployment-data/        (persistent across releases)
+│   │   ├── sites/              (DB, files)
+│   │   ├── config/             (supervisor configs)
+│   │   └── logs/
+│   ├── release_YYYYMMDD_HHMMSS/  (each release is isolated)
+│   │   ├── apps/
+│   │   ├── env/                (release-scoped Python venv)
+│   │   ├── .uv/                (UV package cache, per-release)
+│   │   ├── .fnm/               (Node.js runtime, per-release)
+│   │   ├── sites → ../deployment-data/sites  (symlink)
+│   │   └── .fmd.toml           (config snapshot)
+│   └── .cache/                 (workspace-level caches)
+└── deployment-backup/
+    └── release_YYYYMMDD_HHMMSS/
 ```
 
-> **Note:**  
-> The `deployment-data/apps/` directory contains symlinked app directories, organized by release.  
-> For each release, symlinked apps are placed under `deployment-data/apps/<release>/<app>/`.  
-> This allows each release to maintain its own set of symlinked apps, supporting efficient workspace management and rollback.
+## Maintenance Mode
 
-## Deployment Modes
+- **Bypass tokens**: `fmd maintenance enable <site>` generates a cookie for dev access during maintenance
+- **Phase control**: Enable maintenance only during `"migrate"` or `"drain"` phases, not full deploy
+- **Nginx integration**: Serves custom page, honors bypass cookie
 
-### Frappe Manager (FM) Mode
-- **Container-based**: Uses Docker containers for isolation
-- **Built-in services**: Database, Redis, and other services managed automatically  
-- **Simplified setup**: Minimal host configuration required
-- **Best for**: Development, staging, and containerized production
+## Remote Workers
 
-### Host Mode  
-- **Direct installation**: Apps installed directly on the host system
-- **Manual services**: You manage database, Redis, and other services
-- **More control**: Direct access to all system components
-- **Best for**: Traditional production deployments
+```bash
+# Enable remote worker (opens Redis/MariaDB ports in docker-compose)
+fmd remote-worker enable <site> --rw-server 192.168.1.100 --force
 
----
+# Sync release to remote worker
+fmd remote-worker sync <site> --rw-server 192.168.1.100
+```
 
-#### Symlink & Subdirectory App Support
+## Frappe Cloud Integration
 
-- Apps can be symlinked instead of copied for efficient workspace management.
-- For apps in subdirectories (e.g., monorepos), use `subdir_path` in the app config.
-- Symlinking can be enabled globally (`symlink_subdir_apps = true`) or per-app (`symlink = true`).
-- Example:
-  ```toml
-  [[apps]]
-  repo = "custom-org/custom-app"
-  ref = "main"
-  subdir_path = "apps/custom-app"
-  symlink = true
-  ```
+Sync apps, Python deps, or DB backups from Frappe Cloud:
 
----
+```toml
+[release]
+use_fc_apps = true   # FC commit hashes override local refs (preserves hooks/symlinks)
+use_fc_deps = true   # Auto-set python_version from FC
 
-#### Frappe Cloud Integration
+[switch]
+use_fc_db = true     # Download and restore latest FC backup at switch time
 
-- You can import backups and config directly from Frappe Cloud by specifying `[fc]` in your config.
-- Set `use_apps = true` and/or `use_deps = true` to automatically import app and dependency info.
-- The deployer will fetch the latest backup and config, and merge with your local settings.
+[fc]
+api_key = "fc_xxx"
+api_secret = "fc_xxx"
+site_name = "mysite.frappe.cloud"
+team_name = "my-team"
+```
 
----
+**Merge behavior**: FC apps are merged with local `[[apps]]` by repo name; FC commit hash overrides local ref, but local hooks/symlink/subdir settings are preserved. Local-only apps are kept.
 
-#### Troubleshooting
+## CI/CD Workflow
 
-- **App repo inaccessible:** Ensure all app repos are public or provide a valid `github_token`.
-- **Symlink errors:** If using symlinks, ensure the target directories exist and are accessible.
-- **Frappe Cloud integration:** Make sure your API credentials are correct and the site exists.
-- **Backup/restore issues:** Only apps with a valid `apps/frappe` directory will trigger DB backup.
+```bash
+# 1. On CI runner: build release artifact
+fmd release create --config prod.toml --mode image --build-dir /tmp/releases
+cd /tmp/releases && tar -czf release.tar.gz release_*
 
----
+# 2. Ship to production server
+scp release.tar.gz prod:/tmp/
+ssh prod "cd /path/to/workspace && tar -xzf /tmp/release.tar.gz"
 
-#### Contributing & Testing
+# 3. Activate release on prod
+ssh prod "fmd release switch --config prod.toml release_20250410_120000"
+```
 
-- See `frappe_deployer/commands/test.py` for test commands.
-- To run tests:  
-  ```bash
-  python -m frappe_deployer.commands.test
-  ```
+**Alternative**: Use `fmd deploy ship --config site.toml` for automated build-local/deploy-remote.
 
----
+## Troubleshooting
+
+**Private repo access**:
+```bash
+# Set GitHub token in config or environment
+export GITHUB_TOKEN=ghp_xxx
+fmd deploy pull --config site.toml
+```
+
+**Symlink app not found**:
+```toml
+[[apps]]
+repo = "my-org/monorepo"
+ref = "main"
+subdir_path = "apps/my-app"  # Path within repo
+symlink = true               # Symlink instead of copy
+```
+
+**FC integration fails**: Verify API credentials with `curl -u fc_key:fc_secret https://frappecloud.com/api/method/press.api.bench.apps`
+
+**Worker drain timeout**: Increase timeouts if workers process long jobs:
+```toml
+[switch]
+drain_workers_timeout = 600  # Wait 10 min for workers to finish
+worker_kill_timeout = 30     # Force-kill after 30s if still running
+```
+
+**Verbose logs**:
+```bash
+fmd -v deploy pull <site>  # Global -v flag before subcommand
+```
+
+See [`docs/troubleshooting.md`](docs/troubleshooting.md) for more.
 
 ## Documentation
 
-- **[Quick Start Guide](docs/quick-start.md)** - Get started in 5 minutes
-- **[Installation Guide](docs/installation.md)** - Setup and requirements  
-- **[Configuration Reference](docs/configuration.md)** - Complete TOML configuration
-- **[Core Concepts](docs/concepts.md)** - Understanding the architecture
-- **[Command Reference](docs/commands/)** - All available commands
-- **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
-
-## Requirements
-
-- Python 3.8 or higher
-- Git
-- Docker and Docker Compose (for FM mode)
-- Frappe Manager (for FM mode)
-- System access for bench management (for Host mode)
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+- **[Configuration Reference](example-config.toml)** — Complete config schema with comments
+- **[Concepts](docs/concepts.md)** — Release lifecycle, modes, directory structure
+- **[Architecture](docs/architecture.md)** — Runner system, mixins, hook lifecycle
+- **[Commands](docs/commands.md)** — Detailed command reference
+- **[Troubleshooting](docs/troubleshooting.md)** — Common issues and solutions
 
 ## License
 
-[License information]
+MIT

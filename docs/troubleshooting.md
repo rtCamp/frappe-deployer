@@ -1,267 +1,305 @@
-# Troubleshooting Guide
+# Troubleshooting
 
-Common issues and solutions when using frappe-deployer.
-
-## Installation Issues
-
-### Python Version Compatibility
-**Problem**: frappe-deployer fails to install or run
-```
-ERROR: Python 3.7 is not supported
-```
-
-**Solution**: Upgrade to Python 3.8 or higher
-```bash
-# Check current version
-python3 --version
-
-# Ubuntu/Debian
-sudo apt update && sudo apt install python3.10
-
-# macOS with Homebrew
-brew install python@3.10
-```
-
-### Permission Errors During Installation
-**Problem**: `pip install` fails with permission errors
-
-**Solution**: Use virtual environment or user installation
-```bash
-# Virtual environment (recommended)
-python3 -m venv frappe-deployer-env
-source frappe-deployer-env/bin/activate
-pip install frappe-deployer
-
-# User installation
-pip install --user frappe-deployer
-```
+Common fmd-specific issues and solutions.
 
 ## Configuration Issues
 
-### GitHub Token Access
-**Problem**: Can't access private repositories
+### Private Repository Access
+**Problem**: Can't clone private repos
 ```
 ERROR: Repository access denied
 ```
 
-**Solution**: Verify token permissions
+**Solution**: Set GitHub token in config or environment
 ```bash
-# Test token access
-curl -H "Authorization: token YOUR_TOKEN" https://api.github.com/user
+# Via config file
+github_token = "ghp_xxx"
 
-# Ensure token has required scopes:
-# - repo (for private repositories)
-# - public_repo (for public repositories)
+# Via environment
+export GITHUB_TOKEN=ghp_xxx
+fmd deploy pull --config site.toml
+
+# Test token
+curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
 ```
 
-### Configuration File Not Loading
-**Problem**: Settings from TOML file ignored
+**Token requires `repo` scope for private repositories.**
 
-**Solution**: Check file path and syntax
+### Invalid TOML Syntax
+**Problem**: Config validation fails with cryptic errors
+
+**Solution**: Validate TOML syntax
 ```bash
-# Verify file exists and is readable
-ls -la config.toml
-cat config.toml
+# Use Python TOML parser
+python3 -c "import tomllib; tomllib.load(open('site.toml', 'rb'))"
 
-# Validate TOML syntax online or with:
-python3 -c "import toml; toml.load('config.toml')"
+# Common issues:
+# - Missing quotes: repo = frappe/frappe  # ❌ Wrong
+#                   repo = "frappe/frappe" # ✅ Correct
+# - Unescaped backslashes in paths (Windows)
+# - Invalid TOML tables: [[apps] instead of [[apps]]
 ```
+
+### Frappe Cloud Integration Failures
+**Problem**: FC sync fails with auth errors
+
+**Solution**: Verify API credentials and site name
+```bash
+# Test FC API access
+curl -u fc_key:fc_secret \
+  https://frappecloud.com/api/method/press.api.bench.apps
+
+# Check team/site names match exactly
+[fc]
+site_name = "mysite.frappe.cloud"  # Must match FC site name
+team_name = "my-team"              # Must match FC team slug
+```
+
+**FC integration requires ALL three fields**: `api_key`, `api_secret`, `site_name` (and optionally `team_name`).
 
 ## Deployment Issues
 
-### Directory Permission Errors
-**Problem**: Can't create or access deployment directories
-```
-ERROR: Permission denied: './deployment-data'
-```
-
-**Solution**: Fix ownership and permissions
-```bash
-# Fix ownership
-sudo chown -R $USER:$USER ./deployment-data
-
-# Set proper permissions
-chmod -R 755 ./deployment-data
-```
-
-### Git Clone Failures
-**Problem**: Repository cloning fails
-```
-ERROR: Could not clone repository frappe/frappe
-```
+### Release Creation Fails
+**Problem**: Git clone or dependency install errors
 
 **Solutions**:
-1. **Check network connectivity**:
+1. **Check network and GitHub access**:
    ```bash
    curl -I https://github.com
+   git ls-remote https://github.com/frappe/frappe.git
    ```
 
-2. **Verify repository exists**:
+2. **Verify app ref exists**:
    ```bash
-   curl -I https://github.com/frappe/frappe
+   # For branch/tag
+   git ls-remote --heads --tags https://github.com/frappe/frappe.git | grep version-15
    ```
 
-3. **Check GitHub token** (for private repos):
+3. **Check system dependencies**:
    ```bash
-   git clone https://YOUR_TOKEN@github.com/owner/repo.git
+   # Ubuntu/Debian
+   sudo apt install python3-dev build-essential mariadb-client libmariadb-dev
+
+   # macOS
+   brew install mariadb-connector-c
    ```
 
-### Database Connection Issues
-**Problem**: Can't connect to database during migration
+### Symlink App Not Found
+**Problem**: Monorepo app deployment fails
+```
+ERROR: Subdir path 'apps/my-app' not found in repo
+```
 
-**Solution**: Verify database service and credentials
+**Solution**: Verify subdir path and symlink config
+```toml
+[[apps]]
+repo = "my-org/monorepo"
+ref = "main"
+subdir_path = "apps/my-app"  # Must exist in repo at this ref
+symlink = true               # Required for subdir apps
+```
+
+**Check repo structure matches**:
 ```bash
-# For FM mode - check container status
-docker ps
-fm logs
+# Clone and verify path exists
+git clone https://github.com/my-org/monorepo.git /tmp/test
+ls /tmp/test/apps/my-app  # Should show app files
+```
 
-# For host mode - check database service
-sudo systemctl status mariadb
-# or
-sudo systemctl status mysql
+### Database Migration Timeout
+**Problem**: Migration exceeds timeout during switch
+
+**Solution**: Increase migration timeout
+```toml
+[switch]
+migrate_timeout = 600  # 10 minutes (default: 300)
+```
+
+**For very large DBs**: Migrate manually before switch, then set `migrate = false`.
+
+### Worker Drain Timeout
+**Problem**: Workers don't finish jobs within timeout
+
+**Solution**: Adjust drain timeouts
+```toml
+[switch]
+drain_workers = true
+drain_workers_timeout = 900  # 15 min (default: 300)
+skip_stale_timeout = 30      # Wait 30s for stale workers
+worker_kill_timeout = 30     # Force kill after 30s
+```
+
+**For critical background jobs**: Manually verify workers finished before deploying:
+```bash
+# FM mode
+docker exec -it <container> supervisorctl status
+
+# Host mode
+supervisorctl status | grep rq
 ```
 
 ## FM Mode Issues
 
-### Docker/Container Problems
-**Problem**: FM commands fail or containers won't start
+### Frappe Manager Not Found
+**Problem**: fmd can't find FM installation
+```
+ERROR: frappe_manager package not found
+```
+
+**Solution**: Install Frappe Manager
+```bash
+pip install frappe-manager
+fm --version
+fm list
+```
+
+**fmd requires FM for Docker container management.**
+
+### Container Connection Issues
+**Problem**: Can't connect to FM site container
 
 **Solutions**:
-1. **Check Docker service**:
+1. **Verify site running**:
    ```bash
-   sudo systemctl status docker
-   docker ps
-   ```
-
-2. **Verify FM installation**:
-   ```bash
-   fm --version
    fm list
+   fm logs site.localhost
    ```
 
-3. **Check container logs**:
+2. **Check Docker**:
    ```bash
-   fm logs SITE_NAME
+   docker ps
+   sudo systemctl status docker
    ```
 
-### Container Resource Issues
-**Problem**: Out of memory or disk space in containers
+3. **Restart site**:
+   ```bash
+   fm stop site.localhost
+   fm start site.localhost
+   ```
 
-**Solution**: Check and adjust resource limits
+### Remote Worker Ports Not Exposed
+**Problem**: Remote worker can't connect to Redis/MariaDB
+
+**Solution**: Enable remote worker mode
 ```bash
-# Check disk usage
-df -h
+# Exposes ports 3306 (MariaDB) and 6379 (Redis)
+fmd remote-worker enable site.localhost --rw-server 192.168.1.100 --force
 
-# Check container resources
-docker stats
-
-# Clean up unused containers/images
-docker system prune
+# Verify docker-compose
+cat ~/frappe/sites/site.localhost/docker-compose.yml | grep ports
 ```
+
+**Without `--force`, only adds config without restarting containers.**
 
 ## Host Mode Issues
 
-### Bench Path Issues
-**Problem**: Can't find or access bench directory
+### Bench Not Found
+**Problem**: Can't locate bench directory
 
-**Solution**: Verify bench path and permissions
+**Solution**: Verify `bench_path` or create new bench
 ```bash
-# Check if bench path exists
-ls -la /path/to/bench
+# Check if bench exists
+ls -la ~/frappe-bench/apps
+cat ~/frappe-bench/apps.txt
 
-# Verify it's a Frappe bench
-ls -la /path/to/bench/apps
-cat /path/to/bench/apps.txt
+# Create new bench (if needed)
+bench init --frappe-branch version-15 ~/frappe-bench
 ```
 
-### Python Environment Issues
-**Problem**: Virtual environment or package installation fails
+**In config**: `bench_path` is mutually exclusive with FM mode.
 
-**Solutions**:
-1. **Check Python installation**:
-   ```bash
-   python3 --version
-   which python3
-   ```
+### Python Version Mismatch
+**Problem**: Bench requires different Python version
 
-2. **Recreate virtual environment**:
-   ```bash
-   rm -rf env
-   python3 -m venv env
-   source env/bin/activate
-   ```
-
-3. **Install system dependencies**:
-   ```bash
-   # Ubuntu/Debian
-   sudo apt install python3-dev python3-venv build-essential
-   
-   # CentOS/RHEL
-   sudo yum install python3-devel gcc
-   ```
-
-## Network and Connectivity
-
-### Proxy Issues
-**Problem**: Can't download packages or clone repositories behind proxy
-
-**Solution**: Configure proxy settings
-```bash
-# Set proxy environment variables
-export HTTP_PROXY=http://proxy.company.com:8080
-export HTTPS_PROXY=http://proxy.company.com:8080
-
-# Configure git proxy
-git config --global http.proxy http://proxy.company.com:8080
+**Solution**: Install correct Python and set explicitly
+```toml
+[release]
+python_version = "3.11"  # Must match system Python
 ```
 
-### DNS Resolution Issues
-**Problem**: Can't resolve GitHub or package repository URLs
-
-**Solution**: Check DNS configuration
 ```bash
-# Test DNS resolution
-nslookup github.com
-dig github.com
+# Ubuntu/Debian
+sudo apt install python3.11 python3.11-dev python3.11-venv
 
-# Try alternative DNS servers
-echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+# macOS
+brew install python@3.11
 ```
+
+**fmd requires Python 3.10+ (not 3.8 as old docs claimed).**
+
+### UV Installation Fails
+**Problem**: UV download or execution errors
+
+**Solution**: fmd auto-downloads UV, but check system compatibility
+```bash
+# Verify UV installed
+ls -la .venv/bin/uv
+
+# Manual install
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**fmd always uses UV for package installs (fallback to pip on UV failure).**
+
+## Rollback and Recovery
+
+### Release Switch Fails Mid-Deployment
+**Problem**: Error during `fmd release switch`
+
+**Recovery**:
+1. **Symlink still points to old release** (switch is atomic via symlink, only changes on success)
+2. **Check current release**:
+   ```bash
+   fmd release list site.localhost
+   readlink ~/frappe/sites/site.localhost/workspace/frappe-bench
+   ```
+3. **Manual rollback** (if needed):
+   ```bash
+   fmd release switch site.localhost release_20250409_150000
+   ```
+
+**Automatic rollback**: Set `rollback = true` in `[switch]` config for auto-rollback on switch failure.
+
+### Restore from Backup
+**Problem**: Deployment corrupted database
+
+**Solution**: Manual restore from deployment-backup
+```bash
+# Find backup
+ls -lt ~/frappe/sites/site.localhost/deployment-backup/
+
+# Restore manually
+cd ~/frappe/sites/site.localhost/workspace/frappe-bench
+bench --site site.localhost restore /path/to/backup.sql.gz
+```
+
+**Automatic backups**: Enabled via `backups = true` in `[switch]` config (default: true).
 
 ## Performance Issues
 
-### Slow Downloads
-**Problem**: Package installation or git clones are very slow
+### Slow App Cloning
+**Problem**: Git clones take forever
 
 **Solutions**:
-1. **Use UV package manager**:
-   ```toml
-   uv = true
-   ```
-
-2. **Check network bandwidth**:
+1. **Check network**:
    ```bash
    speedtest-cli
    ```
 
-3. **Use local mirrors** (for packages):
-   ```bash
-   pip install -i https://pypi.douban.com/simple/ package_name
+2. **Use shallow clone** (future feature, not yet implemented)
+
+3. **Pre-clone locally and use `file://` URL**:
+   ```toml
+   [[apps]]
+   repo = "file:///tmp/frappe-cache"
+   ref = "version-15"
    ```
 
-### High Memory Usage
-**Problem**: System runs out of memory during deployment
+### High Memory During Install
+**Problem**: UV/pip consumes excessive memory
 
 **Solutions**:
-1. **Monitor memory usage**:
-   ```bash
-   free -h
-   htop
-   ```
-
-2. **Reduce parallel operations** (implementation dependent)
-
-3. **Add swap space**:
+1. **Increase swap**:
    ```bash
    sudo fallocate -l 2G /swapfile
    sudo chmod 600 /swapfile
@@ -269,73 +307,122 @@ echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
    sudo swapon /swapfile
    ```
 
-## Backup and Restore Issues
+2. **Monitor resources**:
+   ```bash
+   htop
+   docker stats  # For FM mode
+   ```
 
-### Backup Creation Failures
-**Problem**: Can't create backups before deployment
+## Debugging
 
-**Solution**: Check disk space and permissions
+### Enable Verbose Output
 ```bash
-# Check available disk space
-df -h
-
-# Verify backup directory permissions
-ls -la ./deployment-backup/
-sudo chown -R $USER:$USER ./deployment-backup/
+fmd -v deploy pull site.localhost  # Global -v before subcommand
+fmd -v release switch site.localhost release_20250410_120000
 ```
 
-### Restore Failures
-**Problem**: Database restore from backup fails
+**Verbose mode shows**:
+- Git clone commands
+- Dependency install output
+- Bench command execution
+- Migration logs
 
-**Solutions**:
-1. **Check backup file integrity**:
-   ```bash
-   gzip -t backup_file.sql.gz
-   ```
+### Check Release State
+```bash
+# List all releases
+fmd release list site.localhost
 
-2. **Verify database connectivity**:
-   ```bash
-   mysql -u root -p -e "SHOW DATABASES;"
-   ```
+# Show current symlink
+readlink ~/frappe/sites/site.localhost/workspace/frappe-bench
 
-3. **Check available disk space**:
-   ```bash
-   df -h /var/lib/mysql
-   ```
+# Inspect specific release
+ls -la ~/frappe/sites/site.localhost/workspace/release_20250410_120000/
+cat ~/frappe/sites/site.localhost/workspace/release_20250410_120000/.fmd.toml
+```
+
+### Verify Config
+```bash
+# Show effective config (after overrides)
+fmd info site.localhost --config site.toml
+
+# Validate TOML
+python3 -c "import tomllib; print(tomllib.load(open('site.toml', 'rb')))"
+```
+
+## Common Errors
+
+### `ModuleNotFoundError: No module named 'frappe_manager'`
+**Cause**: Frappe Manager not installed
+
+**Fix**: `pip install frappe-manager`
+
+### `ERROR: bench_path and FM mode are mutually exclusive`
+**Cause**: Config has both `bench_path` set AND trying to use FM mode
+
+**Fix**: Remove `bench_path` from config for FM mode, or set `bench_path` for host mode (one or the other, not both)
+
+### `ERROR: Site not found in Frappe Manager`
+**Cause**: FM site doesn't exist yet
+
+**Fix**: Create site first:
+```bash
+fm create site.localhost
+# Then deploy
+fmd deploy pull site.localhost --config site.toml
+```
+
+### `ERROR: Python 3.9 not supported`
+**Cause**: fmd requires Python 3.10+
+
+**Fix**: Upgrade Python:
+```bash
+# Ubuntu/Debian
+sudo apt install python3.10 python3.10-venv
+
+# macOS
+brew install python@3.10
+```
+
+### `ERROR: use_fc_apps enabled but no FC credentials`
+**Cause**: FC integration enabled without credentials
+
+**Fix**: Add FC config section:
+```toml
+[release]
+use_fc_apps = true
+
+[fc]
+api_key = "fc_xxx"
+api_secret = "fc_xxx"
+site_name = "mysite.frappe.cloud"
+```
 
 ## Getting Help
 
-### Enable Verbose Mode
-Always use `--verbose` flag when troubleshooting:
-```bash
-frappe-deployer pull my-site-name --config-path config.toml --verbose
-```
-
-### Check Logs
-Look for detailed error messages in:
-- Command output (with `--verbose`)
-- System logs (`/var/log/`)
-- Container logs (`fm logs` or `docker logs`)
-
 ### Collect Debug Information
 When reporting issues, include:
-1. frappe-deployer version: `frappe-deployer --version`
-2. Python version: `python3 --version`
-3. Operating system: `uname -a`
-4. Complete command used
-5. Full error output with `--verbose`
-6. Configuration file (remove sensitive tokens)
 
-### Community Support
-- **Documentation**: Check other guides in [docs/](.)
-- **Examples**: See [examples/](examples/) for working configurations
-- **Issues**: Report bugs on GitHub repository
+```bash
+# 1. fmd version
+fmd --version
 
-## Prevention Tips
+# 2. Python version
+python3 --version
 
-1. **Test in development first**: Always test deployments in a dev environment
-2. **Keep backups**: Ensure backup functionality is enabled
-3. **Monitor resources**: Check disk space and memory regularly
-4. **Version control configs**: Keep configuration files in git
-5. **Document customizations**: Note any custom scripts or configurations
-6. **Regular updates**: Keep frappe-deployer updated to latest version
+# 3. OS info
+uname -a
+
+# 4. Full command with verbose output
+fmd -v deploy pull site.localhost 2>&1 | tee debug.log
+
+# 5. Config file (remove tokens)
+cat site.toml | grep -v token | grep -v api_key
+
+# 6. Release state
+fmd release list site.localhost
+```
+
+### Resources
+- **Configuration**: See [example-config.toml](../example-config.toml) for full schema
+- **Concepts**: Read [docs/concepts.md](concepts.md) for architecture understanding
+- **Commands**: Check [docs/commands.md](commands.md) for detailed command reference
