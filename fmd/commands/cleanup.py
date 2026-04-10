@@ -18,7 +18,7 @@ def cleanup(
     show_sizes: bool = typer.Option(True, "--show-sizes", help="Calculate and show directory sizes."),
 ):
     """Cleanup deployment backups and releases."""
-    overrides = {"site_name": bench_name} if bench_name else None
+    overrides = {"bench_name": bench_name, "site_name": bench_name} if bench_name else None
     config = load_config(config_path, overrides=overrides)
     printer = get_printer()
     image_runner, exec_runner, host_runner = build_runners(config)

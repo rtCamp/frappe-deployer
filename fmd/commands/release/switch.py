@@ -33,7 +33,9 @@ def switch(
     """Switch live bench symlink to a previously-created release."""
     overrides: dict = {}
     if bench_name is not None:
-        overrides["site_name"] = bench_name
+        overrides["bench_name"] = bench_name
+        if "site_name" not in overrides:
+            overrides["site_name"] = bench_name
 
     deploy: dict = {}
     if migrate is not None:

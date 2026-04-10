@@ -13,7 +13,7 @@ def info(
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),
 ):
     """Show release info by inspecting each app's git repository."""
-    overrides = {"site_name": bench_name} if bench_name else None
+    overrides = {"bench_name": bench_name, "site_name": bench_name} if bench_name else None
     config = load_config(config_path, overrides=overrides)
     apps_dir = config.bench_path / "apps"
     if not apps_dir.exists():

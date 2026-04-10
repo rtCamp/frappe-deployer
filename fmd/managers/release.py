@@ -26,6 +26,7 @@ class ReleaseManager:
         self.printer = printer
 
         self.site_name = config.site_name
+        self.bench_name = config.bench_name
         self.bench_path = config.bench_path
         self.workspace_root = config.workspace_root
 
@@ -217,7 +218,7 @@ class ReleaseManager:
         import logging
 
         _logger = ContextualLogger(logging.getLogger("fmd"), LoggerContext())
-        supervisor = BenchSupervisor(logger=_logger, docker_client=None, config=None, bench_name=self.site_name)
+        supervisor = BenchSupervisor(logger=_logger, docker_client=None, config=None, bench_name=self.bench_name)
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
