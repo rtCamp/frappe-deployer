@@ -15,7 +15,7 @@ def search_replace(
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would change without making changes."),
 ):
     """Search and replace text across all text fields in the Frappe database."""
-    overrides = {"site_name": bench_name} if bench_name else None
+    overrides = {"bench_name": bench_name, "site_name": bench_name} if bench_name else None
     config = load_config(config_path, overrides=overrides)
     printer = get_printer()
     image_runner, exec_runner, host_runner = build_runners(config)

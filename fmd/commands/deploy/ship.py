@@ -99,7 +99,9 @@ def ship(
     """Ship deploy: create release locally → rsync to remote → switch on remote."""
     overrides: dict = {}
     if bench_name is not None:
-        overrides["site_name"] = bench_name
+        overrides["bench_name"] = bench_name
+        if "site_name" not in overrides:
+            overrides["site_name"] = bench_name
     if apps:
         overrides["apps"] = parse_app_option(apps)
     if github_token is not None:

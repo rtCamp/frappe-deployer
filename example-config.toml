@@ -8,6 +8,11 @@
 site_name = "site.localhost"
 # The name of your Frappe site. Required.
 
+bench_name = ""
+# The bench/container identifier. Defaults to site_name if not specified.
+# For FM mode: this is the container/workspace directory name.
+# Typically left empty (uses site_name), but can be different if needed.
+
 # ============================================================================
 # OPTIONAL: Top-level Settings
 # ============================================================================

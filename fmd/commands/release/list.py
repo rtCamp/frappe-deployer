@@ -38,16 +38,15 @@ def list_releases(
                 import json as toml
 
         config_data = toml.loads(config_path.read_text())
-        site_name = config_data.get("site_name", bench_name)
+        bench_name_from_config = config_data.get("bench_name", config_data.get("site_name", bench_name))
 
         ship_config = config_data.get("ship")
         if ship_config:
             workspace_root = config_path.parent
         else:
-            workspace_root = CLI_BENCHES_DIRECTORY / site_name
+            workspace_root = CLI_BENCHES_DIRECTORY / bench_name_from_config
     elif bench_name:
-        site_name = bench_name
-        workspace_root = CLI_BENCHES_DIRECTORY / site_name
+        workspace_root = CLI_BENCHES_DIRECTORY / bench_name
     else:
         typer.echo("Error: bench_name argument or --config/-c is required.")
         raise typer.Exit(1)

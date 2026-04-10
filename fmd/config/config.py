@@ -35,6 +35,7 @@ class Config(BaseModel):
     _config_file_path: Optional[Path] = PrivateAttr(default=None)
 
     site_name: str = Field(..., description="The name of the site.")
+    bench_name: Optional[str] = Field(None, description="The bench/container identifier. Defaults to site_name.")
     github_token: Optional[str] = Field(None, description="GitHub personal access token.")
     verbose: bool = Field(False, description="Enable verbose output.")
 
@@ -53,6 +54,9 @@ class Config(BaseModel):
 
     @model_validator(mode="after")
     def _configure_apps(self) -> "Config":
+        if self.bench_name is None:
+            self.bench_name = self.site_name
+
         if self.deploy is not None:
             print("WARNING: [deploy] section is deprecated. Please rename to [switch] in your config.")
             if self.switch == SwitchConfig():
@@ -110,14 +114,11 @@ class Config(BaseModel):
         return self
 
     @property
-    def bench_name(self) -> str:
-        return self.bench_path.name
-
-    @property
     def workspace_root(self) -> Path:
         if self.ship and self._config_file_path is not None:
             return self._config_file_path.parent
-        return CLI_BENCHES_DIRECTORY / self.site_name
+        assert self.bench_name is not None
+        return CLI_BENCHES_DIRECTORY / self.bench_name
 
     @property
     def bench_path(self) -> Path:
