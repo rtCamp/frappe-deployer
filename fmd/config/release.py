@@ -19,6 +19,15 @@ class ReleaseConfig(BaseModel):
         description="Docker image used to create releases. Auto-detected from installed frappe-manager version if empty.",
     )
 
+    use_fc_apps: bool = Field(
+        False,
+        description="Import app list from Frappe Cloud. Overrides local [[apps]] refs with FC commit hashes.",
+    )
+    use_fc_deps: bool = Field(
+        False,
+        description="Import python_version from Frappe Cloud dependencies.",
+    )
+
     before_bench_build: Optional[str] = Field(
         None, description="Global fallback: script inside container before bench build."
     )

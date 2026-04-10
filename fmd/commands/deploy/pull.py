@@ -183,6 +183,10 @@ def pull(
         release["python_version"] = python_version
     if node_version is not None:
         release["node_version"] = node_version
+    if fc_use_deps is not None:
+        release["use_fc_deps"] = fc_use_deps
+    if fc_use_apps is not None:
+        release["use_fc_apps"] = fc_use_apps
     if release:
         overrides["release"] = release
 
@@ -196,13 +200,12 @@ def pull(
             fc["site_name"] = fc_site
         if fc_team:
             fc["team_name"] = fc_team
-        if fc_use_deps is not None:
-            fc["use_deps"] = fc_use_deps
-        if fc_use_db is not None:
-            fc["use_db"] = fc_use_db
-        if fc_use_apps is not None:
-            fc["use_apps"] = fc_use_apps
         overrides["fc"] = fc
+
+    if fc_use_db is not None:
+        if "switch" not in overrides:
+            overrides["switch"] = {}
+        overrides["switch"]["use_fc_db"] = fc_use_db
 
     if rw_server:
         rw: dict = {"server_ip": rw_server}
