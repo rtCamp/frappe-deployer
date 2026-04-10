@@ -139,7 +139,9 @@ class ShipManager:
 
     def _remote_switch(self, release_name: str, remote_config_path: str) -> None:
         self.printer.change_head(f"Switching remote to release {release_name}")
-        self._remote_fmd_command(["release", "switch", "--config", remote_config_path, release_name], capture=False)
+        self._remote_fmd_command(
+            ["release", "switch", "--config", remote_config_path, self.config.bench_name, release_name], capture=False
+        )
         self.printer.print(f"Remote switched to [blue]{release_name}[/blue]")
 
     def deploy(self, config_path: Path, existing_release: str | None = None, skip_rsync: bool = False) -> None:
