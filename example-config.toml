@@ -122,6 +122,22 @@ host_after_python_install = ""
 # Global script on host after pip install
 
 # ============================================================================
+# CONFIGURE: Initial Bench Configuration
+# ============================================================================
+# Settings for `fmd release configure` - the one-time setup that converts
+# a plain bench into a versioned release structure.
+# Configure uses [switch] settings for drain_workers, migrate_timeout, etc.
+
+[configure]
+backups = true
+# Take DB backup before configure. Default: true
+# CLI: --backups / --no-backups
+
+rollback = true
+# Roll back changes if configure fails. Default: true
+# Cleanup includes: removing symlinks, restoring original bench directory.
+
+# ============================================================================
 # SWITCH: Release Switch Configuration
 # ============================================================================
 
