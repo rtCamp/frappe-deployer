@@ -11,7 +11,7 @@ class SwitchConfig(BaseModel):
     migrate_command: Optional[str] = Field(None, description="Custom migrate command override.")
     maintenance_mode: bool = Field(True, description="Enable maintenance mode during restart/migrate/install.")
     maintenance_mode_phases: List[str] = Field(
-        default_factory=list,
+        default_factory=lambda: ["migrate"],
         description="Phases in which maintenance mode is active: 'drain' and/or 'migrate'.",
     )
     backups: bool = Field(True, description="Take DB backup before switch.")
