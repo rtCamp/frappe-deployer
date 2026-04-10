@@ -35,11 +35,13 @@ class DockerRunner(CommandRunner):
         verbose: bool,
         printer,
         docker_host: Optional[str] = None,
+        platform: Optional[str] = None,
     ) -> None:
         super().__init__(verbose, printer)
         self.mode = mode
         self.config = config
         self.docker_host = docker_host
+        self.platform = platform
 
     def _resolve_image(self) -> str:
         if self.config.release.runner_image:
@@ -141,13 +143,15 @@ class DockerRunner(CommandRunner):
             "LANG": "en_US.UTF-8",
             "LANGUAGE": "en_US.UTF-8",
         }
-        for _k in ("DOCKER_HOST", "GITHUB_TOKEN", "GIT_TOKEN", "UV_LINK_MODE"):
+        for _k in ("DOCKER_HOST", "GITHUB_TOKEN", "GIT_TOKEN", "UV_LINK_MODE", "DOCKER_DEFAULT_PLATFORM"):
             if _k in os.environ:
                 base_env[_k] = os.environ[_k]
         if env:
             base_env.update(env)
         if self.docker_host:
             base_env["DOCKER_HOST"] = self.docker_host
+        if self.platform:
+            base_env["DOCKER_DEFAULT_PLATFORM"] = self.platform
 
         docker_command = " ".join(command)
         docker_command = f"-c 'source /etc/bash.bashrc; {docker_command}'"

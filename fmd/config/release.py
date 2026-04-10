@@ -6,10 +6,19 @@ from pydantic import BaseModel, ConfigDict, Field
 class ReleaseConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    releases_retain_limit: int = Field(7, description="Number of releases to retain.")
+    mode: Optional[str] = Field(None, description="Runner mode: 'image' or 'exec'. Defaults to 'exec'.")
+    runner_image: Optional[str] = Field(
+        None,
+        description="Override Docker image for image mode. Auto-detects frappe-manager version if not set.",
+    )
+    platform: Optional[str] = Field(
+        None,
+        description="Docker platform for multi-arch images (e.g., 'linux/amd64', 'linux/arm64'). Auto-detected if not set.",
+    )
+    releases_retain_limit: int = Field(7, description="Number of releases to retain during cleanup.")
     symlink_subdir_apps: bool = Field(
         False,
-        description="Symlink all apps that have a subdir_path configured. Can be overridden per-app.",
+        description="Symlink monorepo subdirectory apps instead of copying.",
     )
     mode: Optional[str] = Field(None, description="Runner mode: 'image' or 'exec'. Defaults to 'exec'.")
     python_version: Optional[str] = Field(None, description="Python version to bake into the release via uv.")

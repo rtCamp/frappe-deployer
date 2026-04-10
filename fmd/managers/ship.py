@@ -21,12 +21,15 @@ class ShipManager:
 
         docker_host = f"ssh://{config.ship.ssh_user}@{config.ship.host}"
 
+        platform = self._detect_platform()
+
         self.remote_image_runner = DockerRunner(
             mode="image",
             config=config,
             verbose=config.verbose,
             printer=printer,
             docker_host=docker_host,
+            platform=platform,
         )
 
         self.release_manager = ReleaseManager(
@@ -36,6 +39,23 @@ class ShipManager:
             host_runner,
             printer,
         )
+
+    def _detect_platform(self) -> str | None:
+        if self.config.release.platform:
+            return self.config.release.platform
+
+        try:
+            arch = self.ssh.run("uname -m", capture=True).strip()
+            if arch == "x86_64":
+                return "linux/amd64"
+            elif arch == "aarch64":
+                return "linux/arm64"
+            else:
+                self.printer.warning(f"Unknown remote architecture '{arch}', Docker will use default platform")
+                return None
+        except Exception as e:
+            self.printer.warning(f"Failed to detect remote architecture: {e}")
+            return None
 
     def _pull_image_locally(self, image: str) -> None:
         self.printer.change_head(f"Pulling image {image} locally")
