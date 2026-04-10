@@ -174,9 +174,8 @@ class ReleaseManager:
             if bench_script_path.exists():
                 bench_script_path.unlink()
 
-    def configure(self, backups: Optional[bool] = None) -> None:
-        if backups is None:
-            backups = self.config.switch.backups
+    def configure(self) -> None:
+        backups = self.config.configure.backups
 
         if self.current.path.is_symlink():
             raise SiteAlreadyConfigured(str(self.current.path))

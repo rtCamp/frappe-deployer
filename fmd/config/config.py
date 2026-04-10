@@ -20,6 +20,7 @@ except Exception:
 
 from fmd.config.app import AppConfig
 from fmd.config.bake import BakeConfig, BakeNginxConfig
+from fmd.config.configure import ConfigureConfig
 from fmd.config.deploy import DeployConfig
 from fmd.config.switch import SwitchConfig
 from fmd.config.fc import FCConfig
@@ -43,6 +44,7 @@ class Config(BaseModel):
 
     release: ReleaseConfig = Field(default_factory=ReleaseConfig)
     switch: SwitchConfig = Field(default_factory=SwitchConfig)
+    configure: ConfigureConfig = Field(default_factory=ConfigureConfig)
     deploy: Optional[DeployConfig] = Field(None, description="DEPRECATED: Use [switch] instead.")
 
     bake: Optional[BakeConfig] = Field(None, description="Frappe image build configuration.")
@@ -173,6 +175,7 @@ class Config(BaseModel):
             _NESTED_SECTIONS = {
                 "bake",
                 "bake_nginx",
+                "configure",
                 "deploy",
                 "switch",
                 "release",
