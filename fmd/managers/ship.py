@@ -130,9 +130,11 @@ class ShipManager:
 
     def _remote_configure_if_needed(self, remote_config_path: str) -> None:
         remote_bench = f"{self.config.ship.remote_path}/workspace/frappe-bench"
-        if not self.ssh.is_symlink(remote_bench):
+        if not self.ssh.is_symlink(remote_bench) and not Path(remote_bench).exists():
             self.printer.change_head("Remote bench not configured — running fmd release configure")
-            self._remote_fmd_command(["release", "configure", "--config", remote_config_path], capture=False)
+            self._remote_fmd_command(
+                ["release", "configure", "--config", remote_config_path, "--no-backups"], capture=False
+            )
             self.printer.print("Remote configure complete")
 
     def _remote_switch(self, release_name: str, remote_config_path: str) -> None:
