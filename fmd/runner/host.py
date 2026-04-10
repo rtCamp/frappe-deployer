@@ -50,6 +50,9 @@ class HostRunner(CommandRunner):
     def backup_path(self, host_backup_dir: Path, file_name: str) -> str:
         return str((host_backup_dir / file_name).absolute())
 
+    def restart_services(self, args: List[str], bench_directory) -> None:
+        raise NotImplementedError("HostRunner does not support restart_services - use FM or direct bench commands")
+
     def run(
         self,
         command: list[str],
