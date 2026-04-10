@@ -218,7 +218,7 @@ class ReleaseManager:
                 self.current,
                 self.site_name,
                 self._host_run,
-                **{**self._restart_kwargs(), "migrate": False},
+                **self._restart_kwargs(),
             )
 
         except Exception:
