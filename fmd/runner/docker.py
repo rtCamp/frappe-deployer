@@ -100,6 +100,8 @@ class DockerRunner(CommandRunner):
     ) -> Union[Iterable[Tuple[str, bytes]], SubprocessOutput, None]:
         start_time = time.time() if self.verbose else None
 
+        self._log_command(command, mode=self.mode)
+
         if self.mode == "image":
             result = self._run_in_image(command, bench_directory, capture_output, live_lines, workdir, env)
         else:
