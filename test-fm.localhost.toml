@@ -1,0 +1,55 @@
+site_name = "fm.localhost"
+verbose = false
+
+
+[[apps]]
+repo = "frappe/frappe"
+ref = "version-16"
+
+[[apps]]
+repo = "frappe/erpnext"
+ref = "version-16"
+
+#
+# [[apps]]
+# repo = "myorg/custom-app"
+# ref = "main"
+# subdir_path = "apps/custom-app"
+# symlink = true
+
+[release]
+releases_retain_limit = 7
+symlink_subdir_apps = false
+
+[switch]
+migrate = false
+migrate_timeout = 300
+maintenance_mode = true
+maintenance_mode_phases = []
+backups = false
+rollback = false
+search_replace = true
+sync_workers = false
+drain_workers = false
+drain_workers_timeout = 300
+drain_workers_poll = 5
+skip_stale_workers = true
+skip_stale_timeout = 15
+worker_kill_timeout = 15
+worker_kill_poll = 3.0
+
+# Frappe Cloud integration (uncomment to use):
+# [fc]
+# api_key = "fc_key_xxxxxxxxxxxx"
+# api_secret = "fc_secret_xxxxxxxxxxxx"
+# site_name = "mysite.frappe.cloud"
+# team_name = "my-team"
+# use_deps = false
+# use_db = false
+# use_apps = false
+
+# Remote worker (uncomment to use):
+# [remote_worker]
+# server_ip = "192.168.1.100"
+# ssh_user = "frappe"
+# ssh_port = 22

@@ -46,7 +46,7 @@ class ShipManager:
 
     def _rsync_release(self, release_name: str) -> None:
         local_src = str(self.config.workspace_root / "workspace" / release_name) + "/"
-        remote_dest = f"{self.config.ship.remote_path}/{release_name}/"
+        remote_dest = f"{self.config.ship.remote_path}/workspace/{release_name}/"
         self.printer.change_head(f"Syncing release {release_name} to remote")
         self.ssh.rsync(local_src, remote_dest, self.config.ship.rsync_options)
         self.printer.print("Release synced")
@@ -70,7 +70,7 @@ class ShipManager:
         try:
             return self.ssh.run("command -v uvx").strip()
         except RuntimeError:
-            return "~/.local/bin/uvx"
+            return f"/home/{self.config.ship.ssh_user}/.local/bin/uvx"
 
     def _resolve_fmd_source(self) -> str:
         if self.config.ship.fmd_source:
@@ -129,7 +129,7 @@ class ShipManager:
         return self.ssh.run_list(cmd, capture=capture)
 
     def _remote_configure_if_needed(self, remote_config_path: str) -> None:
-        remote_bench = f"{self.config.ship.remote_path}/frappe-bench"
+        remote_bench = f"{self.config.ship.remote_path}/workspace/frappe-bench"
         if not self.ssh.is_symlink(remote_bench):
             self.printer.change_head("Remote bench not configured — running fmd release configure")
             self._remote_fmd_command(["release", "configure", "--config", remote_config_path], capture=False)
@@ -140,18 +140,28 @@ class ShipManager:
         self._remote_fmd_command(["release", "switch", "--config", remote_config_path, release_name], capture=False)
         self.printer.print(f"Remote switched to [blue]{release_name}[/blue]")
 
-    def deploy(self, config_path: Path) -> None:
-        image = self.remote_image_runner._resolve_image()
-        self._pull_image_locally(image)
+    def deploy(self, config_path: Path, existing_release: str | None = None, skip_rsync: bool = False) -> None:
+        if existing_release:
+            local_release_path = self.config.workspace_root / "workspace" / existing_release
+            if not local_release_path.exists() and not skip_rsync:
+                raise RuntimeError(f"Existing release {existing_release} not found at {local_release_path}")
+            release_name = existing_release
+            self.printer.print(f"Using existing release [blue]{release_name}[/blue]")
+        else:
+            image = self.remote_image_runner._resolve_image()
+            self._pull_image_locally(image)
 
-        self.config.release.runner_image = image
+            self.config.release.runner_image = image
 
-        release_name = self.release_manager.create()
-        self.printer.print(f"Release [blue]{release_name}[/blue] created locally")
+            release_name = self.release_manager.create()
+            self.printer.print(f"Release [blue]{release_name}[/blue] created locally")
 
-        self._rsync_release(release_name)
+        if not skip_rsync:
+            self._rsync_release(release_name)
+            self._rsync_config(config_path)
+        else:
+            self.printer.print("Skipping rsync (--skip-rsync enabled)")
 
-        self._rsync_config(config_path)
         remote_config_path = f"{self.config.ship.remote_path}/{config_path.name}"
 
         self._ensure_uv_on_remote()
