@@ -50,14 +50,6 @@ class HostRunner(CommandRunner):
     def backup_path(self, host_backup_dir: Path, file_name: str) -> str:
         return str((host_backup_dir / file_name).absolute())
 
-    def restart_services(self, args: List[str], bench_directory) -> None:
-        for service in ["workers", "web"]:
-            self.run(
-                ["sudo", "supervisorctl", "restart", f"frappe-bench-{service}:"],
-                bench_directory,
-                capture_output=False,
-            )
-
     def run(
         self,
         command: list[str],
