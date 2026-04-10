@@ -383,7 +383,7 @@ class ReleaseManager:
 
         except Exception as e:
             if self.config.switch.rollback:
-                self.printer.error(f"Failed to switch to release {release_name}, rolling back")
+                self.printer.warning(f"Failed to switch to release {release_name}, rolling back")
                 if self.bench_path.exists() or self.bench_path.is_symlink():
                     self.bench_path.unlink()
                 self.bench_service.bench_symlink(self.bench_path, BenchDirectory(previous_release))
@@ -393,7 +393,7 @@ class ReleaseManager:
                     self.current,
                     self.site_name,
                     self._host_run,
-                    **self._restart_kwargs(),
+                    **{**self._restart_kwargs(), "migrate": False},
                 )
                 self.printer.print("Rolled back to previous release")
             raise
