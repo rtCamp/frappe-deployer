@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any, Optional
 import subprocess
+import sys
 
 try:
     import typer
@@ -14,8 +15,22 @@ from fmd.runner.host import HostRunner
 
 try:
     from frappe_manager.output_manager import RichOutputHandler
+    from fmd.logger import get_logger
+    from fmd.logger.logging_output import LoggingOutputHandler
 
-    _printer = RichOutputHandler()
+    _base_printer = RichOutputHandler()
+
+    console_level = "DEBUG" if "-v" in sys.argv or "--verbose" in sys.argv else None
+    _logger = get_logger(console_level=console_level, file_level="DEBUG")
+
+    _logger.info("")
+    _logger.info(f"{'=' * 20} FMD Invoked {'=' * 20}")
+    _logger.info(f"COMMAND: {' '.join(sys.argv)}")
+    _logger.info(f"CWD: {Path.cwd()}")
+    _logger.info("=" * 60)
+    _logger.info("")
+
+    _printer = LoggingOutputHandler(_base_printer, _logger)
 except Exception:
 
     class _PrinterStub:

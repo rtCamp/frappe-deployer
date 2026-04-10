@@ -64,6 +64,8 @@ class HostRunner(CommandRunner):
     ) -> Union[Iterable[Tuple[str, bytes]], SubprocessOutput, None]:
         start_time = time.time() if self.verbose else None
 
+        self._log_command(command, mode="host")
+
         base_env = os.environ.copy()
         if env:
             base_env.update(env)

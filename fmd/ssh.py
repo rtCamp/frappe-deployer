@@ -21,8 +21,19 @@ class SSHClient:
             f"{self.user}@{self.host}",
         ]
 
+    def _log_command(self, command: str, command_type: str = "SSH") -> None:
+        try:
+            from fmd.logger import get_logger
+
+            logger = get_logger()
+            logger.debug(f"{command_type} [{self.user}@{self.host}]: {command}")
+        except Exception:
+            pass
+
     def run(self, command: str, workdir: Optional[str] = None, capture: bool = True) -> str:
         remote_cmd = f"cd {shlex.quote(workdir)} && {command}" if workdir else command
+        self._log_command(remote_cmd)
+
         result = subprocess.run(
             self._base_cmd() + [remote_cmd],
             capture_output=capture,
@@ -45,6 +56,8 @@ class SSHClient:
                 f"{self.user}@{self.host}:{remote_dest}",
             ]
         )
+        self._log_command(f"rsync {local_src} -> {self.user}@{self.host}:{remote_dest}", "RSYNC")
+
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"rsync failed (exit {result.returncode}):\n{result.stderr}")

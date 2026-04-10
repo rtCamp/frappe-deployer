@@ -32,6 +32,15 @@ class CommandRunner(ABC):
         self.verbose = verbose
         self.printer = printer
 
+    def _log_command(self, command: list[str], mode: str = "exec") -> None:
+        try:
+            from fmd.logger import get_logger
+
+            logger = get_logger()
+            logger.debug(f"COMMAND [{mode}]: {' '.join(command)}")
+        except Exception:
+            pass
+
     def _log_timing(self, start_time: Optional[float], command: list) -> None:
         if self.verbose and start_time is not None:
             elapsed = time.time() - start_time
@@ -39,6 +48,13 @@ class CommandRunner(ABC):
                 f"Time Taken: {elapsed:.2f} sec, Command: '{' '.join(command)}'",
                 emoji_code=":robot_face:",
             )
+            try:
+                from fmd.logger import get_logger
+
+                logger = get_logger()
+                logger.debug(f"TIMING: {elapsed:.2f}s for command: {' '.join(command)}")
+            except Exception:
+                pass
 
     @property
     def supports_db_restore(self) -> bool:
