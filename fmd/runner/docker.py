@@ -153,7 +153,7 @@ class DockerRunner(CommandRunner):
         effective_workdir = workdir or "/workspace/frappe-bench"
         image = self._resolve_image()
 
-        volumes = [f"{bench_directory.path}:/workspace/frappe-bench"]
+        volumes = [f"{bench_directory.path.absolute()}:/workspace/frappe-bench"]
 
         output = _DockerClient().run(
             image=image,
