@@ -18,6 +18,7 @@ class SwitchConfig(BaseModel):
     rollback: bool = Field(False, description="Roll back to previous release on failure.")
     search_replace: bool = Field(True, description="Run search-and-replace in DB after restore.")
     sync_workers: bool = Field(False, description="Sync to remote workers after deploy.")
+    use_fc_db: bool = Field(False, description="Download and restore latest Frappe Cloud backup at switch time.")
 
     drain_workers: bool = Field(False, description="Drain workers before restart.")
     drain_workers_timeout: int = Field(300, description="Seconds to wait for workers to drain.")

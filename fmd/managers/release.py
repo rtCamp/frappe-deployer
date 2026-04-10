@@ -46,6 +46,46 @@ class ReleaseManager:
         self.bench_cli: str = "bench"
         self.site_installed_apps: dict = {}
 
+    def _get_merged_apps_list(self):
+        apps = list(self.config.apps)
+
+        if self.config.fc and self.config.release.use_fc_apps:
+            try:
+                from fmd.fc.data_source import FCDataSource
+
+                fc_source = FCDataSource(self.config.fc)
+                fc_apps = fc_source.get_apps()
+
+                if fc_apps:
+                    apps_by_repo = {app.repo.lower(): app for app in apps}
+
+                    for fc_app in fc_apps:
+                        repo_key = fc_app.repo.lower()
+                        if repo_key in apps_by_repo:
+                            local_app = apps_by_repo[repo_key]
+                            local_app.ref = fc_app.ref
+                        else:
+                            apps.append(fc_app)
+
+                    self.printer.print(f"Merged {len(fc_apps)} apps from Frappe Cloud")
+            except Exception as e:
+                self.printer.warning(f"Failed to fetch FC apps: {e}")
+
+        if self.config.fc and self.config.release.use_fc_deps:
+            try:
+                from fmd.fc.data_source import FCDataSource
+
+                fc_source = FCDataSource(self.config.fc)
+                fc_python_version = fc_source.get_python_version()
+
+                if fc_python_version and not self.config.release.python_version:
+                    self.config.release.python_version = fc_python_version
+                    self.printer.print(f"Using Python {fc_python_version} from Frappe Cloud")
+            except Exception as e:
+                self.printer.warning(f"Failed to fetch FC python version: {e}")
+
+        return apps
+
     def _get_site_installed_apps(self, bench_directory: BenchDirectory) -> dict:
         command = [self.bench_cli, "list-apps", "-f", "json"]
         try:
@@ -292,7 +332,7 @@ class ReleaseManager:
 
         self.printer.change_head("Configuring new release dirs")
 
-        apps = self.config.apps
+        apps = self._get_merged_apps_list()
 
         if self.config.switch.backups and not self.config.ship:
             self.backup_service.bench_db_and_configs_backup(
@@ -350,7 +390,7 @@ class ReleaseManager:
                 self.current, self.backup, self.site_name, self.bench_cli, self.workspace_root
             )
 
-        if self.config.fc and self.config.fc.use_db:
+        if self.config.fc and self.config.switch.use_fc_db:
             from fmd.fc.data_source import FCDataSource
 
             fc_source = FCDataSource(self.config.fc)

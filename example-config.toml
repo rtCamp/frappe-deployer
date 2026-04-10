@@ -93,6 +93,14 @@ node_version = ""
 runner_image = ""
 # Docker image for release creation in image mode. Empty = auto-detect from frappe-manager.
 
+use_fc_apps = false
+# Import app list from Frappe Cloud. Overrides local [[apps]] refs with FC commit hashes. Default: false
+# Requires [fc] section with FC credentials. Preserves local app configs (hooks, symlink, subdir_path).
+
+use_fc_deps = false
+# Import python_version from Frappe Cloud dependencies. Default: false
+# Only sets python_version if not explicitly configured locally. Requires [fc] section.
+
 # Global build hooks (container):
 before_bench_build = ""
 # Global script inside container before bench build (fallback for apps without their own)
@@ -144,6 +152,9 @@ search_replace = true
 
 sync_workers = false
 # Sync to remote workers after successful switch. Default: false
+
+use_fc_db = false
+# Download latest FC backup and restore at switch time. Default: false
 
 # Worker draining configuration:
 drain_workers = false
@@ -205,15 +216,6 @@ site_name = ""
 # Frappe Cloud site name
 team_name = ""
 # Frappe Cloud team name
-
-use_deps = false
-# Auto-set python_version from FC dependencies. Default: false
-
-use_db = false
-# Download latest FC backup and restore at switch time. Default: false
-
-use_apps = false
-# Replace [[apps]] with FC app list. Default: false
 
 # ============================================================================
 # REMOTE WORKER: Distributed Deployment
