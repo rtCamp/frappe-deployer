@@ -93,6 +93,12 @@ node_version = ""
 runner_image = ""
 # Docker image for release creation in image mode. Empty = auto-detect from frappe-manager.
 
+platform = ""
+# Docker platform for multi-arch images (e.g., "linux/amd64", "linux/arm64"). Empty = auto-detect.
+# Ship mode: automatically detects remote server architecture
+# Image mode: uses local architecture unless explicitly set
+# Use this to force a specific platform when deploying cross-architecture (e.g., ARM64 server from AMD64 laptop)
+
 use_fc_apps = false
 # Import app list from Frappe Cloud. Overrides local [[apps]] refs with FC commit hashes. Default: false
 # Requires [fc] section with FC credentials. Preserves local app configs (hooks, symlink, subdir_path).
