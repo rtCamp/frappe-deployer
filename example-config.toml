@@ -138,8 +138,10 @@ migrate_command = ""
 maintenance_mode = true
 # Enable maintenance mode during switch operations. Default: true
 
-maintenance_mode_phases = []
-# Phases to enable maintenance mode: ["drain", "migrate"]. Empty = all phases.
+maintenance_mode_phases = ["migrate"]
+# Phases to enable maintenance mode. Valid: "drain", "migrate". Default: ["migrate"]
+# Empty list = no phase restriction (maintenance enabled for all phases).
+# Example: ["drain", "migrate"] = enable during both drain and migrate phases.
 
 backups = true
 # Take database backup before switch. Default: true

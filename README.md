@@ -98,7 +98,7 @@ github_token = "ghp_xxxxxxxxxxxx"  # Optional for private repos
 
 # Deployment settings
 maintenance_mode = true
-maintenance_mode_phases = ["migrate", "start"]
+maintenance_mode_phases = ["migrate"]
 backups = true
 rollback = true
 releases_retain_limit = 3
