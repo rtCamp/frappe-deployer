@@ -158,9 +158,10 @@ class ShipManager:
 
         if not skip_rsync:
             self._rsync_release(release_name)
-            self._rsync_config(config_path)
         else:
-            self.printer.print("Skipping rsync (--skip-rsync enabled)")
+            self.printer.print("Skipping release rsync (--skip-rsync enabled)")
+
+        self._rsync_config(config_path)
 
         remote_config_path = f"{self.config.ship.remote_path}/{config_path.name}"
 
