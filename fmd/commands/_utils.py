@@ -20,8 +20,8 @@ try:
 
     _base_printer = RichOutputHandler()
 
-    console_level = "DEBUG" if "-v" in sys.argv or "--verbose" in sys.argv else None
-    _logger = get_logger(console_level=console_level, file_level="DEBUG")
+    # Only log to file, not console (console would clutter output)
+    _logger = get_logger(console_level=None, file_level="DEBUG")
 
     _logger.info("")
     _logger.info(f"{'=' * 20} FMD Invoked {'=' * 20}")
