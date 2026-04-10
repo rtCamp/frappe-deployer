@@ -59,6 +59,6 @@ def configure(
     image_runner, exec_runner, host_runner = build_runners(config)
     printer.start("Configuring")
     manager = ReleaseManager(config, image_runner, exec_runner, host_runner, printer)
-    manager.configure()
+    manager.configure(backups=backups)
     printer.stop()
     typer.echo("Configure complete.")
