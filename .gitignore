@@ -3,3 +3,4 @@ __pycache__
 fmd_old
 .aider*
 .env
+.tmp/*

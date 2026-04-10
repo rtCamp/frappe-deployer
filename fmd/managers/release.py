@@ -343,7 +343,7 @@ class ReleaseManager:
         self.new = BenchDirectory(base_dir / gen_name_with_timestamp(RELEASE_DIR_NAME))
 
         for dir_path in [self.new.path, self.new.apps, self.new.sites]:
-            dir_path.mkdir(exist_ok=True)
+            dir_path.mkdir(parents=True, exist_ok=True)
             self.printer.print(f"Created dir [blue]{dir_path.name}[/blue]")
         (self.new.path / "config" / "pids").mkdir(parents=True, exist_ok=True)
         (self.new.path / "logs").mkdir(parents=True, exist_ok=True)
