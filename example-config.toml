@@ -19,9 +19,6 @@ github_token = ""
 verbose = true
 # Enable verbose output for all commands. Default: false
 
-uv = true
-# Use uv instead of pip for faster Python package installation. Default: true
-
 # ============================================================================
 # APPS: Application Configuration
 # ============================================================================
