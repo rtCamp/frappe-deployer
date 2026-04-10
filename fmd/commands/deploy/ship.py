@@ -16,6 +16,20 @@ def ship(
     github_token: Optional[str] = typer.Option(
         None, "--github-token", help="GitHub personal access token.", show_default=False
     ),
+    existing_release: Optional[str] = typer.Option(
+        None,
+        "--existing-release",
+        help="Use existing release instead of creating new one. Format: release_YYYYMMDD_HHMMSS",
+        show_default=False,
+        rich_help_panel="Release Options",
+    ),
+    skip_rsync: bool = typer.Option(
+        False,
+        "--skip-rsync",
+        help="Skip rsync step (for testing when release already on remote)",
+        show_default=False,
+        rich_help_panel="Release Options",
+    ),
     python_version: Optional[str] = typer.Option(
         None,
         "--python-version",
@@ -162,6 +176,6 @@ def ship(
 
     printer.start("Shipping")
     manager = ShipManager(config, image_runner, exec_runner, host_runner, printer)
-    manager.deploy(config_path.resolve())
+    manager.deploy(config_path.resolve(), existing_release=existing_release, skip_rsync=skip_rsync)
     printer.stop()
     typer.echo("Ship complete.")

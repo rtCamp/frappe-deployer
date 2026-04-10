@@ -58,7 +58,7 @@ class Config(BaseModel):
             self.bench_name = self.site_name
 
         if self.ship is not None and self.ship.remote_path is None:
-            self.ship.remote_path = f"/home/{self.ship.ssh_user}/frappe/sites/{self.site_name}/workspace"
+            self.ship.remote_path = f"/home/{self.ship.ssh_user}/frappe/sites/{self.site_name}"
 
         if self.deploy is not None:
             print("WARNING: [deploy] section is deprecated. Please rename to [switch] in your config.")
@@ -125,6 +125,8 @@ class Config(BaseModel):
 
     @property
     def bench_path(self) -> Path:
+        if self.ship and self._config_file_path is not None:
+            return self.workspace_root / "workspace" / "frappe-bench"
         return self.workspace_root / "workspace" / "frappe-bench"
 
     def to_toml(self, file_path: Path) -> None:
