@@ -222,7 +222,8 @@ class ReleaseManager:
             )
 
         except Exception:
-            self._rollback_configure(renamed)
+            if self.config.configure.rollback:
+                self._rollback_configure(renamed)
             raise
 
     def _seed_release_runtimes(self, release_path: Path) -> None:
