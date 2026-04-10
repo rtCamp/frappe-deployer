@@ -1,12 +1,11 @@
 [tool.poetry]
-name = "frappe-deployer"
-version = "0.13.1"
+name = "fmd"
+version = "1.0.0"
 description = "Automates setup and management of Frappe/Frappe-Manager environments using flags or config file."
 authors = ["Alok Singh <alokmilenium@gmail.com>"]
 license = "MIT"
 
 [tool.poetry.scripts]
-frappe-deployer = "frappe_deployer.main:cli_entrypoint"
 fmd = "fmd.app:cli_entrypoint"
 
 [tool.poetry.dependencies]
