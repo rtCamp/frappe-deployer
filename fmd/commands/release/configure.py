@@ -38,11 +38,11 @@ def configure(
     if github_token is not None:
         overrides["github_token"] = github_token
 
-    deploy: dict = {}
+    configure: dict = {}
     if backups is not None:
-        deploy["backups"] = backups
-    if deploy:
-        overrides["deploy"] = deploy
+        configure["backups"] = backups
+    if configure:
+        overrides["configure"] = configure
 
     release: dict = {}
     if symlink_subdir_apps is not None:
@@ -59,6 +59,6 @@ def configure(
     image_runner, exec_runner, host_runner = build_runners(config)
     printer.start("Configuring")
     manager = ReleaseManager(config, image_runner, exec_runner, host_runner, printer)
-    manager.configure(backups=backups)
+    manager.configure()
     printer.stop()
     typer.echo("Configure complete.")
