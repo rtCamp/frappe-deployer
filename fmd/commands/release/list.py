@@ -15,6 +15,8 @@ except ImportError:
 
 from fmd.commands._utils import get_printer
 from fmd.consts import RELEASE_DIR_NAME
+from fmd.runner.base import is_ci
+from fmd.runner.host import HostRunner
 
 try:
     from frappe_manager import CLI_BENCHES_DIRECTORY
@@ -68,7 +70,7 @@ def list_releases(
         typer.echo("No releases found.")
         return
 
-    if not (Console and Table and Live):
+    if not (Console and Table and Live) or is_ci():
         current_release = bench_path.resolve() if bench_path.is_symlink() else None
         for d in release_dirs:
             marker = " (current)" if current_release and d.resolve() == current_release else ""
@@ -132,21 +134,18 @@ def list_releases(
                 if item.is_symlink() and not item.exists():
                     broken_symlinks.append(item.name)
 
-        import subprocess
-
+        size = "N/A"
         try:
-            result = subprocess.run(
-                ["du", "-sh", str(release_dir)],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            if result.returncode == 0:
-                size = result.stdout.split()[0]
-            else:
-                size = "N/A"
+            _hr = HostRunner(verbose=False, printer=get_printer())
+            output = _hr.run_cmd(["du", "-sh", str(release_dir)])
+            stdout_lines = getattr(output, "stdout", None) or []
+            if stdout_lines:
+                first = stdout_lines[0]
+                if isinstance(first, bytes):
+                    first = first.decode(errors="replace")
+                size = first.split()[0]
         except Exception:
-            size = "N/A"
+            pass
 
         python_version = "N/A"
         uv_default = release_dir / ".uv" / "python-default"

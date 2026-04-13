@@ -53,6 +53,31 @@ class HostRunner(CommandRunner):
     def restart_services(self, args: List[str], bench_directory) -> None:
         raise NotImplementedError("HostRunner does not support restart_services - use FM or direct bench commands")
 
+    def run_cmd(
+        self,
+        command: list[str],
+        cwd: Optional[str] = None,
+        env: Optional[dict[str, str]] = None,
+    ) -> SubprocessOutput:
+        start_time = time.time()
+        self._log_command(command, mode="host")
+
+        base_env = os.environ.copy()
+        if env:
+            base_env.update(env)
+
+        output = _run_cmd(
+            command,
+            stream=False,
+            capture_output=True,
+            cwd=cwd,
+            env=base_env,
+        )
+
+        self._log_output(output)
+        self._log_timing(start_time, command, mode="host")
+        return output
+
     def run(
         self,
         command: list[str],
@@ -61,8 +86,9 @@ class HostRunner(CommandRunner):
         live_lines: int = 4,
         workdir: Optional[str] = None,
         env: Optional[dict[str, str]] = None,
+        tag_streams: bool = False,
     ) -> Union[Iterable[Tuple[str, bytes]], SubprocessOutput, None]:
-        start_time = time.time() if self.verbose else None
+        start_time = time.time()
 
         self._log_command(command, mode="host")
 
@@ -79,7 +105,8 @@ class HostRunner(CommandRunner):
         )
 
         if capture_output:
-            self._log_timing(start_time, command)
+            self._log_output(output)
+            self._log_timing(start_time, command, mode="host")
             return output
 
         if not is_ci() and is_tty():
@@ -90,5 +117,5 @@ class HostRunner(CommandRunner):
                     line = line.decode(errors="replace")
                 self.printer.print(line.rstrip(), emoji_code="")
 
-        self._log_timing(start_time, command)
+        self._log_timing(start_time, command, mode="host")
         return None

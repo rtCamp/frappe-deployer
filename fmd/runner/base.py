@@ -19,6 +19,10 @@ if SubprocessOutput is None:
         pass
 
 
+_DIM = "\033[2m"
+_RESET = "\033[0m"
+
+
 def is_ci() -> bool:
     return os.environ.get("CI", "").lower() == "true"
 
@@ -41,20 +45,33 @@ class CommandRunner(ABC):
         except Exception:
             pass
 
-    def _log_timing(self, start_time: Optional[float], command: list) -> None:
-        if self.verbose and start_time is not None:
-            elapsed = time.time() - start_time
-            self.printer.print(
-                f"Time Taken: {elapsed:.2f} sec, Command: '{' '.join(command)}'",
-                emoji_code=":robot_face:",
-            )
-            try:
-                from fmd.logger import get_logger
+    def _log_output(self, output) -> None:
+        try:
+            from fmd.logger import get_logger
 
-                logger = get_logger()
-                logger.debug(f"TIMING: {elapsed:.2f}s for command: {' '.join(command)}")
-            except Exception:
-                pass
+            logger = get_logger()
+            lines = getattr(output, "combined", None) or getattr(output, "stdout", None) or []
+            for line in lines:
+                if isinstance(line, bytes):
+                    line = line.decode(errors="replace")
+                line = line.rstrip()
+                if line:
+                    logger.debug(f"OUTPUT: {line}")
+        except Exception:
+            pass
+
+    def _log_timing(self, start_time: Optional[float], command: list, mode: str = "exec") -> None:
+        if start_time is None:
+            return
+        elapsed = time.time() - start_time
+        print(f"{_DIM}$ [{mode}] {' '.join(command)}  ({elapsed:.2f}s){_RESET}")
+        try:
+            from fmd.logger import get_logger
+
+            logger = get_logger()
+            logger.debug(f"TIMING: {elapsed:.2f}s for command: {' '.join(command)}")
+        except Exception:
+            pass
 
     @property
     def supports_db_restore(self) -> bool:
@@ -69,6 +86,7 @@ class CommandRunner(ABC):
         live_lines: int = 4,
         workdir: Optional[str] = None,
         env: Optional[dict[str, str]] = None,
+        tag_streams: bool = False,
     ) -> Union[Iterable[Tuple[str, bytes]], SubprocessOutput, None]: ...
 
     @abstractmethod

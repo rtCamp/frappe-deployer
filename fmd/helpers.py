@@ -35,6 +35,8 @@ try:
     from frappe_manager.output_manager import RichOutputHandler as _RichOutputHandler
 
     richprint = _RichOutputHandler()
+    if os.environ.get("CI", "").lower() == "true":
+        richprint.set_interactive_mode(non_interactive_flag=True)
 except Exception:
 
     def richprint(*args, **kwargs):

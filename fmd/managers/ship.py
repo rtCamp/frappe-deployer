@@ -23,6 +23,12 @@ class ShipManager:
 
         platform = self._detect_platform()
 
+        if platform and not config.release.platform:
+            config.release.platform = platform
+            release_runner.platform = platform
+
+        self.printer.print(f"[dim]platform wired → release_runner.platform={release_runner.platform!r}[/dim]")
+
         self.remote_image_runner = DockerRunner(
             mode="image",
             config=config,
@@ -42,13 +48,17 @@ class ShipManager:
 
     def _detect_platform(self) -> str | None:
         if self.config.release.platform:
+            self.printer.print(f"[dim]platform: using config override → {self.config.release.platform}[/dim]")
             return self.config.release.platform
 
         try:
             arch = self.ssh.run("uname -m", capture=True).strip()
+            self.printer.print(f"[dim]platform: remote uname -m → {arch!r}[/dim]")
             if arch == "x86_64":
+                self.printer.print("[dim]platform: detected linux/amd64[/dim]")
                 return "linux/amd64"
             elif arch == "aarch64":
+                self.printer.print("[dim]platform: detected linux/arm64[/dim]")
                 return "linux/arm64"
             else:
                 self.printer.warning(f"Unknown remote architecture '{arch}', Docker will use default platform")
@@ -58,10 +68,40 @@ class ShipManager:
             return None
 
     def _pull_image_locally(self, image: str) -> None:
+        import importlib
+        import time
+
+        from fmd.logger import get_logger
+        from fmd.runner.base import _DIM, _RESET
+
+        _dc = importlib.import_module("frappe_manager.docker.docker_client")
+        _DockerClient = getattr(_dc, "DockerClient")
+
+        cmd = ["docker", "pull", image]
+        if self.config.release.platform:
+            cmd += ["--platform", self.config.release.platform]
+
+        try:
+            get_logger().debug(f"COMMAND [pull]: {' '.join(cmd)}")
+        except Exception:
+            pass
+
         self.printer.change_head(f"Pulling image {image} locally")
-        result = subprocess.run(["docker", "pull", image], capture_output=True, text=True)
-        if result.returncode != 0:
-            raise RuntimeError(f"docker pull failed:\n{result.stderr}")
+        start = time.time()
+        stream = _DockerClient().pull(
+            container_name=image,
+            platform=self.config.release.platform or None,
+            stream=True,
+        )
+        self.printer.live_lines(stream, lines=6, log_prefix="pull")
+        elapsed = time.time() - start
+
+        print(f"{_DIM}$ [pull] {' '.join(cmd)}  ({elapsed:.2f}s){_RESET}")
+        try:
+            get_logger().debug(f"TIMING: {elapsed:.2f}s for command: {' '.join(cmd)}")
+        except Exception:
+            pass
+
         self.printer.print(f"Image [blue]{image}[/blue] ready")
 
     def _rsync_release(self, release_name: str) -> None:
