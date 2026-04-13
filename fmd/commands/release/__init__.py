@@ -7,7 +7,7 @@ from fmd.commands.release.switch import switch
 from fmd.commands.release.list import list_releases
 from fmd.commands.info import info
 
-app = typer.Typer(rich_markup_mode="rich", invoke_without_command=True)
+app = typer.Typer(rich_markup_mode="rich", invoke_without_command=True, no_args_is_help=True)
 install(app)
 
 
@@ -18,8 +18,8 @@ def release_callback(ctx: typer.Context):
         typer.echo(ctx.get_help())
 
 
-app.command("configure")(configure)
-app.command("create")(create)
-app.command("switch")(switch)
-app.command("list")(list_releases)
-app.command("info")(info)
+app.command("configure", no_args_is_help=True)(configure)
+app.command("create", no_args_is_help=True)(create)
+app.command("switch", no_args_is_help=True)(switch)
+app.command("list", no_args_is_help=True)(list_releases)
+app.command("info", no_args_is_help=True)(info)

@@ -7,7 +7,7 @@ from typer_examples import example, install
 from fmd.commands._utils import get_printer, load_config
 from fmd.managers.remote_worker import RemoteWorkerManager
 
-app = typer.Typer(rich_markup_mode="rich", invoke_without_command=True)
+app = typer.Typer(rich_markup_mode="rich", invoke_without_command=True, no_args_is_help=True)
 install(app)
 
 
@@ -31,7 +31,7 @@ def remote_worker_callback(ctx: typer.Context):
     bench_name="mybench",
     rw_server="10.0.0.5",
 )
-@app.command()
+@app.command(no_args_is_help=True)
 def enable(
     bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),
@@ -84,7 +84,7 @@ def enable(
     bench_name="mybench",
     rw_server="10.0.0.5",
 )
-@app.command()
+@app.command(no_args_is_help=True)
 def sync(
     bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),
