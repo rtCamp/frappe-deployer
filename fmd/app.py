@@ -9,7 +9,7 @@ from fmd.commands.release import app as release_app
 from fmd.commands.remote_worker import app as remote_worker_app
 from fmd.commands.search_replace import search_replace
 
-app = typer.Typer(rich_markup_mode="rich", invoke_without_command=True)
+app = typer.Typer(rich_markup_mode="rich", invoke_without_command=True, no_args_is_help=True)
 install(app)
 
 
@@ -36,8 +36,8 @@ def main(
 app.add_typer(deploy_app, name="deploy")
 app.add_typer(release_app, name="release")
 app.add_typer(remote_worker_app, name="remote-worker")
-app.command("search-replace")(search_replace)
-app.command("cleanup")(cleanup)
+app.command("search-replace", no_args_is_help=True)(search_replace)
+app.command("cleanup", no_args_is_help=True)(cleanup)
 
 
 def cli_entrypoint():
