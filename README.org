@@ -7,7 +7,7 @@ Zero-downtime Frappe deployments with atomic releases and rollback capability.
 - *Atomic Releases*: Timestamped releases with instant symlink-based switching
 - *Zero Downtime*: Workers drain gracefully, maintenance mode during migrations only
 - *Rollback*: Keep N previous releases, instant rollback on failure
-- *4 Deploy Modes*: pull, ship, bake, publish — dev to CI/CD production
+- *2 Deploy Modes*: pull (on-server), ship (remote) — dev to production
 - *Frappe Cloud Sync*: Import apps, deps, and DB backups from FC
 - *Monorepo Support*: Symlink subdirectory apps for efficient workspace management
 
@@ -126,8 +126,6 @@ See [[file:example-config.toml][example-config.toml]] for complete schema with a
 |---------+-----------------------+----------------+---------------------------------|
 | pull    | Standard deploy       | On-server      | Same server                     |
 | ship    | Remote deploy         | Local machine  | Remote server via SSH/rsync     |
-| bake    | CI/CD pre-build       | CI runner      | Tarball artifact → ship to prod |
-| publish | Future: Registry push | CI runner      | Image registry                  |
 
 * GitHub Action
 

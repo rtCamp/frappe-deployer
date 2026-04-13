@@ -99,7 +99,7 @@ fmd deploy ship --config site.toml --app frappe/frappe:version-15
 ```
 
 **Workflow**:
-1. Build release locally using Docker (bake mode: no FM services needed)
+1. Build release locally using Docker (no FM services needed)
 2. rsync release directory to remote server
 3. SSH to remote, run `fmd release switch` to activate
 4. Run post-switch hooks on remote

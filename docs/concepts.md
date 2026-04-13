@@ -2,14 +2,12 @@
 
 ## Deploy Modes
 
-fmd supports four deployment modes optimized for different workflows:
+fmd supports two deployment modes optimized for different workflows:
 
-| Mode | Purpose | Build Location | Deploy Target | Status |
-|------|---------|----------------|---------------|--------|
-| **pull** | Standard deployment | On-server in docker-compose | Same server | ✅ Active |
-| **ship** | Remote deployment | Local machine | Remote server via rsync | ✅ Active |
-| **bake** | CI/CD artifact build | CI runner (Docker) | Tarball → ship manually | 🚧 Planned |
-| **publish** | Registry deployment | CI runner | Container registry | 📋 Future |
+| Mode | Purpose | Build Location | Deploy Target |
+|------|---------|----------------|---------------|
+| **pull** | Standard deployment | On-server in docker-compose | Same server |
+| **ship** | Remote deployment | Local machine | Remote server via rsync |
 
 ### pull — Standard Deployment
 
@@ -30,29 +28,11 @@ fmd deploy ship --config site.toml  # Builds locally, deploys remotely
 ```
 
 **Workflow**: 
-1. Create release on local machine (bake mode: fresh Docker container, no live services needed)
+1. Create release on local machine (uses fresh Docker container, no live services needed)
 2. rsync release directory to remote server
 3. SSH to remote, run `fmd release switch` to activate
 
 **Best for**: Deploying from a local dev machine to a remote production server.
-
-### bake — CI/CD Artifact Build
-
-```bash
-fmd release create --mode image --build-dir /tmp/releases
-# Creates release in /tmp/releases/release_YYYYMMDD_HHMMSS/
-# Tar it, upload to artifact storage, download on prod, switch
-```
-
-**Where it runs**: CI runner in a clean Docker container (no Frappe Manager services required).
-
-**Best for**: GitLab CI, GitHub Actions, Jenkins — build artifacts that can be deployed anywhere.
-
-### publish — Container Registry (Future)
-
-Push complete release as a Docker image to a registry, pull on target servers.
-
-**Status**: Planned, not yet implemented.
 
 ---
 
