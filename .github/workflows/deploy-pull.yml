@@ -1,0 +1,26 @@
+name: Deploy (pull)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via pull
+        uses: rtcamp/frappe-deployer@main
+        with:
+          command: pull
+          sitename: ${{ vars.SITE_NAME }}
+          config_path: .github/configs/site.toml
+          gh_token: ${{ secrets.GH_TOKEN }}
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh_server: ${{ secrets.SSH_SERVER }}
+          ssh_user: ${{ secrets.SSH_USER }}
+          ssh_port: ${{ vars.SSH_PORT || '22' }}
+          migrate: "true"
+          drain_workers: "false"
+          maintenance_mode_phases: "migrate"

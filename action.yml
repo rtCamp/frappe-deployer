@@ -1,20 +1,20 @@
 name: "Frappe Deployer Action"
-description: "Deploy or build images for Frappe using frappe-deployer"
+description: "Deploy Frappe using frappe-deployer"
 branding:
   icon: "upload-cloud"
   color: "blue"
 inputs:
   command:
-    description: "Command to run (pull or build-image)"
+    description: "Command to run (pull or ship)"
     required: false
     default: "pull"
   sitename:
     description: "Site name"
     required: false
 
-  # 'pull' command inputs
+  # 'pull' + 'ship' shared switch inputs
   drain_workers:
-    description: "Drain workers before restart (replaces use_wait_workers)"
+    description: "Drain workers before restart"
     required: false
     default: "false"
   drain_workers_timeout:
@@ -34,7 +34,7 @@ inputs:
     required: false
     default: "15"
   migrate:
-    description: "Run bench migrate (replaces use_bench_migrate)"
+    description: "Run bench migrate after switch"
     required: false
     default: "true"
   migrate_timeout:
@@ -57,35 +57,39 @@ inputs:
     required: false
     default: "3.0"
   additional_commands:
-    description: "Additional commands to append to the deployment command"
-    required: false
-  ssh_private_key:
-    description: "SSH Private Key for remote server. Required for `pull` command."
-    required: false
-  ssh_server:
-    description: "SSH Server. Required for `pull` command."
-    required: false
-  ssh_user:
-    description: "SSH User. Required for `pull` command."
+    description: "Additional CLI flags to append to the fmd deploy command"
     required: false
 
-  # 'build-image' command inputs
-  image_type:
-    description: "Specify which image to build (frappe, nginx, all)."
+  # SSH inputs — required for both 'pull' and 'ship' (remote server access)
+  ssh_private_key:
+    description: "SSH private key for the remote server. Required for 'pull' and 'ship' commands."
     required: false
-    default: "all"
-  output_dir:
-    description: "Output directory for baked bench and Dockerfiles."
+  ssh_server:
+    description: "SSH server hostname or IP. Required for 'pull' and 'ship' commands."
     required: false
-    default: "outputs"
-  force:
-    description: "Force build image."
+  ssh_user:
+    description: "SSH username on the remote server. Required for 'pull' and 'ship' commands."
+    required: false
+  ssh_port:
+    description: "SSH port for the remote server."
+    required: false
+    default: "22"
+
+  # 'ship'-specific inputs
+  existing_release:
+    description: "Re-use an already-created local release instead of building a new one. Format: release_YYYYMMDD_HHMMSS"
+    required: false
+  skip_rsync:
+    description: "Skip the rsync step (useful when the release is already on the remote server)"
     required: false
     default: "false"
+  runner_image:
+    description: "Docker image used to build the release in image mode. Overrides auto-detection."
+    required: false
 
   # Common inputs
   gh_token:
-    description: "A github token for private repo access"
+    description: "A GitHub token for private repo access"
     required: true
   config_path:
     description: "Path to the frappe-deployer config file from repo root"
@@ -150,12 +154,13 @@ runs:
         INPUT_WORKER_KILL_TIMEOUT: ${{ inputs.worker_kill_timeout }}
         INPUT_WORKER_KILL_POLL: ${{ inputs.worker_kill_poll }}
         INPUT_ADDITIONAL_COMMANDS: ${{ inputs.additional_commands }}
-        INPUT_IMAGE_TYPE: ${{ inputs.image_type }}
-        INPUT_OUTPUT_DIR: ${{ inputs.output_dir }}
-        INPUT_FORCE: ${{ inputs.force }}
+        INPUT_EXISTING_RELEASE: ${{ inputs.existing_release }}
+        INPUT_SKIP_RSYNC: ${{ inputs.skip_rsync }}
+        INPUT_RUNNER_IMAGE: ${{ inputs.runner_image }}
         SSH_PRIVATE_KEY: ${{ inputs.ssh_private_key }}
         SSH_SERVER: ${{ inputs.ssh_server }}
         SSH_USER: ${{ inputs.ssh_user }}
+        SSH_PORT: ${{ inputs.ssh_port }}
         FRAPPE_DEPLOYER_CONFIG_PATH: ${{ inputs.config_path }}
         FRAPPE_DEPLOYER_CONFIG_CONTENT: ${{ inputs.config_content }}
         FRAPPE_DEPLOYER_GITHUB_TOKEN: ${{ inputs.gh_token }}
