@@ -89,7 +89,14 @@ class DockerRunner(CommandRunner):
         return f"/workspace/{'/'.join(host_backup_dir.parts[-2:])}/{file_name}"
 
     def restart_services(self, args: List[str], bench_directory) -> None:
-        self.run(["fmx", "restart"] + args, bench_directory, capture_output=False, live_lines=50, workdir="/workspace")
+        self.run(
+            ["fmx", "restart"] + args,
+            bench_directory,
+            capture_output=False,
+            live_lines=50,
+            workdir="/workspace",
+            tag_streams=True,
+        )
 
     def run(
         self,
@@ -99,20 +106,33 @@ class DockerRunner(CommandRunner):
         live_lines: int = 4,
         workdir: Optional[str] = None,
         env: Optional[dict[str, str]] = None,
+        tag_streams: bool = False,
     ) -> Union[Iterable[Tuple[str, bytes]], SubprocessOutput, None]:
-        start_time = time.time() if self.verbose else None
+        start_time = time.time()
 
         self._log_command(command, mode=self.mode)
 
         if self.mode == "image":
-            result = self._run_in_image(command, bench_directory, capture_output, live_lines, workdir, env)
+            result = self._run_in_image(command, bench_directory, capture_output, live_lines, workdir, env, tag_streams)
         else:
-            result = self._run_in_exec(command, bench_directory, capture_output, live_lines, workdir, env)
+            result = self._run_in_exec(command, bench_directory, capture_output, live_lines, workdir, env, tag_streams)
 
-        self._log_timing(start_time, command)
+        self._log_timing(start_time, command, mode=self.mode)
         return result
 
-    def _run_in_image(self, command, bench_directory, capture_output, live_lines, workdir, env):
+    @staticmethod
+    def _tag_stderr_stream(stream: Iterable) -> Iterable:
+        ANSI_DIM = "\033[2m"
+        ANSI_RESET = "\033[0m"
+        for source, line in stream:
+            if source == "stderr":
+                if isinstance(line, bytes):
+                    line = ANSI_DIM.encode() + line + ANSI_RESET.encode()
+                else:
+                    line = f"{ANSI_DIM}{line}{ANSI_RESET}"
+            yield source, line
+
+    def _run_in_image(self, command, bench_directory, capture_output, live_lines, workdir, env, tag_streams=False):
         _DockerClient = None
         try:
             _dc = importlib.import_module("frappe_manager.docker.docker_client")
@@ -150,8 +170,6 @@ class DockerRunner(CommandRunner):
             base_env.update(env)
         if self.docker_host:
             base_env["DOCKER_HOST"] = self.docker_host
-        if self.platform:
-            base_env["DOCKER_DEFAULT_PLATFORM"] = self.platform
 
         docker_command = " ".join(command)
         docker_command = f"-c 'source /etc/bash.bashrc; {docker_command}'"
@@ -168,6 +186,7 @@ class DockerRunner(CommandRunner):
             workdir=effective_workdir,
             env=base_env,
             entrypoint="/bin/bash",
+            platform=self.platform or None,
             pull="missing",
             volume=volumes,
             stream=not capture_output,
@@ -175,12 +194,14 @@ class DockerRunner(CommandRunner):
         )
 
         if capture_output:
+            self._log_output(output)
             return output
 
-        self.printer.live_lines(output, lines=live_lines)
+        stream = self._tag_stderr_stream(output) if tag_streams else output
+        self.printer.live_lines(stream, lines=live_lines)
         return None
 
-    def _run_in_exec(self, command, bench_directory, capture_output, live_lines, workdir, env):
+    def _run_in_exec(self, command, bench_directory, capture_output, live_lines, workdir, env, tag_streams=False):
         from frappe_manager.docker.docker_compose import DockerComposeWrapper
 
         compose_file = self._compose_project_dir() / "docker-compose.yml"
@@ -224,7 +245,9 @@ class DockerRunner(CommandRunner):
                     os.environ["DOCKER_HOST"] = old_docker_host
 
         if capture_output:
+            self._log_output(output)
             return output
 
-        self.printer.live_lines(output, lines=live_lines)
+        stream = self._tag_stderr_stream(output) if tag_streams else output
+        self.printer.live_lines(stream, lines=live_lines)
         return None

@@ -48,12 +48,16 @@ class LoggingOutputHandler:
         self.delegate.warning(message, **kwargs)
 
     def live_lines(self, data, **kwargs) -> None:
-        for source, line in data:
-            if isinstance(line, bytes):
-                line = line.decode(errors="replace")
-            line_str = line.rstrip()
-            self._log_message(logging.INFO, f"[{source}] {line_str}")
-        self.delegate.live_lines(data, **kwargs)
+        def _tee(stream):
+            for source, line in stream:
+                if isinstance(line, bytes):
+                    decoded = line.decode(errors="replace")
+                else:
+                    decoded = line
+                self._log_message(logging.INFO, f"[{source}] {decoded.rstrip()}")
+                yield source, line
+
+        self.delegate.live_lines(_tee(data), **kwargs)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.delegate, name)

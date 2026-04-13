@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Any, Optional
 import subprocess
@@ -19,6 +20,9 @@ try:
     from fmd.logger.logging_output import LoggingOutputHandler
 
     _base_printer = RichOutputHandler()
+
+    if os.environ.get("CI", "").lower() == "true":
+        _base_printer.set_interactive_mode(non_interactive_flag=True)
 
     # Only log to file, not console (console would clutter output)
     _logger = get_logger(console_level=None, file_level="DEBUG")

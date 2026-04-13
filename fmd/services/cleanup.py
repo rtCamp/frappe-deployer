@@ -38,6 +38,7 @@ except Exception:
 
 
 from fmd.consts import BACKUP_DIR_NAME, RELEASE_DIR_NAME
+from fmd.runner.base import is_ci
 
 
 class CleanupService:
@@ -48,12 +49,14 @@ class CleanupService:
         self.printer = printer
 
     def get_dir_size(self, path: Path) -> str:
-        import subprocess
-
         try:
-            result = subprocess.run(["du", "-sh", str(path)], capture_output=True, text=True, timeout=10)
-            if result.returncode == 0:
-                size_str = result.stdout.split()[0]
+            output = self.host_runner.run_cmd(["du", "-sh", str(path)])
+            stdout_lines = getattr(output, "stdout", None) or []
+            if stdout_lines:
+                first = stdout_lines[0]
+                if isinstance(first, bytes):
+                    first = first.decode(errors="replace")
+                size_str = first.split()[0]
                 return size_str
         except Exception:
             pass
@@ -126,7 +129,7 @@ class CleanupService:
             if not items:
                 return []
 
-            if auto_approve:
+            if auto_approve or is_ci():
                 return list(range(len(items)))
 
             print_items_table(items, prompt_text)
