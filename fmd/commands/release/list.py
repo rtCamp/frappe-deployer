@@ -3,6 +3,7 @@ from typing import Optional
 import threading
 
 import typer
+from typer_examples import example
 
 try:
     from rich.console import Console
@@ -24,6 +25,18 @@ except Exception:
     CLI_BENCHES_DIRECTORY = Path("/workspace")
 
 
+@example(
+    "List from config file",
+    "--config {config_path}",
+    detail="Reads bench name from config and lists all releases with metadata.",
+    config_path="./site.toml",
+)
+@example(
+    "List releases by bench name",
+    "{bench_name}",
+    detail="Lists all releases in the bench workspace, marking the currently active one.",
+    bench_name="mybench",
+)
 def list_releases(
     bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),

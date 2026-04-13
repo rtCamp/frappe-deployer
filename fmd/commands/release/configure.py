@@ -2,11 +2,24 @@ from pathlib import Path
 from typing import List, Optional
 
 import typer
+from typer_examples import example
 
 from fmd.commands._utils import build_runners, get_printer, load_config, parse_app_option
 from fmd.managers.release import ReleaseManager
 
 
+@example(
+    "Configure from config file",
+    "--config {config_path}",
+    detail="Reads bench name and apps from the TOML config and runs one-time release structure setup.",
+    config_path="./site.toml",
+)
+@example(
+    "Configure from bench name",
+    "{bench_name}",
+    detail="Converts a plain bench into a versioned release structure using bench name to locate it.",
+    bench_name="mybench",
+)
 def configure(
     bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),

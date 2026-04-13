@@ -2,11 +2,33 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+from typer_examples import example
 
 from fmd.commands._utils import build_runners, get_printer, load_config
 from fmd.managers.release import ReleaseManager
 
 
+@example(
+    "Switch with maintenance mode",
+    "{bench_name} {release_name} --maintenance-mode",
+    detail="Enables maintenance mode during the switch to prevent user-facing errors while the symlink is updated.",
+    bench_name="mybench",
+    release_name="release_20240101_120000",
+)
+@example(
+    "Switch with migrate",
+    "{bench_name} {release_name} --migrate",
+    detail="Runs bench migrate after switching the symlink to apply any pending schema changes.",
+    bench_name="mybench",
+    release_name="release_20240101_120000",
+)
+@example(
+    "Switch to a release",
+    "{bench_name} {release_name}",
+    detail="Updates the live bench symlink to point at the specified release directory.",
+    bench_name="mybench",
+    release_name="release_20240101_120000",
+)
 def switch(
     bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
     release_name: str = typer.Argument(..., help="Release directory name to switch to."),

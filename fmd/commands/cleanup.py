@@ -2,11 +2,24 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+from typer_examples import example
 
 from fmd.commands._utils import build_runners, get_printer, load_config
 from fmd.services.cleanup import CleanupService
 
 
+@example(
+    "Cleanup and auto-approve",
+    "--config {config_path} --yes",
+    detail="Runs cleanup without prompting for confirmation. Useful in CI or scripts.",
+    config_path="./site.toml",
+)
+@example(
+    "Keep last 3 releases",
+    "{bench_name} --release-retain-limit 3",
+    detail="Deletes all but the 3 most recent releases in the bench workspace.",
+    bench_name="mybench",
+)
 def cleanup(
     bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),

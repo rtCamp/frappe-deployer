@@ -2,11 +2,31 @@ from pathlib import Path
 from typing import List, Optional
 
 import typer
+from typer_examples import example
 
 from fmd.commands._utils import build_runners, get_printer, load_config, parse_app_option
 from fmd.managers.release import ReleaseManager
 
 
+@example(
+    "Create with explicit apps",
+    "{bench_name} --app frappe/frappe:version-15 --app frappe/erpnext:version-15",
+    detail="Overrides the apps list from config with the specified repos and refs.",
+    bench_name="mybench",
+)
+@example(
+    "Create in image mode with build dir",
+    "{bench_name} --build-dir {build_dir}",
+    detail="Builds the release as a standalone directory outside the bench. Activates image mode automatically.",
+    bench_name="mybench",
+    build_dir="./builds",
+)
+@example(
+    "Create from config file",
+    "--config {config_path}",
+    detail="Clones apps, builds assets, and writes a new release directory. No live bench changes.",
+    config_path="./site.toml",
+)
 def create(
     bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),

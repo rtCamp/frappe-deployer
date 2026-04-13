@@ -271,11 +271,7 @@ fmd cleanup site.localhost --release-retain-limit 3 --backup-retain-limit 5 --ye
 
 ### How It Works
 
-During `release switch`, fmd enables maintenance mode to prevent user requests during migrations:
-
-1. **Nginx config**: fmd modifies nginx config to serve a maintenance page
-2. **Bypass token**: Generates a cookie for developer access during maintenance
-3. **Phase control**: Enable maintenance only during specific phases (default: `["migrate"]`)
+During `release switch`, fmd passes `--maintenance-mode <phase>` flags to `fmx restart`, which handles enabling and disabling the maintenance page. fmd itself has no standalone maintenance command — the behavior is entirely delegated to Frappe Manager's restart cycle.
 
 ### Phase Control
 
@@ -285,17 +281,11 @@ maintenance_mode = true
 maintenance_mode_phases = ["migrate"]  # Valid: "drain", "migrate"
 ```
 
-- **`["migrate"]`** — Maintenance only during DB migration (default)
+- **`["migrate"]`** — Maintenance only during the DB migration step (default)
 - **`["drain", "migrate"]`** — Maintenance during worker drain + migration
-- **`[]`** — Maintenance for all phases (entire switch operation)
+- **`[]`** — Disable maintenance mode entirely (even if `maintenance_mode = true`)
 
-### Bypass Token
-
-```bash
-fmd maintenance enable site.localhost
-# Outputs a cookie value to paste in browser dev tools
-# Access site during maintenance for testing
-```
+The `--maintenance-mode` flag is passed once per phase, so `["drain", "migrate"]` passes `--maintenance-mode drain --maintenance-mode migrate` to `fmx restart`.
 
 ---
 
