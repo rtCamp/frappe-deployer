@@ -2,14 +2,14 @@
 
 ## Deployment Modes
 
-Four modes across two strategies — git-based and image-based.
+Two user-facing deploy commands (`pull`, `ship`) built on three internal managers.
 
-### Git-based
+### Git-based (User-Facing)
 
-| Mode | Build happens | Deploy happens | Transport |
-|---|---|---|---|
-| `pull` | Server | Server | SSH / direct |
-| `ship` | Runner (local/CI) | Server | rsync → DOCKER_HOST SSH |
+| Mode | Build happens | Deploy happens | Transport | CLI Command |
+|---|---|---|---|---|
+| `pull` | Server | Server | SSH / direct | `fmd deploy pull` |
+| `ship` | Runner (local/CI) | Server | rsync → DOCKER_HOST SSH | `fmd deploy ship` |
 
 #### `pull`
 Everything runs on the server. Clone apps from git, pip install, bench build, fmx restart — all in-place. Handled by `PullManager`.
@@ -17,27 +17,23 @@ Everything runs on the server. Clone apps from git, pip install, bench build, fm
 #### `ship`
 Runner creates a fully baked release directory locally (inside Docker containers), rsyncs it to the server, then finalizes remotely (bench symlink, fmx restart, app install) via `DOCKER_HOST=ssh://`. Server never touches git. Handled by `ShipManager(BakeManager)`.
 
-### Image-based
+### Image-based (Internal Managers)
 
-| Mode | Build happens | Deploy happens | Transport |
-|---|---|---|---|
-| `bake` | Runner (local/CI) | — | Docker registry |
-| `publish` | — | Server | DOCKER_HOST SSH + image swap |
+| Manager | Purpose | Status |
+|---|---|---|
+| `BakeManager` | Build Docker images from source | ✅ exists (used internally by `ship`) |
+| `PublishManager` | Deploy via image registry | 🔲 future |
 
-#### `bake`
-Builds a fully baked Docker image from source. Clones apps, runs pip install and bench build inside a builder container, then bakes the result into a Docker image. Optionally pushes to a registry. Handled by `BakeManager`.
-
-#### `publish`
-SSHes to server via `DOCKER_HOST`, swaps the compose service to a new image, restarts. *(Not yet implemented.)*
+**Note**: `BakeManager` is an internal manager used by `ship` mode. There is no `fmd deploy bake` or `fmd bake` command exposed to users.
 
 ### Implementation status
 
-| Mode | Status | Manager |
+| Mode/Manager | Status | Class |
 |---|---|---|
-| `pull` | ✅ exists | `PullManager` |
-| `ship` | ✅ exists | `ShipManager` |
-| `bake` | ✅ exists | `BakeManager` |
-| `publish` | 🔲 future | — |
+| `pull` | ✅ CLI command | `PullManager` |
+| `ship` | ✅ CLI command | `ShipManager` |
+| `BakeManager` | ✅ internal only | `BakeManager` |
+| `PublishManager` | 🔲 future | — |
 
 ---
 
