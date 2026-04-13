@@ -2,11 +2,32 @@ from pathlib import Path
 from typing import List, Optional
 
 import typer
+from typer_examples import example
 
 from fmd.commands._utils import build_runners, get_printer, load_config, parse_app_option
 from fmd.managers.ship import ShipManager
 
 
+@example(
+    "Skip rsync (release already on remote)",
+    "--config {config_path} --existing-release {release_name} --skip-rsync",
+    detail="Switches to an already-transferred release without rsyncing again. Useful for retrying a failed switch.",
+    config_path="./site.toml",
+    release_name="release_20240101_120000",
+)
+@example(
+    "Ship using an existing release",
+    "--config {config_path} --existing-release {release_name}",
+    detail="Skips release creation and rsyncs an already-created local release to the remote, then switches.",
+    config_path="./site.toml",
+    release_name="release_20240101_120000",
+)
+@example(
+    "Ship from config file",
+    "--config {config_path}",
+    detail="Creates a release locally, rsyncs it to the remote server, and switches the live bench. Requires a [ship] section in config.",
+    config_path="./site.toml",
+)
 def ship(
     bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),

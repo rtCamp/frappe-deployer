@@ -2,11 +2,33 @@ from pathlib import Path
 from typing import List, Optional
 
 import typer
+from typer_examples import example
 
 from fmd.commands._utils import build_runners, get_printer, load_config, parse_app_option
 from fmd.managers.pull import PullManager
 
 
+@example(
+    "Deploy with Frappe Cloud integration",
+    "{bench_name} --fc-key {fc_key} --fc-secret {fc_secret} --fc-site {fc_site}",
+    detail="Pulls FC app list and DB backup, then deploys. Requires FC API credentials.",
+    bench_name="mybench",
+    fc_key="your-key",
+    fc_secret="your-secret",
+    fc_site="mysite.frappe.cloud",
+)
+@example(
+    "Deploy with explicit apps",
+    "{bench_name} --app frappe/frappe:version-15 --app frappe/erpnext:version-15",
+    detail="Overrides config apps list with specified repos and refs.",
+    bench_name="mybench",
+)
+@example(
+    "Deploy from config file",
+    "--config {config_path}",
+    detail="Reads bench name and app list from the TOML config file. Full deploy: configure → create → switch.",
+    config_path="./site.toml",
+)
 def pull(
     bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),

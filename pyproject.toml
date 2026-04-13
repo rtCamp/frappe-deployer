@@ -1,6 +1,6 @@
 [project]
 name = "fmd"
-version = "1.0.0"
+dynamic = ["version"]
 description = "Automates setup and management of Frappe/Frappe-Manager environments using flags or config file."
 readme = { file = "README.org", content-type = "text/plain" }
 requires-python = ">=3.13,<3.14"
@@ -12,6 +12,7 @@ dependencies = [
     "typer>=0.21.0,<0.22.0",
     "toml>=0.10.2,<0.11.0",
     "pydantic>=2.0.0,<3.0.0",
+    "typer-examples",
 ]
 
 [project.scripts]
@@ -22,6 +23,7 @@ package = true
 
 [tool.uv.sources]
 frappe-manager = { git = "https://github.com/rtcamp/frappe-manager.git", rev = "fmx/0" }
+typer-examples = { git = "https://github.com/Xieyt/typer-examples", tag = "v1.1.0" }
 
 [dependency-groups]
 dev = [
@@ -40,3 +42,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["fmd"]
+
+[tool.hatch.version]
+path = "fmd/__about__.py"

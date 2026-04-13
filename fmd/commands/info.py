@@ -4,10 +4,23 @@ from typing import Optional
 
 import toml
 import typer
+from typer_examples import example
 
 from fmd.commands._utils import load_config
 
 
+@example(
+    "Info from config file",
+    "--config {config_path}",
+    detail="Reads bench path from config and shows git info for all apps.",
+    config_path="./site.toml",
+)
+@example(
+    "Info by bench name",
+    "{bench_name}",
+    detail="Inspects each app's git repository in the bench and prints commit, branch, and tag info.",
+    bench_name="mybench",
+)
 def info(
     bench_name: Optional[str] = typer.Argument(None, help="Bench name (required when no config file is provided)."),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to site config TOML file."),
