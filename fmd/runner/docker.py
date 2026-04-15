@@ -171,7 +171,7 @@ class DockerRunner(CommandRunner):
         if self.docker_host:
             base_env["DOCKER_HOST"] = self.docker_host
 
-        docker_command = " ".join(command)
+        docker_command = shlex.join(command)
         docker_command = f"-c 'source /etc/bash.bashrc; {docker_command}'"
 
         effective_workdir = workdir or "/workspace/frappe-bench"
@@ -217,7 +217,7 @@ class DockerRunner(CommandRunner):
         if env:
             uv_env.update(env)
 
-        full_bash_cmd = f"source /etc/bash.bashrc; {' '.join(command)}"
+        full_bash_cmd = f"source /etc/bash.bashrc; {shlex.join(command)}"
         command_str = f"/bin/bash -c {shlex.quote(full_bash_cmd)}"
 
         env_list = [f"{k}={v}" for k, v in uv_env.items()]
