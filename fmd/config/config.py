@@ -111,7 +111,9 @@ class Config(BaseModel):
         for app in self.apps:
             if not app.exists:
                 all_accessible = False
-                print(f"Error: repo not accessible: {app.repo_url}")
+                from fmd.config.utils import richprint
+
+                richprint.print(f"Error: repo not accessible: {app.repo_url}")
 
         if not all_accessible:
             raise RuntimeError("Please ensure all app repos are accessible.")
