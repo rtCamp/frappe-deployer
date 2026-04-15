@@ -6,6 +6,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from fmd.config.utils import get_repo_url, is_ref_commit
 
 os.environ["GIT_TERMINAL_PROMPT"] = "0"
+os.environ.setdefault(
+    "GIT_SSH_COMMAND",
+    "ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null",
+)
 
 
 class AppConfig(BaseModel):
