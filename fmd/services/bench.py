@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import shutil
 import time
 from typing import Any, Callable, Optional
 
@@ -418,7 +419,11 @@ class BenchService:
     def bench_symlink(self, bench_path: Path, bench_directory: BenchDirectory):
         self.printer.change_head("Symlinking")
 
-        if bench_path.is_symlink() or bench_path.exists():
+        if bench_path.is_symlink():
+            bench_path.unlink()
+        elif bench_path.is_dir():
+            shutil.rmtree(bench_path)
+        elif bench_path.exists():
             bench_path.unlink()
 
         bench_path.symlink_to(get_relative_path(bench_path, bench_directory.path), True)
