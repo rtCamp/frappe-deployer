@@ -86,6 +86,34 @@ class ReleaseManager:
 
         return apps
 
+    def _create_temp_common_site_config(self, bench_directory: BenchDirectory) -> None:
+        try:
+            from frappe_manager.utils.helpers import get_bench_connection_config
+
+            bench_name = self.bench_name or self.site_name
+            merged_config = get_bench_connection_config(bench_name, "mariadb", 3306)
+
+            merged_config.update({"socketio_port": 80, "webserver_port": 80})
+
+            existing_config_path = self.data.common_site_config
+            if existing_config_path.exists():
+                with open(existing_config_path, "r") as f:
+                    deployment_config = json.load(f)
+                merged_config.update(deployment_config)
+                self.printer.print("Merged deployment_data/common_site_config.json")
+
+            if self.config.release.common_site_config:
+                merged_config.update(self.config.release.common_site_config)
+
+            config_path = bench_directory.sites / "common_site_config.json"
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(config_path, "w") as f:
+                json.dump(merged_config, f, indent=2)
+
+            self.printer.print(f"Created temporary common_site_config.json")
+        except Exception as e:
+            self.printer.warning(f"Failed to create temporary common_site_config.json: {e}")
+
     def _get_site_installed_apps(self, bench_directory: BenchDirectory) -> dict:
         command = [self.bench_cli, "list-apps", "-f", "json"]
         try:
@@ -354,6 +382,7 @@ class ReleaseManager:
 
         self.app_service.clone_apps(self.data, self.new, apps, self.site_name, self._is_app_installed)
 
+        self._create_temp_common_site_config(self.new)
         self.image_bench_service.bench_setup_requirements(
             self.new,
             apps,

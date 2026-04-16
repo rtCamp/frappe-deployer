@@ -61,3 +61,7 @@ class ReleaseConfig(BaseModel):
     host_after_python_install: Optional[str] = Field(
         None, description="Global fallback: script on host after pip install."
     )
+    common_site_config: Optional[dict] = Field(
+        None,
+        description="Common site config overrides for bench build. Merged with FM defaults (db_host, redis, etc.).",
+    )
