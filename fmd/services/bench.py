@@ -280,7 +280,8 @@ class BenchService:
         if self.config.release.node_version:
             nv = self.config.release.node_version
             self.printer.change_head(f"Installing Node {nv} via fnm")
-            self.runner.run(["fnm", "install", nv, "&&", "fnm", "default", nv], bench_directory, capture_output=False)
+            self.runner.run(["fnm", "install", nv], bench_directory, capture_output=False)
+            self.runner.run(["fnm", "default", nv], bench_directory, capture_output=False)
             self.printer.print(f"Node {nv} installed and set as default")
 
         if apps:
