@@ -1,6 +1,8 @@
 import concurrent.futures
 import contextvars
 import io
+import os
+import re
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -35,6 +37,25 @@ _skip_repo_validation_context: contextvars.ContextVar[bool] = contextvars.Contex
     "_skip_repo_validation_context", default=False
 )
 
+
+def _substitute_env_vars(data: Any) -> Any:
+    """
+    Recursively substitute environment variables in config data.
+    Supports ${VAR_NAME} and $VAR_NAME syntax.
+    """
+    if isinstance(data, dict):
+        return {key: _substitute_env_vars(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [_substitute_env_vars(item) for item in data]
+    elif isinstance(data, str):
+        def replace_var(match):
+            var_name = match.group(1) or match.group(2)
+            return os.environ.get(var_name, match.group(0))
+        
+        pattern = r'\$\{([A-Z_][A-Z0-9_]*)\}|\$([A-Z_][A-Z0-9_]*)'
+        return re.sub(pattern, replace_var, data)
+    else:
+        return data
 
 
 class Config(BaseModel):
@@ -186,6 +207,8 @@ class Config(BaseModel):
             if config_string:
                 with io.StringIO(config_string) as f:
                     config_data = toml.load(f)
+
+            config_data = _substitute_env_vars(config_data)
 
             if overrides:
                 _NESTED_SECTIONS = {
