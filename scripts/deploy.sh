@@ -183,9 +183,6 @@ pull_command() {
 	REMOTE_HOST="${SSH_SERVER}"
 	REMOTE_USER="${SSH_USER}"
 
-	COMMAND="pull ${INPUT_SITENAME} --github-token ${FMD_GITHUB_TOKEN}"
-	COMMAND="${COMMAND} --configure"
-
 	setup_ssh
 
 	current_datetime=$(date +"%Y-%m-%d_%H-%M-%S")
@@ -213,15 +210,15 @@ pull_command() {
 		"cd /home/${REMOTE_USER} && test -x /home/${REMOTE_USER}/.local/bin/uv || curl -LsSf https://astral.sh/uv/install.sh | sh"
 
 	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		"cd /home/${REMOTE_USER} && mkdir -p /home/${REMOTE_USER}/.fmd/logs && rm -rf /home/${REMOTE_USER}/.fmd/venv && /home/${REMOTE_USER}/.local/bin/uv venv /home/${REMOTE_USER}/.fmd/venv --python 3.10 && /home/${REMOTE_USER}/.local/bin/uv pip install --python /home/${REMOTE_USER}/.fmd/venv/bin/python ${REMOTE_FMD_SRC}"
+		"cd /home/${REMOTE_USER} && mkdir -p /home/${REMOTE_USER}/.fmd/logs && rm -rf /home/${REMOTE_USER}/.fmd/venv && /home/${REMOTE_USER}/.local/bin/uv venv /home/${REMOTE_USER}/.fmd/venv --python 3.13 && /home/${REMOTE_USER}/.local/bin/uv pip install --python /home/${REMOTE_USER}/.fmd/venv/bin/python ${REMOTE_FMD_SRC}"
 
 	REMOTE_CONFIG_PATH="/tmp/fmd_config_${current_datetime}.toml"
 	rsync -az -e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
 		"${LOCAL_CONFIG_TMP}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_CONFIG_PATH}"
 	rm -f "${LOCAL_CONFIG_TMP}"
 
-	COMMAND_LINE="${COMMAND} --config ${REMOTE_CONFIG_PATH}"
-	FRAPPE_DEPLOYER_CMD="/home/${REMOTE_USER}/.fmd/venv/bin/frappe-deployer ${COMMAND_LINE}"
+	COMMAND="pull ${INPUT_SITENAME} --github-token ${FMD_GITHUB_TOKEN} --config ${REMOTE_CONFIG_PATH}"
+	FRAPPE_DEPLOYER_CMD="/home/${REMOTE_USER}/.fmd/venv/bin/frappe-deployer ${COMMAND}"
 
 	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		"cd /home/${REMOTE_USER}/.fmd/logs && ${FRAPPE_DEPLOYER_CMD} 2>&1"
