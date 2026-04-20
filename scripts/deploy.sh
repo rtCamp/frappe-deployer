@@ -14,80 +14,133 @@ toml_get() {
 	python3 -c "import sys,tomllib; d=tomllib.load(open(sys.argv[1],'rb')); print(d.get('ship',{}).get(sys.argv[2],''))" "${toml_file}" "${key_path}" 2>/dev/null || echo ""
 }
 
-build_switch_flags() {
-	local cmd=""
+merge_toml() {
+	local user_toml="$1"
+	local generated_toml="$2"
+	python3 << 'PYTHON_EOF'
+import sys
+import tomllib
+
+def deep_merge(base, override):
+	"""Deep merge override into base, modifying base in place."""
+	for key, value in override.items():
+		if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+			deep_merge(base[key], value)
+		else:
+			base[key] = value
+	return base
+
+user_toml = sys.argv[1] if len(sys.argv) > 1 else ""
+generated_toml = sys.argv[2] if len(sys.argv) > 2 else ""
+
+merged = {}
+
+# Parse user TOML (if provided)
+if user_toml and user_toml.strip():
+	try:
+		merged = tomllib.loads(user_toml)
+	except Exception as e:
+		print(f"Error parsing user config_overrides: {e}", file=sys.stderr)
+		sys.exit(1)
+
+# Parse generated TOML (if provided)
+if generated_toml and generated_toml.strip():
+	try:
+		generated = tomllib.loads(generated_toml)
+		deep_merge(merged, generated)
+	except Exception as e:
+		print(f"Error parsing generated config: {e}", file=sys.stderr)
+		sys.exit(1)
+
+# Output merged TOML
+if merged:
+	import io
+	try:
+		# Use tomli_w if available (Python 3.11+), otherwise manual formatting
+		try:
+			import tomli_w
+			print(tomli_w.dumps(merged), end='')
+		except ImportError:
+			# Manual TOML formatting (simple cases only)
+			for section, values in merged.items():
+				if isinstance(values, dict):
+					print(f"[{section}]")
+					for key, val in values.items():
+						if isinstance(val, bool):
+							print(f"{key} = {str(val).lower()}")
+						elif isinstance(val, str):
+							print(f'{key} = "{val}"')
+						elif isinstance(val, list):
+							formatted_list = ", ".join([f'"{item}"' if isinstance(item, str) else str(item) for item in val])
+							print(f"{key} = [{formatted_list}]")
+						else:
+							print(f"{key} = {val}")
+					print()
+				else:
+					# Top-level key-value
+					if isinstance(values, bool):
+						print(f"{section} = {str(values).lower()}")
+					elif isinstance(values, str):
+						print(f'{section} = "{values}"')
+					else:
+						print(f"{section} = {values}")
+	except Exception as e:
+		print(f"Error formatting merged TOML: {e}", file=sys.stderr)
+		sys.exit(1)
+PYTHON_EOF
+}
+
+build_config_overrides() {
+	local overrides=""
+
+	overrides+="[switch]\n"
 	
-	if [ "${INPUT_DRAIN_WORKERS:-false}" == "true" ]; then
-		cmd="${cmd} --drain-workers"
-	else
-		cmd="${cmd} --no-drain-workers"
-	fi
-
-	if [ -n "${INPUT_DRAIN_WORKERS_TIMEOUT:-}" ]; then
-		cmd="${cmd} --drain-workers-timeout ${INPUT_DRAIN_WORKERS_TIMEOUT}"
-	fi
-
-	if [ -n "${INPUT_DRAIN_WORKERS_POLL:-}" ]; then
-		cmd="${cmd} --drain-workers-poll ${INPUT_DRAIN_WORKERS_POLL}"
-	fi
-
-	if [ "${INPUT_SKIP_STALE_WORKERS:-true}" == "true" ]; then
-		cmd="${cmd} --skip-stale-workers"
-	else
-		cmd="${cmd} --no-skip-stale-workers"
-	fi
-
-	if [ -n "${INPUT_SKIP_STALE_TIMEOUT:-}" ]; then
-		cmd="${cmd} --skip-stale-timeout ${INPUT_SKIP_STALE_TIMEOUT}"
-	fi
-
 	if [ "${INPUT_MIGRATE:-true}" == "true" ]; then
-		cmd="${cmd} --migrate"
+		overrides+="migrate = true\n"
 	else
-		cmd="${cmd} --no-migrate"
+		overrides+="migrate = false\n"
 	fi
 
 	if [ -n "${INPUT_MIGRATE_TIMEOUT:-}" ]; then
-		cmd="${cmd} --migrate-timeout ${INPUT_MIGRATE_TIMEOUT}"
+		overrides+="migrate_timeout = ${INPUT_MIGRATE_TIMEOUT}\n"
 	fi
 
-	if [ -n "${INPUT_MIGRATE_COMMAND:-}" ]; then
-		cmd="${cmd} --migrate-command ${INPUT_MIGRATE_COMMAND@Q}"
+	if [ "${INPUT_DRAIN_WORKERS:-false}" == "true" ]; then
+		overrides+="drain_workers = true\n"
+	else
+		overrides+="drain_workers = false\n"
+	fi
+
+	if [ "${INPUT_MAINTENANCE_MODE:-false}" == "true" ]; then
+		overrides+="maintenance_mode = true\n"
+	else
+		overrides+="maintenance_mode = false\n"
 	fi
 
 	if [ -n "${INPUT_MAINTENANCE_MODE_PHASES:-}" ]; then
+		overrides+="maintenance_mode_phases = ["
 		for phase in ${INPUT_MAINTENANCE_MODE_PHASES}; do
-			cmd="${cmd} --maintenance-mode-phases ${phase}"
+			overrides+="\"${phase}\", "
 		done
+		overrides="${overrides%, }"
+		overrides+="]\n"
 	fi
 
-	if [ -n "${INPUT_WORKER_KILL_TIMEOUT:-}" ]; then
-		cmd="${cmd} --worker-kill-timeout ${INPUT_WORKER_KILL_TIMEOUT}"
+	if [ "${INPUT_BACKUPS:-false}" == "true" ]; then
+		overrides+="backups = true\n"
+	else
+		overrides+="backups = false\n"
 	fi
 
-	if [ -n "${INPUT_WORKER_KILL_POLL:-}" ]; then
-		cmd="${cmd} --worker-kill-poll ${INPUT_WORKER_KILL_POLL}"
+	if [ "${INPUT_ROLLBACK:-false}" == "true" ]; then
+		overrides+="rollback = true\n"
+	else
+		overrides+="rollback = false\n"
 	fi
 
-	if [ -n "${INPUT_ADDITIONAL_COMMANDS:-}" ]; then
-		cmd="${cmd} ${INPUT_ADDITIONAL_COMMANDS}"
-	fi
-
-	echo "${cmd}"
+	echo -e "${overrides}"
 }
 
-parse_app_env() {
-	while IFS= read -r line; do
-		[[ -z "${line// /}" ]] && continue
-		[[ "${line}" == \#* ]] && continue
-		kv="${line#*:}"
-		if [[ "${kv}" == *"="* ]]; then
-			echo "${kv}"
-		else
-			warn "app_env: skipping malformed line (expected 'KEY=VALUE' or 'app-name:KEY=VALUE'): ${line}"
-		fi
-	done <<<"${INPUT_APP_ENV:-}"
-}
 
 pull_command() {
 	REMOTE_PORT="${SSH_PORT:-22}"
@@ -124,24 +177,13 @@ pull_command() {
 
 	COMMAND="pull ${INPUT_SITENAME} --github-token ${FMD_GITHUB_TOKEN}"
 	COMMAND="${COMMAND} --configure"
-	COMMAND="${COMMAND}$(build_switch_flags)"
 
 	setup_ssh
 
 	current_datetime=$(date +"%Y-%m-%d_%H-%M-%S")
 
-	REMOTE_APP_ENV_FILE=""
-	if [[ -n "${INPUT_APP_ENV:-}" ]]; then
-		REMOTE_APP_ENV_FILE="/tmp/.fmd_app_env_${current_datetime}"
-		LOCAL_APP_ENV_TMP=$(mktemp)
-
-		parse_app_env >"${LOCAL_APP_ENV_TMP}"
-
-		rsync -az -e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
-			"${LOCAL_APP_ENV_TMP}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_APP_ENV_FILE}"
-		ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "chmod 600 ${REMOTE_APP_ENV_FILE}"
-		rm -f "${LOCAL_APP_ENV_TMP}"
-	fi
+	GENERATED_OVERRIDES=$(build_config_overrides)
+	MERGED_OVERRIDES=$(merge_toml "${FMD_CONFIG_OVERRIDES:-}" "${GENERATED_OVERRIDES}")
 
 	REMOTE_FMD_SRC="/tmp/fmd_src_${current_datetime}"
 	rsync -az --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' \
@@ -174,10 +216,10 @@ pull_command() {
 		rm -f "${LOCAL_CONFIG_CONTENT_TMP}"
 	fi
 
-	if [[ "${FMD_CONFIG_OVERRIDES:-}" ]]; then
+	if [[ -n "${MERGED_OVERRIDES}" ]]; then
 		LOCAL_CONFIG_OVERRIDES_TMP=$(mktemp)
 		REMOTE_CONFIG_OVERRIDES_PATH="/tmp/fmd_config_overrides_${current_datetime}.toml"
-		echo "${FMD_CONFIG_OVERRIDES}" >"${LOCAL_CONFIG_OVERRIDES_TMP}"
+		echo -e "${MERGED_OVERRIDES}" >"${LOCAL_CONFIG_OVERRIDES_TMP}"
 		rsync -az -e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
 			"${LOCAL_CONFIG_OVERRIDES_TMP}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_CONFIG_OVERRIDES_PATH}"
 		COMMAND_LINE="${COMMAND_LINE} --config-overrides ${REMOTE_CONFIG_OVERRIDES_PATH}"
@@ -185,9 +227,6 @@ pull_command() {
 	fi
 
 	FRAPPE_DEPLOYER_CMD="/home/${REMOTE_USER}/.fmd/venv/bin/frappe-deployer ${COMMAND_LINE}"
-	if [[ -n "${REMOTE_APP_ENV_FILE}" ]]; then
-		FRAPPE_DEPLOYER_CMD="set -a && . ${REMOTE_APP_ENV_FILE} && set +a && ${FRAPPE_DEPLOYER_CMD}"
-	fi
 
 	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		"cd /home/${REMOTE_USER}/.fmd/logs && ${FRAPPE_DEPLOYER_CMD} 2>&1"
@@ -196,10 +235,6 @@ pull_command() {
 
 	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		"rm -rf ${REMOTE_FMD_SRC}" || true
-	if [[ -n "${REMOTE_APP_ENV_FILE}" ]]; then
-		ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-			"rm -f ${REMOTE_APP_ENV_FILE}" || true
-	fi
 
 	if [ "${DEPLOY_EXIT_CODE}" -eq 0 ]; then
 		echo "deployment_status=success" >>"${GITHUB_OUTPUT}"
@@ -248,21 +283,12 @@ ship_command() {
 		COMMAND="${COMMAND} --skip-rsync"
 	fi
 
-	if [ -n "${INPUT_RUNNER_IMAGE:-}" ]; then
-		COMMAND="${COMMAND} --runner-image ${INPUT_RUNNER_IMAGE}"
-	fi
+	GENERATED_OVERRIDES=$(build_config_overrides)
+	MERGED_OVERRIDES=$(merge_toml "${FMD_CONFIG_OVERRIDES:-}" "${GENERATED_OVERRIDES}")
 
-	COMMAND="${COMMAND}$(build_switch_flags)"
-
-	if [[ -n "${INPUT_APP_ENV:-}" ]]; then
-		while read -r kv; do
-			export "${kv?}"
-		done < <(parse_app_env)
-	fi
-
-	if [[ "${FMD_CONFIG_OVERRIDES:-}" ]]; then
+	if [[ -n "${MERGED_OVERRIDES}" ]]; then
 		LOCAL_CONFIG_OVERRIDES_TMP=$(mktemp)
-		echo "${FMD_CONFIG_OVERRIDES}" >"${LOCAL_CONFIG_OVERRIDES_TMP}"
+		echo -e "${MERGED_OVERRIDES}" >"${LOCAL_CONFIG_OVERRIDES_TMP}"
 		COMMAND="${COMMAND} --config-overrides ${LOCAL_CONFIG_OVERRIDES_TMP}"
 	fi
 
@@ -317,12 +343,6 @@ build_image_command() {
 
 	if [[ "${INPUT_IMAGE_TYPE:-}" ]]; then
 		COMMAND="${COMMAND} --image-type ${INPUT_IMAGE_TYPE}"
-	fi
-
-	if [[ -n "${INPUT_APP_ENV:-}" ]]; then
-		while read -r kv; do
-			export "${kv?}"
-		done < <(parse_app_env)
 	fi
 
 	fmd ${COMMAND}
