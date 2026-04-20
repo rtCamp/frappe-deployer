@@ -1,0 +1,145 @@
+[project]
+site_name        = "Frappe Manager Deployer"
+site_description = "Documentation for fmd — Zero-downtime Frappe deployments with atomic releases"
+site_url         = "https://rtcamp.github.io/fmd/"
+repo_name        = "rtcamp/fmd"
+repo_url         = "https://github.com/rtcamp/fmd"
+edit_uri         = "edit/main/docs/"
+extra_css        = ["stylesheets/extra.css"]
+
+# ---------------------------------------------------------------------------
+# Navigation
+# ---------------------------------------------------------------------------
+nav = [
+  { "Home" = "index.md" },
+  { "Getting Started" = [
+    "getting-started/index.md",
+    { "Requirements"  = "getting-started/requirements.md" },
+    { "Installation"  = "getting-started/installation.md" },
+    { "Quick Start"   = "getting-started/quick-start.md" },
+  ]},
+  { "Guides" = [
+    "guides/index.md",
+    { "Deploy Modes"           = "guides/deploy-modes.md" },
+    { "Configuration"          = "guides/configuration.md" },
+    { "GitHub Actions"         = "guides/github-actions.md" },
+    { "Hooks & Lifecycle"      = "guides/hooks.md" },
+    { "Frappe Cloud Sync"      = "guides/frappe-cloud.md" },
+    { "Maintenance Mode"       = "guides/maintenance-mode.md" },
+    { "Remote Workers"         = "guides/remote-workers.md" },
+    { "Monorepo Apps"          = "guides/monorepo-apps.md" },
+    { "Rollback & Recovery"    = "guides/rollback.md" },
+  ]},
+  { "Commands" = [
+    "commands/index.md",
+    { "fmd deploy" = [
+      "commands/deploy.md",
+      { "fmd deploy pull" = "commands/deploy-pull.md" },
+      { "fmd deploy ship" = "commands/deploy-ship.md" },
+    ]},
+    { "fmd release" = [
+      "commands/release.md",
+      { "fmd release configure" = "commands/release-configure.md" },
+      { "fmd release create"    = "commands/release-create.md" },
+      { "fmd release switch"    = "commands/release-switch.md" },
+      { "fmd release list"      = "commands/release-list.md" },
+    ]},
+    { "fmd info"           = "commands/info.md" },
+    { "fmd cleanup"        = "commands/cleanup.md" },
+    { "fmd search-replace" = "commands/search-replace.md" },
+    { "fmd maintenance"    = "commands/maintenance.md" },
+    { "fmd remote-worker"  = "commands/remote-worker.md" },
+  ]},
+  { "Reference" = [
+    "reference/index.md",
+    { "Concepts"         = "reference/concepts.md" },
+    { "Architecture"     = "reference/architecture.md" },
+    { "Troubleshooting"  = "reference/troubleshooting.md" },
+    { "Directory Structure" = "reference/directory-structure.md" },
+  ]},
+  { "FAQ"       = "faq.md" },
+  { "Changelog" = "changelog.md" },
+]
+
+# ---------------------------------------------------------------------------
+# Theme — rtCamp Brand Inspired
+# ---------------------------------------------------------------------------
+[project.theme]
+variant  = "modern"
+language = "en"
+logo     = "assets/logo.png"
+favicon  = "assets/logo.png"
+font = { text = "Reddit Sans, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif", code = "JetBrains Mono, Consolas, Monaco, monospace" }
+features = [
+  # Navigation
+  "navigation.tabs",
+  "navigation.tabs.sticky",
+  "navigation.sections",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  "navigation.instant.progress",
+  "navigation.path",
+  "navigation.top",
+  "navigation.footer",
+  "navigation.tracking",
+  # Search
+  "search.highlight",
+  "search.suggest",
+  "search.share",
+  # Content
+  "content.code.copy",
+  "content.code.annotate",
+  "content.tabs.link",
+  "content.tooltips",
+  "content.action.edit",
+  # TOC
+  "toc.follow",
+]
+
+[project.theme.icon]
+repo     = "fontawesome/brands/github"
+edit     = "lucide/pencil"
+previous = "lucide/chevron-left"
+next     = "lucide/chevron-right"
+
+# Light mode — rtCamp orange + purple accents
+[[project.theme.palette]]
+scheme      = "default"
+primary     = "deep-orange"
+accent      = "pink"
+
+  [project.theme.palette.toggle]
+  icon = "lucide/moon"
+  name = "Switch to dark mode"
+
+# Dark mode — rtCamp orange + purple accents  
+[[project.theme.palette]]
+scheme      = "slate"
+primary     = "deep-orange"
+accent      = "pink"
+
+  [project.theme.palette.toggle]
+  icon = "lucide/sun"
+  name = "Switch to light mode"
+
+# ---------------------------------------------------------------------------
+# Social links
+# ---------------------------------------------------------------------------
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/rtcamp/fmd"
+name = "GitHub"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/python"
+link = "https://pypi.org/project/frappe-deployer/"
+name = "PyPI"
+
+# ---------------------------------------------------------------------------
+# Versioning — powered by mike
+# ---------------------------------------------------------------------------
+[project.extra.version]
+provider = "mike"
+alias    = true
+default  = "latest"

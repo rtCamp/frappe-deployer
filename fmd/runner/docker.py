@@ -151,10 +151,12 @@ class DockerRunner(CommandRunner):
         # bench refuses to run as root, so we must become frappe after remapping.
         host_uid = os.getuid()
         host_gid = os.getgid()
+        
         inner_cmd = f"source /etc/bash.bashrc; {docker_command}"
         bash_script = (
             f"usermod -u {host_uid} frappe 2>/dev/null; "
             f"groupmod -g {host_gid} frappe 2>/dev/null; "
+            f"chown -R frappe:frappe {bench_mount} 2>/dev/null; "
             f"exec gosu frappe /bin/bash -c {shlex.quote(inner_cmd)}"
         )
         bash_command = ["-c", bash_script]

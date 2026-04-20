@@ -340,12 +340,17 @@ See [[file:docs/troubleshooting.md][docs/troubleshooting.md]] for more.
 
 * Documentation
 
-- [[file:example-config.toml][Configuration Reference]] — Complete config schema with comments
-- [[file:docs/concepts.md][Concepts]] — Release lifecycle, modes, directory structure
-- [[file:docs/architecture.md][Architecture]] — Runner system, mixins, hook lifecycle
-- [[file:docs/commands.md][Commands]] — Detailed command reference
-- [[file:docs/github-action.md][GitHub Action]] — Full action reference: all inputs, hooks, app_env, secrets setup
-- [[file:docs/troubleshooting.md][Troubleshooting]] — Common issues and solutions
+**Full documentation site**: https://rtcamp.github.io/fmd/
+
+Quick links:
+
+- [[file:docs/getting-started/quick-start.md][Quick Start]] — Deploy your first site in minutes
+- [[file:docs/guides/configuration.md][Configuration Guide]] — Complete config reference
+- [[file:docs/guides/deploy-modes.md][Deploy Modes]] — Pull vs ship strategies
+- [[file:docs/guides/github-actions.md][GitHub Actions]] — CI/CD integration
+- [[file:docs/commands/index.md][Command Reference]] — All commands with examples
+- [[file:docs/reference/troubleshooting.md][Troubleshooting]] — Common issues and solutions
+- [[file:example-config.toml][example-config.toml]] — Complete config schema with comments
 
 * License
 
