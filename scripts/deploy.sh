@@ -91,10 +91,21 @@ PYTHON_EOF
 }
 
 build_config_overrides() {
+	local host="${1:-}"
+	local ssh_user="${2:-}"
+	local ssh_port="${3:-22}"
 	local overrides=""
 
+	if [[ -n "${host}" ]]; then
+		overrides+="[ship]\n"
+		overrides+="host = \"${host}\"\n"
+		overrides+="ssh_user = \"${ssh_user}\"\n"
+		overrides+="ssh_port = ${ssh_port}\n"
+		overrides+="\n"
+	fi
+
 	overrides+="[switch]\n"
-	
+
 	if [ "${INPUT_MIGRATE:-true}" == "true" ]; then
 		overrides+="migrate = true\n"
 	else
@@ -182,7 +193,7 @@ pull_command() {
 
 	current_datetime=$(date +"%Y-%m-%d_%H-%M-%S")
 
-	GENERATED_OVERRIDES=$(build_config_overrides)
+	GENERATED_OVERRIDES=$(build_config_overrides "${REMOTE_HOST}" "${REMOTE_USER}" "${REMOTE_PORT}")
 	MERGED_OVERRIDES=$(merge_toml "${FMD_CONFIG_OVERRIDES:-}" "${GENERATED_OVERRIDES}")
 
 	REMOTE_FMD_SRC="/tmp/fmd_src_${current_datetime}"
@@ -283,7 +294,7 @@ ship_command() {
 		COMMAND="${COMMAND} --skip-rsync"
 	fi
 
-	GENERATED_OVERRIDES=$(build_config_overrides)
+	GENERATED_OVERRIDES=$(build_config_overrides "${REMOTE_HOST}" "${REMOTE_USER}" "${REMOTE_PORT}")
 	MERGED_OVERRIDES=$(merge_toml "${FMD_CONFIG_OVERRIDES:-}" "${GENERATED_OVERRIDES}")
 
 	if [[ -n "${MERGED_OVERRIDES}" ]]; then
