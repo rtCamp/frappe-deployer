@@ -347,7 +347,7 @@ ssh_port = 22
 
 [switch]
 migrate = true
-backups = "${BACKUP_ENABLED}"
+backups = "${BACKUPS_ENABLED}"
 ```
 
 Then in your workflow:
@@ -361,7 +361,7 @@ Then in your workflow:
     GITHUB_ORG: my-org
     SSH_SERVER: 192.168.1.100
     SSH_USER: frappe
-    BACKUP_ENABLED: "true"
+    BACKUPS_ENABLED: "true"
   with:
     command: ship
     config_path: .github/configs/site.toml
