@@ -58,7 +58,6 @@ def _deploy_remote(config: Config, printer) -> None:
         check=True
     )
     
-    # Create venv and install fmd
     printer.print("Installing fmd in remote venv")
     subprocess.run(
         ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
@@ -68,19 +67,42 @@ def _deploy_remote(config: Config, printer) -> None:
         check=True
     )
     
+    printer.print("[DEBUG] Checking if frappe_manager is installed on remote")
+    result = subprocess.run(
+        ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
+         f"/home/{ssh_user}/.fmd/venv/bin/python -c 'try: import frappe_manager; print(f\"frappe_manager found: {{frappe_manager.CLI_BENCHES_DIRECTORY}}\"); except: print(\"frappe_manager not installed\")'"],
+        capture_output=True,
+        text=True
+    )
+    printer.print(f"[DEBUG] frappe_manager check result: {result.stdout.strip()}")
+    
+    printer.print(f"[DEBUG] Checking USER environment variable on remote")
+    result = subprocess.run(
+        ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
+         "echo $USER"],
+        capture_output=True,
+        text=True
+    )
+    printer.print(f"[DEBUG] Remote USER={result.stdout.strip()}")
+    
     # Write config to temp file and rsync to remote
     with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
         local_config_path = Path(f.name)
     
-    # Remove [pull] section from config to prevent recursive remote execution
-    # Force host mode to avoid Docker on remote server
     remote_config = config.model_copy(deep=True)
     remote_config.pull = None
     if not remote_config.release:
         from fmd.config.release import ReleaseConfig
         remote_config.release = ReleaseConfig()
     remote_config.release.mode = "host"
+    
+    printer.print(f"[DEBUG] Remote config before TOML write: release.mode={remote_config.release.mode}")
     remote_config.to_toml(local_config_path)
+    
+    with open(local_config_path, 'r') as f:
+        toml_content = f.read()
+        printer.print(f"[DEBUG] TOML content written to {local_config_path}:")
+        printer.print(toml_content)
     
     remote_config_path = f"/tmp/fmd_config_{current_datetime}.toml"
     printer.print(f"Syncing config to remote: {remote_config_path}")

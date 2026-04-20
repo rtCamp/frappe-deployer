@@ -158,8 +158,18 @@ class Config(BaseModel):
     def workspace_root(self) -> Path:
         if self.ship and self._config_file_path is not None:
             return self._config_file_path.parent
+        
+        # Diagnostic logging for debugging workspace path issue
+        mode_value = self.release.mode if self.release else None
+        user_value = os.environ.get("USER", "frappe")
+        richprint.print(f"[DEBUG] workspace_root called: release={self.release is not None}, mode={mode_value}, USER={user_value}, bench_name={self.bench_name}")
+        
         if self.release and self.release.mode == "host":
-            return Path("/home") / os.environ.get("USER", "frappe") / "frappe" / "sites" / (self.bench_name or "default")
+            path = Path("/home") / user_value / "frappe" / "sites" / (self.bench_name or "default")
+            richprint.print(f"[DEBUG] workspace_root returning host path: {path}")
+            return path
+        
+        richprint.print(f"[DEBUG] workspace_root falling back to CLI_BENCHES_DIRECTORY: {CLI_BENCHES_DIRECTORY / (self.bench_name or 'default')}")
         assert self.bench_name is not None
         return CLI_BENCHES_DIRECTORY / self.bench_name
 
