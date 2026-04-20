@@ -86,7 +86,7 @@ def _deploy_remote(config: Config, printer) -> None:
     
     # Build command with environment variables
     # FMD_BARE_HOST tells fmd to use host paths instead of Docker paths
-    env_vars = f"FMD_BARE_HOST=1 FMD_HOST_BENCHES_ROOT=/home/{ssh_user}/frappe/sites"
+    env_exports = f"export FMD_BARE_HOST=1 FMD_HOST_BENCHES_ROOT=/home/{ssh_user}/frappe/sites"
     cmd_parts = [
         f"/home/{ssh_user}/.fmd/venv/bin/fmd", "deploy", "pull",
         config.site_name, "--config", remote_config_path
@@ -100,7 +100,7 @@ def _deploy_remote(config: Config, printer) -> None:
     printer.print("Executing pull deployment on remote server")
     result = subprocess.run(
         ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
-         f"cd /home/{ssh_user}/.fmd/logs && {env_vars} {remote_cmd} 2>&1"],
+         f"{env_exports} && cd /home/{ssh_user}/.fmd/logs && {remote_cmd} 2>&1"],
         check=False
     )
     
