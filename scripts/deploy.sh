@@ -113,9 +113,10 @@ resolve_ssh_connection() {
 
 # Common function: Merge deployment config
 merge_deployment_config() {
-	local remote_host="$1"
-	local remote_user="$2"
-	local remote_port="$3"
+	local command="$1"
+	local remote_host="$2"
+	local remote_user="$3"
+	local remote_port="$4"
 	
 	BASE_CONFIG_CONTENT=""
 	if [[ "${FMD_CONFIG_PATH:-}" ]]; then
@@ -124,7 +125,7 @@ merge_deployment_config() {
 		BASE_CONFIG_CONTENT="${FMD_CONFIG_CONTENT}"
 	fi
 	
-	GENERATED_OVERRIDES=$(build_config_overrides "${remote_host}" "${remote_user}" "${remote_port}")
+	GENERATED_OVERRIDES=$(build_config_overrides "${command}" "${remote_host}" "${remote_user}" "${remote_port}")
 	AFTER_USER_OVERRIDES=$(merge_toml "${BASE_CONFIG_CONTENT}" "${FMD_CONFIG_OVERRIDES:-}")
 	MERGED_CONFIG=$(merge_toml "${AFTER_USER_OVERRIDES}" "${GENERATED_OVERRIDES}")
 	
@@ -146,17 +147,26 @@ handle_deployment_exit() {
 }
 
 build_config_overrides() {
-	local host="${1:-}"
-	local ssh_user="${2:-}"
-	local ssh_port="${3:-22}"
+	local command="${1:-}"
+	local host="${2:-}"
+	local ssh_user="${3:-}"
+	local ssh_port="${4:-22}"
 	local overrides=""
 
 	if [[ -n "${host}" ]]; then
-		overrides+="[ship]\n"
-		overrides+="host = \"${host}\"\n"
-		overrides+="ssh_user = \"${ssh_user}\"\n"
-		overrides+="ssh_port = ${ssh_port}\n"
-		overrides+="\n"
+		if [[ "${command}" == "pull" ]]; then
+			overrides+="[pull]\n"
+			overrides+="ssh_server = \"${host}\"\n"
+			overrides+="ssh_user = \"${ssh_user}\"\n"
+			overrides+="ssh_port = ${ssh_port}\n"
+			overrides+="\n"
+		elif [[ "${command}" == "ship" ]]; then
+			overrides+="[ship]\n"
+			overrides+="host = \"${host}\"\n"
+			overrides+="ssh_user = \"${ssh_user}\"\n"
+			overrides+="ssh_port = ${ssh_port}\n"
+			overrides+="\n"
+		fi
 	fi
 
 	local switch_overrides=""
@@ -236,35 +246,15 @@ pull_command() {
 	resolve_ssh_connection "${TOML_CONFIG_FILE}"
 	setup_ssh
 	
-	current_datetime=$(date +"%Y-%m-%d_%H-%M-%S")
-	LOCAL_CONFIG_TMP=$(merge_deployment_config "${REMOTE_HOST}" "${REMOTE_USER}" "${REMOTE_PORT}")
+	LOCAL_CONFIG_TMP=$(merge_deployment_config "pull" "${REMOTE_HOST}" "${REMOTE_USER}" "${REMOTE_PORT}")
 	
-	REMOTE_FMD_SRC="/tmp/fmd_src_${current_datetime}"
-	rsync -az --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' \
-		-e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
-		"${GITHUB_ACTION_PATH}/" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_FMD_SRC}/"
+	COMMAND="deploy pull ${INPUT_SITENAME} --config ${LOCAL_CONFIG_TMP}"
+	COMMAND="${COMMAND} --github-token ${FMD_GITHUB_TOKEN}"
 	
-	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		"cd /home/${REMOTE_USER} && test -x /home/${REMOTE_USER}/.local/bin/uv || curl -LsSf https://astral.sh/uv/install.sh | sh"
-	
-	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		"cd /home/${REMOTE_USER} && mkdir -p /home/${REMOTE_USER}/.fmd/logs && rm -rf /home/${REMOTE_USER}/.fmd/venv && /home/${REMOTE_USER}/.local/bin/uv venv /home/${REMOTE_USER}/.fmd/venv --python 3.13 && /home/${REMOTE_USER}/.local/bin/uv pip install --python /home/${REMOTE_USER}/.fmd/venv/bin/python ${REMOTE_FMD_SRC}"
-	
-	REMOTE_CONFIG_PATH="/tmp/fmd_config_${current_datetime}.toml"
-	rsync -az -e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
-		"${LOCAL_CONFIG_TMP}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_CONFIG_PATH}"
-	rm -f "${LOCAL_CONFIG_TMP}"
-	
-	COMMAND="pull ${INPUT_SITENAME} --github-token ${FMD_GITHUB_TOKEN} --config ${REMOTE_CONFIG_PATH}"
-	FRAPPE_DEPLOYER_CMD="/home/${REMOTE_USER}/.fmd/venv/bin/fmd ${COMMAND}"
-	
-	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		"cd /home/${REMOTE_USER}/.fmd/logs && ${FRAPPE_DEPLOYER_CMD} 2>&1"
-	
+	fmd ${COMMAND}
 	DEPLOY_EXIT_CODE=$?
 	
-	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		"rm -rf ${REMOTE_FMD_SRC}" || true
+	rm -f "${LOCAL_CONFIG_TMP}"
 	
 	if [ "${DEPLOY_EXIT_CODE}" -eq 0 ]; then
 		echo "site_name=${INPUT_SITENAME}" >>"${GITHUB_OUTPUT}"
@@ -283,7 +273,7 @@ ship_command() {
 	resolve_ssh_connection "${TOML_CONFIG_FILE}"
 	setup_ssh
 	
-	LOCAL_CONFIG_TMP=$(merge_deployment_config "${REMOTE_HOST}" "${REMOTE_USER}" "${REMOTE_PORT}")
+	LOCAL_CONFIG_TMP=$(merge_deployment_config "ship" "${REMOTE_HOST}" "${REMOTE_USER}" "${REMOTE_PORT}")
 	
 	COMMAND="deploy ship --config ${LOCAL_CONFIG_TMP}"
 	COMMAND="${COMMAND} --github-token ${FMD_GITHUB_TOKEN}"

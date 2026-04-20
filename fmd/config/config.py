@@ -28,6 +28,7 @@ from fmd.config.deploy import DeployConfig
 from fmd.config.switch import SwitchConfig
 from fmd.config.fc import FCConfig
 from fmd.config.fm import FMConfig
+from fmd.config.pull import PullConfig
 from fmd.config.release import ReleaseConfig
 from fmd.config.remote_worker import RemoteWorkerConfig
 from fmd.config.ship import ShipConfig
@@ -81,6 +82,7 @@ class Config(BaseModel):
     fm: Optional[FMConfig] = Field(None, description="FM integration configuration.")
     fc: Optional[FCConfig] = Field(None, description="Frappe Cloud configuration.")
     remote_worker: Optional[RemoteWorkerConfig] = Field(None, description="Remote worker configuration.")
+    pull: Optional[PullConfig] = Field(None, description="Pull deployment configuration.")
     ship: Optional[ShipConfig] = Field(None, description="Ship deployment configuration.")
 
     @model_validator(mode="after")

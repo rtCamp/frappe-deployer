@@ -1,11 +1,109 @@
 from pathlib import Path
 from typing import List, Optional
+import subprocess
+import tempfile
+from datetime import datetime
 
 import typer
 from typer_examples import example
 
 from fmd.commands._utils import build_runners, get_printer, load_config, parse_app_option
 from fmd.managers.pull import PullManager
+from fmd.config.config import Config
+
+
+def _deploy_remote(config: Config, printer) -> None:
+    """Execute pull deployment on remote server via SSH."""
+    pull_config = config.pull
+    if pull_config is None:
+        raise ValueError("Remote deployment requires [pull] section in config")
+    
+    ssh_server = pull_config.ssh_server
+    ssh_user = pull_config.ssh_user
+    ssh_port = pull_config.ssh_port
+    fmd_source = pull_config.fmd_source or "fmd"
+    
+    current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    
+    # Determine FMD source to install on remote
+    if "/" in fmd_source and ("github.com" in fmd_source or fmd_source.startswith("git@")):
+        install_source = fmd_source
+    elif Path(fmd_source).exists():
+        remote_fmd_src = f"/tmp/fmd_src_{current_datetime}"
+        printer.print(f"Syncing local FMD source to remote: {remote_fmd_src}")
+        subprocess.run(
+            [
+                "rsync", "-az", "--exclude=.git", "--exclude=__pycache__", "--exclude=*.pyc",
+                "-e", f"ssh -p {ssh_port} -o StrictHostKeyChecking=no",
+                f"{fmd_source}/", f"{ssh_user}@{ssh_server}:{remote_fmd_src}/"
+            ],
+            check=True
+        )
+        install_source = remote_fmd_src
+    else:
+        install_source = fmd_source
+    
+    # Setup uv if not present
+    printer.print("Setting up uv on remote server")
+    subprocess.run(
+        ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
+         f"cd /home/{ssh_user} && test -x /home/{ssh_user}/.local/bin/uv || curl -LsSf https://astral.sh/uv/install.sh | sh"],
+        check=True
+    )
+    
+    # Create venv and install fmd
+    printer.print("Installing fmd in remote venv")
+    subprocess.run(
+        ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
+         f"cd /home/{ssh_user} && mkdir -p /home/{ssh_user}/.fmd/logs && rm -rf /home/{ssh_user}/.fmd/venv && "
+         f"/home/{ssh_user}/.local/bin/uv venv /home/{ssh_user}/.fmd/venv --python 3.13 && "
+         f"/home/{ssh_user}/.local/bin/uv pip install --python /home/{ssh_user}/.fmd/venv/bin/python {install_source}"],
+        check=True
+    )
+    
+    # Write config to temp file and rsync to remote
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        local_config_path = Path(f.name)
+    
+    config.to_toml(local_config_path)
+    
+    remote_config_path = f"/tmp/fmd_config_{current_datetime}.toml"
+    printer.print(f"Syncing config to remote: {remote_config_path}")
+    subprocess.run(
+        ["rsync", "-az", "-e", f"ssh -p {ssh_port} -o StrictHostKeyChecking=no",
+         str(local_config_path), f"{ssh_user}@{ssh_server}:{remote_config_path}"],
+        check=True
+    )
+    local_config_path.unlink()
+    
+    # Build command
+    cmd_parts = [
+        f"/home/{ssh_user}/.fmd/venv/bin/fmd", "deploy", "pull",
+        config.site_name, "--config", remote_config_path
+    ]
+    if config.github_token:
+        cmd_parts.extend(["--github-token", config.github_token])
+    
+    remote_cmd = " ".join(cmd_parts)
+    
+    # Execute pull command on remote
+    printer.print("Executing pull deployment on remote server")
+    result = subprocess.run(
+        ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
+         f"cd /home/{ssh_user}/.fmd/logs && {remote_cmd} 2>&1"],
+        check=False
+    )
+    
+    # Cleanup remote FMD source if we uploaded it
+    if "/" in fmd_source and Path(fmd_source).exists():
+        subprocess.run(
+            ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
+             f"rm -rf {install_source}"],
+            check=False
+        )
+    
+    if result.returncode != 0:
+        raise typer.Exit(code=result.returncode)
 
 
 @example(
@@ -239,10 +337,18 @@ def pull(
 
     config = load_config(config_path, overrides=overrides or None, create_if_missing=True)
     printer = get_printer()
-    image_runner, exec_runner, host_runner = build_runners(config)
-
-    printer.start("Deploying")
-    manager = PullManager(config, exec_runner, exec_runner, host_runner, printer)
-    manager.deploy()
-    printer.stop()
-    typer.echo("Deploy complete.")
+    
+    # Check if [pull] section exists - if yes, execute remotely
+    if config.pull is not None:
+        printer.start("Deploying remotely")
+        _deploy_remote(config, printer)
+        printer.stop()
+        typer.echo("Remote deploy complete.")
+    else:
+        # Local execution - existing behavior
+        image_runner, exec_runner, host_runner = build_runners(config)
+        printer.start("Deploying")
+        manager = PullManager(config, exec_runner, exec_runner, host_runner, printer)
+        manager.deploy()
+        printer.stop()
+        typer.echo("Deploy complete.")
