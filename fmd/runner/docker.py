@@ -76,7 +76,7 @@ class DockerRunner(CommandRunner):
 
     def workdir_for_bench(self, bench_directory) -> str:
         if self.mode == "image":
-            return "/bench"
+            return "/workspace/frappe-bench"
         return self._host_to_container(bench_directory.path)
 
     def workdir_for_sites(self, bench_directory) -> str:
@@ -143,27 +143,12 @@ class DockerRunner(CommandRunner):
         if _DockerClient is None:
             raise RuntimeError("frappe_manager.docker.docker_client.DockerClient unavailable")
 
-        bench_mount = "/bench"
+        bench_mount = "/workspace/frappe-bench"
+        uid = os.getuid()
+        gid = os.getgid()
         base_env = {
-            "HOME": bench_mount,
-            "USER": "frappe",
-            "GROUP": "frappe",
-            "PATH": f"{bench_mount}/.uv/python-default/bin:{bench_mount}/.fnm/aliases/default/bin:/usr/local/bin:/opt/user/.bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin",
-            "FNM_DIR": f"{bench_mount}/.fnm",
-            "FNM_NODE_DIST_MIRROR": "https://nodejs.org/dist",
-            "FNM_MULTISHELL_PATH": f"{bench_mount}/.fnm",
-            "FNM_COREPACK_ENABLED": "true",
-            "COREPACK_HOME": f"{bench_mount}/.fnm/corepack",
-            "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
-            "UV_PYTHON_INSTALL_DIR": f"{bench_mount}/.uv/python",
-            "UV_CACHE_DIR": f"{bench_mount}/.uv/cache",
-            "UV_PYTHON_DOWNLOADS": "automatic",
-            "UV_PYTHON_PREFERENCE": "only-managed",
-            "BENCH_USE_UV": "true",
-            "PYTHONUNBUFFERED": "1",
-            "LC_ALL": "en_US.UTF-8",
-            "LANG": "en_US.UTF-8",
-            "LANGUAGE": "en_US.UTF-8",
+            "USERID": str(uid),
+            "USERGROUP": str(gid),
         }
         for _k in ("DOCKER_HOST", "GITHUB_TOKEN", "GIT_TOKEN", "UV_LINK_MODE", "DOCKER_DEFAULT_PLATFORM"):
             if _k in os.environ:
@@ -174,19 +159,44 @@ class DockerRunner(CommandRunner):
             base_env["DOCKER_HOST"] = self.docker_host
 
         docker_command = shlex.join(command)
-        bash_command = ["/bin/bash", "-c", f"source /etc/bash.bashrc; {docker_command}"]
+        inner_cmd = f"source /etc/bash.bashrc; {docker_command}"
+
+        gosu_env = (
+            f"HOME={bench_mount} "
+            f"USER=frappe "
+            f"GROUP=frappe "
+            f"PATH={bench_mount}/.uv/python-default/bin:{bench_mount}/.fnm/aliases/default/bin:/usr/local/bin:/opt/user/.bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin "
+            f"FNM_DIR={bench_mount}/.fnm "
+            f"FNM_NODE_DIST_MIRROR=https://nodejs.org/dist "
+            f"FNM_MULTISHELL_PATH={bench_mount}/.fnm "
+            f"FNM_COREPACK_ENABLED=true "
+            f"COREPACK_HOME={bench_mount}/.fnm/corepack "
+            f"COREPACK_ENABLE_DOWNLOAD_PROMPT=0 "
+            f"UV_PYTHON_INSTALL_DIR={bench_mount}/.uv/python "
+            f"UV_CACHE_DIR={bench_mount}/.uv/cache "
+            f"UV_PYTHON_DOWNLOADS=automatic "
+            f"UV_PYTHON_PREFERENCE=only-managed "
+            f"BENCH_USE_UV=true "
+            f"PYTHONUNBUFFERED=1 "
+            f"LC_ALL=en_US.UTF-8 "
+            f"LANG=en_US.UTF-8 "
+            f"LANGUAGE=en_US.UTF-8"
+        )
+        bash_command = [
+            "/bin/bash", "-c",
+            f"chmod 755 /workspace && exec gosu {uid}:{gid} env {gosu_env} /bin/bash -c {shlex.quote(inner_cmd)}"
+        ]
 
         effective_workdir = workdir or bench_mount
         image = self._resolve_image()
-        uid_gid = f"{os.getuid()}:{os.getgid()}"
 
         volumes = [f"{bench_directory.path.absolute()}:{bench_mount}"]
 
         output = _DockerClient().run(
             image=image,
-            user=uid_gid,
+            user="root",
             command=shlex.join(bash_command),
-            workdir=effective_workdir,
+            workdir="/",
             env=base_env,
             entrypoint="/bin/bash",
             platform=self.platform or None,
