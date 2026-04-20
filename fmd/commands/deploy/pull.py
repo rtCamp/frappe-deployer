@@ -21,7 +21,14 @@ def _deploy_remote(config: Config, printer) -> None:
     ssh_server = pull_config.ssh_server
     ssh_user = pull_config.ssh_user
     ssh_port = pull_config.ssh_port
-    fmd_source = pull_config.fmd_source or "fmd"
+    
+    # Determine FMD source - prefer config, fallback to env var, then PyPI
+    fmd_source = pull_config.fmd_source
+    if not fmd_source:
+        import os
+        fmd_source = os.environ.get("FMD_ACTION_PATH")
+    if not fmd_source:
+        fmd_source = "fmd"
     
     current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     
