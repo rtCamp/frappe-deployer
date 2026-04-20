@@ -61,32 +61,26 @@ inputs:
 
   # --- Switch behavior (both modes) ---
   drain_workers:
-    description: "Drain workers before restart"
+    description: "Drain workers before restart (overrides TOML config if specified)"
     required: false
-    default: "false"
   migrate:
-    description: "Run bench migrate after switch"
+    description: "Run bench migrate after switch (overrides TOML config if specified)"
     required: false
-    default: "true"
   migrate_timeout:
-    description: "Timeout in seconds for bench migrate"
+    description: "Timeout in seconds for bench migrate (overrides TOML config if specified)"
     required: false
   maintenance_mode:
-    description: "Enable maintenance mode during deploy"
+    description: "Enable maintenance mode during deploy (overrides TOML config if specified)"
     required: false
-    default: "false"
   maintenance_mode_phases:
-    description: "Maintenance mode phases: space-separated list (e.g., 'drain migrate' or 'migrate')"
+    description: "Maintenance mode phases: space-separated list (e.g., 'drain migrate' or 'migrate'). Overrides TOML config if specified."
     required: false
-    default: ""
   backups:
-    description: "Take DB backup before switch"
+    description: "Take DB backup before switch (overrides TOML config if specified)"
     required: false
-    default: "false"
   rollback:
-    description: "Roll back to previous release on failure"
+    description: "Roll back to previous release on failure (overrides TOML config if specified)"
     required: false
-    default: "false"
 
 outputs:
   release_id:

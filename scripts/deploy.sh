@@ -81,49 +81,64 @@ build_config_overrides() {
 		overrides+="\n"
 	fi
 
-	overrides+="[switch]\n"
+	local switch_overrides=""
 
-	if [ "${INPUT_MIGRATE:-true}" == "true" ]; then
-		overrides+="migrate = true\n"
-	else
-		overrides+="migrate = false\n"
+	if [ -n "${INPUT_MIGRATE:-}" ]; then
+		if [ "${INPUT_MIGRATE}" == "true" ]; then
+			switch_overrides+="migrate = true\n"
+		else
+			switch_overrides+="migrate = false\n"
+		fi
 	fi
 
 	if [ -n "${INPUT_MIGRATE_TIMEOUT:-}" ]; then
-		overrides+="migrate_timeout = ${INPUT_MIGRATE_TIMEOUT}\n"
+		switch_overrides+="migrate_timeout = ${INPUT_MIGRATE_TIMEOUT}\n"
 	fi
 
-	if [ "${INPUT_DRAIN_WORKERS:-false}" == "true" ]; then
-		overrides+="drain_workers = true\n"
-	else
-		overrides+="drain_workers = false\n"
+	if [ -n "${INPUT_DRAIN_WORKERS:-}" ]; then
+		if [ "${INPUT_DRAIN_WORKERS}" == "true" ]; then
+			switch_overrides+="drain_workers = true\n"
+		else
+			switch_overrides+="drain_workers = false\n"
+		fi
 	fi
 
-	if [ "${INPUT_MAINTENANCE_MODE:-false}" == "true" ]; then
-		overrides+="maintenance_mode = true\n"
-	else
-		overrides+="maintenance_mode = false\n"
+	if [ -n "${INPUT_MAINTENANCE_MODE:-}" ]; then
+		if [ "${INPUT_MAINTENANCE_MODE}" == "true" ]; then
+			switch_overrides+="maintenance_mode = true\n"
+		else
+			switch_overrides+="maintenance_mode = false\n"
+		fi
 	fi
 
 	if [ -n "${INPUT_MAINTENANCE_MODE_PHASES:-}" ]; then
-		overrides+="maintenance_mode_phases = ["
+		switch_overrides+="maintenance_mode_phases = ["
 		for phase in ${INPUT_MAINTENANCE_MODE_PHASES}; do
-			overrides+="\"${phase}\", "
+			switch_overrides+="\"${phase}\", "
 		done
-		overrides="${overrides%, }"
-		overrides+="]\n"
+		switch_overrides="${switch_overrides%, }"
+		switch_overrides+="]\n"
 	fi
 
-	if [ "${INPUT_BACKUPS:-false}" == "true" ]; then
-		overrides+="backups = true\n"
-	else
-		overrides+="backups = false\n"
+	if [ -n "${INPUT_BACKUPS:-}" ]; then
+		if [ "${INPUT_BACKUPS}" == "true" ]; then
+			switch_overrides+="backups = true\n"
+		else
+			switch_overrides+="backups = false\n"
+		fi
 	fi
 
-	if [ "${INPUT_ROLLBACK:-false}" == "true" ]; then
-		overrides+="rollback = true\n"
-	else
-		overrides+="rollback = false\n"
+	if [ -n "${INPUT_ROLLBACK:-}" ]; then
+		if [ "${INPUT_ROLLBACK}" == "true" ]; then
+			switch_overrides+="rollback = true\n"
+		else
+			switch_overrides+="rollback = false\n"
+		fi
+	fi
+
+	if [ -n "${switch_overrides}" ]; then
+		overrides+="[switch]\n"
+		overrides+="${switch_overrides}"
 	fi
 
 	echo -e "${overrides}"
