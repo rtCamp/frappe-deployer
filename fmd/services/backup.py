@@ -166,7 +166,7 @@ class BackupService:
         if encryption_key:
             current_site_config_path = current.sites / site_name / "site_config.json"
             update_json_keys_in_file_path(current_site_config_path, {"encryption_key": encryption_key})
-            self.printer.print(f"Copyied ncryption_key from {from_bench_name}")
+            self.printer.print(f"Copied encryption_key from {from_bench_name}")
 
     def sync_configs_with_files(self, current: BenchDirectory, site_name: str):
         self.printer.change_head("Updating common_site_config.json, site_config.json")

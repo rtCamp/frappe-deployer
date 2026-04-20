@@ -17,12 +17,17 @@ try:
     from git.exc import GitCommandError
 except Exception:
 
-    class _GitCmdStub:
-        class Git:
-            def ls_remote(self, *args, **kwargs):
-                return ""
+    class _GitRemoteStub:
+        def ls_remote(self, *args, **kwargs):
+            return ""
 
-    git = _GitCmdStub()
+    class _GitCmdStub:
+        Git = _GitRemoteStub
+
+    class _GitModuleStub:
+        cmd = _GitCmdStub()
+
+    git = _GitModuleStub()
 
     class GitCommandError(Exception):
         pass

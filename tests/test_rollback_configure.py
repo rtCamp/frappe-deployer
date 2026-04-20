@@ -1,19 +1,20 @@
+import os
 import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fmd.commands._utils import load_config, build_runners, get_printer
 from fmd.managers.release import ReleaseManager
 from fmd.release_directory import BenchDirectory
 
-SITE = "fm.localhost"
-CONFIG = Path(__file__).parent / "test-fm.localhost.toml"
-WORKSPACE = Path("/Users/aloksingh/frappe/sites/fm.localhost/workspace")
+SITE = os.environ.get("FMD_TEST_SITE", "fm.localhost")
+CONFIG = Path(os.environ.get("FMD_TEST_CONFIG", str(Path(__file__).parent / "test-fm.localhost.toml")))
+WORKSPACE = Path(os.environ.get("FMD_TEST_WORKSPACE", f"/tmp/fmd-test/{SITE}/workspace"))
 BENCH_PATH = WORKSPACE / "frappe-bench"
-FMD = Path(__file__).parent / ".venv/bin/fmd"
+FMD = Path(os.environ.get("FMD_BIN", str(Path(__file__).parent / ".venv/bin/fmd")))
 
 PASS = []
 FAIL = []

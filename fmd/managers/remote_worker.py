@@ -56,7 +56,7 @@ def _find_available_port(start_port: int = 11000) -> Optional[int]:
         if port not in used_ports:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
-                sock.bind(("", port))
+                sock.bind(("127.0.0.1", port))
                 sock.close()
                 return port
             except OSError:
