@@ -139,33 +139,39 @@ class ShipManager:
         local_fmd_root = Path(__file__).parent.parent.parent
         local_git_dir = local_fmd_root / ".git"
 
+        import typer
+
+        typer.echo(f"[DEBUG] local_fmd_root: {local_fmd_root}")
+        typer.echo(f"[DEBUG] .git exists: {local_git_dir.exists()}")
+
         if local_git_dir.exists():
-            import os
             import subprocess
 
-            # In GitHub Actions, GITHUB_REF contains the actual branch even in detached HEAD
-            github_ref = os.environ.get("GITHUB_REF", "")
-            if github_ref.startswith("refs/heads/"):
-                branch = github_ref.replace("refs/heads/", "")
-                return f"git+https://github.com/rtcamp/frappe-deployer.git@{branch}"
-
-            # Try git rev-parse for local dev
             result = subprocess.run(
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=local_fmd_root, capture_output=True, text=True
             )
-            if result.returncode == 0 and result.stdout.strip() != "HEAD":
+            typer.echo(f"[DEBUG] git rev-parse --abbrev-ref HEAD: {result.stdout.strip()} (returncode={result.returncode})")
+            
+            if result.returncode == 0 and result.stdout.strip() not in ("HEAD", ""):
                 branch = result.stdout.strip()
-                return f"git+https://github.com/rtcamp/frappe-deployer.git@{branch}"
+                fmd_source = f"git+https://github.com/rtcamp/frappe-deployer.git@{branch}"
+                typer.echo(f"[DEBUG] Using branch: {fmd_source}")
+                return fmd_source
 
-            # Detached HEAD: use commit SHA instead of defaulting to main
             result = subprocess.run(
                 ["git", "rev-parse", "HEAD"], cwd=local_fmd_root, capture_output=True, text=True
             )
+            typer.echo(f"[DEBUG] git rev-parse HEAD: {result.stdout.strip()} (returncode={result.returncode})")
+            
             if result.returncode == 0:
                 commit_sha = result.stdout.strip()
-                return f"git+https://github.com/rtcamp/frappe-deployer.git@{commit_sha}"
+                fmd_source = f"git+https://github.com/rtcamp/frappe-deployer.git@{commit_sha}"
+                typer.echo(f"[DEBUG] Using commit SHA: {fmd_source}")
+                return fmd_source
 
-        return "git+https://github.com/rtcamp/frappe-deployer.git@main"
+        default_source = "git+https://github.com/rtcamp/frappe-deployer.git@main"
+        typer.echo(f"[DEBUG] Falling back to default: {default_source}")
+        return default_source
 
     def _rsync_fmd_source_if_local(self, fmd_source: str) -> str:
         if not fmd_source.startswith("git+file://"):
