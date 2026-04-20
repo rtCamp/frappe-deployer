@@ -76,8 +76,10 @@ def _deploy_remote(config: Config, printer) -> None:
     # Force host mode to avoid Docker on remote server
     remote_config = config.model_copy(deep=True)
     remote_config.pull = None
-    if remote_config.release:
-        remote_config.release.mode = "host"
+    if not remote_config.release:
+        from fmd.config.release import ReleaseConfig
+        remote_config.release = ReleaseConfig()
+    remote_config.release.mode = "host"
     remote_config.to_toml(local_config_path)
     
     remote_config_path = f"/tmp/fmd_config_{current_datetime}.toml"
