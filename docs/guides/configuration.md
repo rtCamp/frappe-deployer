@@ -40,7 +40,7 @@ repo = "${GITHUB_ORG}/custom-app"
 ref = "main"
 
 [switch]
-backup = "${BACKUP_ENABLED}"
+backups = "${BACKUPS_ENABLED}"
 ```
 
 **Supported patterns:**
@@ -63,7 +63,7 @@ backup = "${BACKUP_ENABLED}"
     SITE_NAME: helpdesk.example.com
     FRAPPE_VERSION: version-15
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    BACKUP_ENABLED: "true"
+    BACKUPS_ENABLED: "true"
   with:
     config_file: .github/deploy.toml
 ```
