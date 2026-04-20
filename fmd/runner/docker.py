@@ -1,8 +1,6 @@
 import importlib
 import os
 import shlex
-import stat
-import tempfile
 import time
 from pathlib import Path
 from typing import Iterable, List, Literal, Optional, Tuple, Union
@@ -145,9 +143,27 @@ class DockerRunner(CommandRunner):
         if _DockerClient is None:
             raise RuntimeError("frappe_manager.docker.docker_client.DockerClient unavailable")
 
+        bench_mount = "/workspace/frappe-bench"
         base_env = {
-            "USERID": str(os.getuid()),
-            "USERGROUP": str(os.getgid()),
+            "HOME": bench_mount,
+            "USER": "frappe",
+            "GROUP": "frappe",
+            "PATH": f"{bench_mount}/.uv/python-default/bin:{bench_mount}/.fnm/aliases/default/bin:/usr/local/bin:/opt/user/.bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "FNM_DIR": f"{bench_mount}/.fnm",
+            "FNM_NODE_DIST_MIRROR": "https://nodejs.org/dist",
+            "FNM_MULTISHELL_PATH": f"{bench_mount}/.fnm",
+            "FNM_COREPACK_ENABLED": "true",
+            "COREPACK_HOME": f"{bench_mount}/.fnm/corepack",
+            "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
+            "UV_PYTHON_INSTALL_DIR": f"{bench_mount}/.uv/python",
+            "UV_CACHE_DIR": f"{bench_mount}/.uv/cache",
+            "UV_PYTHON_DOWNLOADS": "automatic",
+            "UV_PYTHON_PREFERENCE": "only-managed",
+            "BENCH_USE_UV": "true",
+            "PYTHONUNBUFFERED": "1",
+            "LC_ALL": "en_US.UTF-8",
+            "LANG": "en_US.UTF-8",
+            "LANGUAGE": "en_US.UTF-8",
         }
         for _k in ("DOCKER_HOST", "GITHUB_TOKEN", "GIT_TOKEN", "UV_LINK_MODE", "DOCKER_DEFAULT_PLATFORM"):
             if _k in os.environ:
@@ -160,84 +176,33 @@ class DockerRunner(CommandRunner):
         docker_command = shlex.join(command)
         bash_command = ["/bin/bash", "-c", f"source /etc/bash.bashrc; {docker_command}"]
 
-        effective_workdir = workdir or "/workspace/frappe-bench"
+        effective_workdir = workdir or bench_mount
         image = self._resolve_image()
+        uid_gid = f"{os.getuid()}:{os.getgid()}"
 
-        # Write a wrapper entrypoint that overrides HOME to the bind-mounted bench dir.
-        # exec-entrypoint.sh hardcodes HOME=/workspace (image-owned, not writable by
-        # the runner uid). Redirecting HOME to /workspace/frappe-bench (which IS the
-        # bind-mount) ensures fnm/uv temp writes land on a path we own.
-        wrapper_script = (
-            "#!/bin/bash\n"
-            "set -e\n"
-            "[[ \"${USERID:-}\" ]] || { echo '[ERROR] USERID required'; exit 1; }\n"
-            "[[ \"${USERGROUP:-}\" ]] || { echo '[ERROR] USERGROUP required'; exit 1; }\n"
-            "export FNM_DIR=/workspace/frappe-bench/.fnm\n"
-            "export FNM_NODE_DIST_MIRROR=https://nodejs.org/dist\n"
-            "export FNM_MULTISHELL_PATH=/workspace/frappe-bench/.fnm\n"
-            "if [ -d '/workspace/frappe-bench/.uv/python-default/bin' ]; then\n"
-            "  export PATH='/workspace/frappe-bench/.uv/python-default/bin:/workspace/frappe-bench/.fnm/aliases/default/bin:/usr/local/bin:/opt/user/.bin:'\"${PATH}\"\n"
-            "else\n"
-            "  export PATH='/workspace/frappe-bench/.fnm/aliases/default/bin:/usr/local/bin:/opt/user/.bin:'\"${PATH}\"\n"
-            "fi\n"
-            "exec gosu \"${USERID}\":\"${USERGROUP}\" env \\\n"
-            "  HOME=/workspace/frappe-bench \\\n"
-            "  USER=frappe \\\n"
-            "  GROUP=frappe \\\n"
-            "  PATH=\"${PATH}\" \\\n"
-            "  FNM_DIR=/workspace/frappe-bench/.fnm \\\n"
-            "  FNM_NODE_DIST_MIRROR=https://nodejs.org/dist \\\n"
-            "  FNM_MULTISHELL_PATH=/workspace/frappe-bench/.fnm \\\n"
-            "  FNM_COREPACK_ENABLED=true \\\n"
-            "  UV_PYTHON_INSTALL_DIR=/workspace/frappe-bench/.uv/python \\\n"
-            "  UV_CACHE_DIR=/workspace/frappe-bench/.uv/cache \\\n"
-            "  BENCH_USE_UV=true \\\n"
-            "  PYTHONUNBUFFERED=1 \\\n"
-            "  LC_ALL=en_US.UTF-8 \\\n"
-            "  LANG=en_US.UTF-8 \\\n"
-            "  LANGUAGE=en_US.UTF-8 \\\n"
-            "  \"$@\"\n"
+        volumes = [f"{bench_directory.path.absolute()}:{bench_mount}"]
+
+        output = _DockerClient().run(
+            image=image,
+            user=uid_gid,
+            command=shlex.join(bash_command),
+            workdir=effective_workdir,
+            env=base_env,
+            entrypoint="/bin/bash",
+            platform=self.platform or None,
+            pull="missing",
+            volume=volumes,
+            stream=not capture_output,
+            rm=True,
         )
-        wrapper_file = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".sh", delete=False, prefix="fmd-entrypoint-"
-        )
-        wrapper_file.write(wrapper_script)
-        wrapper_file.flush()
-        wrapper_file.close()
-        os.chmod(wrapper_file.name, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
 
-        volumes = [
-            f"{bench_directory.path.absolute()}:/workspace/frappe-bench",
-            f"{wrapper_file.name}:/fmd-entrypoint.sh:ro",
-        ]
+        if capture_output:
+            self._log_output(output)
+            return output
 
-        try:
-            output = _DockerClient().run(
-                image=image,
-                user="root",
-                command=shlex.join(bash_command),
-                workdir=effective_workdir,
-                env=base_env,
-                entrypoint="/fmd-entrypoint.sh",
-                platform=self.platform or None,
-                pull="missing",
-                volume=volumes,
-                stream=not capture_output,
-                rm=True,
-            )
-
-            if capture_output:
-                self._log_output(output)
-                return output
-
-            stream = self._tag_stderr_stream(output) if tag_streams else output
-            self.printer.live_lines(stream, lines=live_lines)
-            return None
-        finally:
-            try:
-                os.unlink(wrapper_file.name)
-            except OSError:
-                pass
+        stream = self._tag_stderr_stream(output) if tag_streams else output
+        self.printer.live_lines(stream, lines=live_lines)
+        return None
 
     def _run_in_exec(self, command, bench_directory, capture_output, live_lines, workdir, env, tag_streams=False):
         from frappe_manager.docker.docker_compose import DockerComposeWrapper
