@@ -73,8 +73,11 @@ def _deploy_remote(config: Config, printer) -> None:
         local_config_path = Path(f.name)
     
     # Remove [pull] section from config to prevent recursive remote execution
+    # Force host mode to avoid Docker on remote server
     remote_config = config.model_copy(deep=True)
     remote_config.pull = None
+    if remote_config.release:
+        remote_config.release.mode = "host"
     remote_config.to_toml(local_config_path)
     
     remote_config_path = f"/tmp/fmd_config_{current_datetime}.toml"
