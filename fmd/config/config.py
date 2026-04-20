@@ -64,9 +64,7 @@ class Config(BaseModel):
 
     @model_validator(mode="after")
     def _configure_apps(self) -> "Config":
-        print(f"[DEBUG Config._configure_apps] Entry")
         skip_validation = _skip_repo_validation_context.get()
-        print(f"[DEBUG Config._configure_apps] Context var _skip_repo_validation={skip_validation}")
         
         if self.bench_name is None:
             self.bench_name = self.site_name
@@ -98,7 +96,6 @@ class Config(BaseModel):
                 app.symlink = app.symlink or self.release.symlink_subdir_apps
 
         if not self.apps:
-            print(f"[DEBUG Config._configure_apps] No apps, returning early")
             return self
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -120,10 +117,7 @@ class Config(BaseModel):
             ]
             concurrent.futures.wait(futures)
 
-        print(f"[DEBUG Config._configure_apps] Before validation check")
-        skip_validation = _skip_repo_validation_context.get()
         if not skip_validation:
-            print(f"[DEBUG Config._configure_apps] Running repo validation (context var is False)")
             all_accessible = True
             for app in self.apps:
                 if not app.exists:
@@ -134,8 +128,6 @@ class Config(BaseModel):
 
             if not all_accessible:
                 raise RuntimeError("Please ensure all app repos are accessible.")
-        else:
-            print(f"[DEBUG Config._configure_apps] SKIPPING repo validation (context var is True)")
 
         return self
 
@@ -183,8 +175,6 @@ class Config(BaseModel):
         overrides: Optional[dict[str, Any]] = None,
         skip_repo_validation: bool = False,
     ) -> "Config":
-        print(f"[DEBUG Config.from_toml] Called with skip_repo_validation={skip_repo_validation}")
-        
         token = _skip_repo_validation_context.set(skip_repo_validation)
         try:
             config_data: dict[str, Any] = {}
@@ -237,7 +227,6 @@ class Config(BaseModel):
 
             obj = Config(**config_data)
             obj._skip_repo_validation = skip_repo_validation
-            print(f"[DEBUG Config.from_toml] Created Config object")
             if config_file_path:
                 obj._config_file_path = config_file_path
             return obj
