@@ -9,7 +9,7 @@ class ReleaseConfig(BaseModel):
     mode: Optional[str] = Field(None, description="Runner mode: 'image' or 'exec'. Defaults to 'exec'.")
     runner_image: Optional[str] = Field(
         None,
-        description="Override Docker image for image mode. Auto-detects frappe-manager version if not set.",
+        description="Docker image used to create releases. Auto-detected from installed frappe-manager version if not set.",
     )
     platform: Optional[str] = Field(
         None,
@@ -20,13 +20,8 @@ class ReleaseConfig(BaseModel):
         False,
         description="Symlink monorepo subdirectory apps instead of copying.",
     )
-    mode: Optional[str] = Field(None, description="Runner mode: 'image' or 'exec'. Defaults to 'exec'.")
     python_version: Optional[str] = Field(None, description="Python version to bake into the release via uv.")
     node_version: Optional[str] = Field(None, description="Node.js version to bake into the release via fnm.")
-    runner_image: str = Field(
-        "",
-        description="Docker image used to create releases. Auto-detected from installed frappe-manager version if empty.",
-    )
 
     use_fc_apps: bool = Field(
         False,

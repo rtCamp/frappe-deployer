@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import fmd.commands._utils as _u
 from fmd.commands._utils import load_config, set_verbose, parse_app_option
@@ -11,6 +11,14 @@ CONFIG = Path(__file__).parent / "test-fm.localhost.toml"
 PASS = []
 FAIL = []
 
+_SENSITIVE_KEYWORDS = {"password", "secret", "token", "key", "credential", "private"}
+
+
+def _mask_if_sensitive(label: str, value: object) -> str:
+    if any(kw in label.lower() for kw in _SENSITIVE_KEYWORDS):
+        return "[REDACTED]"
+    return repr(value)
+
 
 def check(label, got, expected):
     if got == expected:
@@ -18,7 +26,7 @@ def check(label, got, expected):
         print(f"  PASS  {label}")
     else:
         FAIL.append(label)
-        print(f"  FAIL  {label}  ->  expected {expected!r}, got {got!r}")
+        print(f"  FAIL  {label}  ->  expected {_mask_if_sensitive(label, expected)}, got {_mask_if_sensitive(label, got)}")
 
 
 def reset_verbose():
