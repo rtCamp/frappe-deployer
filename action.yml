@@ -149,6 +149,8 @@ runs:
         FMD_CONFIG_CONTENT: ${{ inputs.config_content }}
         FMD_CONFIG_OVERRIDES: ${{ inputs.config_overrides }}
         FMD_GITHUB_TOKEN: ${{ inputs.gh_token }}
+        FMD_ACTION_PATH: ${{ github.action_path }}
+        FMD_ACTION_REF: ${{ github.action_ref }}
 
     - name: Clean up temporary directory
       if: always()
