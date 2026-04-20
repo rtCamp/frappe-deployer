@@ -187,7 +187,7 @@ class DockerRunner(CommandRunner):
             command=shlex.join(bash_command),
             workdir=effective_workdir,
             env=base_env,
-            entrypoint="/scripts/exec-entrypoint.sh",
+            entrypoint="/exec-entrypoint.sh",
             platform=self.platform or None,
             pull="missing",
             volume=volumes,
