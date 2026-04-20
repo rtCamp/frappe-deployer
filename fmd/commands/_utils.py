@@ -115,11 +115,15 @@ def load_config(
 
 def build_runners(config: Config):
     platform = config.release.platform if config.release.platform else None
+    host_runner = HostRunner(verbose=config.verbose, printer=_printer)
+    
+    if config.release and config.release.mode == "host":
+        return host_runner, host_runner, host_runner
+    
     image_runner = DockerRunner(
         mode="image", config=config, verbose=config.verbose, printer=_printer, platform=platform
     )
     exec_runner = DockerRunner(mode="exec", config=config, verbose=config.verbose, printer=_printer)
-    host_runner = HostRunner(verbose=config.verbose, printer=_printer)
     return image_runner, exec_runner, host_runner
 
 
