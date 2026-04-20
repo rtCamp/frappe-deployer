@@ -145,7 +145,19 @@ class DockerRunner(CommandRunner):
 
         bench_mount = "/workspace/frappe-bench"
         docker_command = shlex.join(command)
-        bash_command = ["-c", f"source /etc/bash.bashrc; {docker_command}"]
+
+        # Remap frappe uid/gid to match the host runner so the bind-mount is
+        # writable, then drop privileges to frappe before running the command.
+        # bench refuses to run as root, so we must become frappe after remapping.
+        host_uid = os.getuid()
+        host_gid = os.getgid()
+        inner_cmd = f"source /etc/bash.bashrc; {docker_command}"
+        bash_script = (
+            f"usermod -u {host_uid} frappe 2>/dev/null; "
+            f"groupmod -g {host_gid} frappe 2>/dev/null; "
+            f"exec gosu frappe /bin/bash -c {shlex.quote(inner_cmd)}"
+        )
+        bash_command = ["-c", bash_script]
 
         effective_workdir = workdir or bench_mount
         image = self._resolve_image()
