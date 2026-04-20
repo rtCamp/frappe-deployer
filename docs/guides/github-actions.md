@@ -325,6 +325,52 @@ backups = true
 rollback = false
 ```
 
+**With environment variable substitution:**
+
+Config files support `${VAR_NAME}` or `$VAR_NAME` syntax for dynamic values from GitHub Actions environment:
+
+```toml
+site_name = "${SITE_NAME}"
+
+[[apps]]
+repo = "frappe/frappe"
+ref = "${FRAPPE_VERSION}"
+
+[[apps]]
+repo = "${GITHUB_ORG}/custom-app"
+ref = "main"
+
+[ship]
+host = "${SSH_SERVER}"
+ssh_user = "${SSH_USER}"
+ssh_port = 22
+
+[switch]
+migrate = true
+backups = "${BACKUP_ENABLED}"
+```
+
+Then in your workflow:
+
+```yaml
+- name: Deploy
+  uses: rtcamp/frappe-deployer@fmx/0
+  env:
+    SITE_NAME: mysite.example.com
+    FRAPPE_VERSION: version-15
+    GITHUB_ORG: my-org
+    SSH_SERVER: 192.168.1.100
+    SSH_USER: frappe
+    BACKUP_ENABLED: "true"
+  with:
+    command: ship
+    config_path: .github/configs/site.toml
+    gh_token: ${{ secrets.GH_TOKEN }}
+    ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+```
+
+Undefined variables preserve original syntax (`${UNDEFINED}` stays as-is). See [Configuration Guide](./configuration.md#environment-variable-substitution) for details.
+
 See [`example-config.toml`](../example-config.toml) for the full schema.
 
 ---

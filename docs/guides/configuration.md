@@ -23,6 +23,51 @@ backups = true
 
 See [example-config.toml](https://github.com/rtcamp/fmd/blob/main/example-config.toml) for complete documentation of all options.
 
+## Environment Variable Substitution
+
+Configuration files support environment variable substitution using `${VAR_NAME}` or `$VAR_NAME` syntax. This allows dynamic configuration based on environment:
+
+```toml
+site_name = "${SITE_NAME}"
+github_token = "${GITHUB_TOKEN}"
+
+[[apps]]
+repo = "frappe/frappe"
+ref = "${FRAPPE_VERSION}"
+
+[[apps]]
+repo = "${GITHUB_ORG}/custom-app"
+ref = "main"
+
+[switch]
+backup = "${BACKUP_ENABLED}"
+```
+
+**Supported patterns:**
+- `${VAR_NAME}` - Braced syntax (recommended)
+- `$VAR_NAME` - Unbraced syntax
+- Variable names must start with letter or underscore, contain only uppercase letters, numbers, and underscores
+
+**Behavior:**
+- Defined variables are replaced with their values
+- Undefined variables preserve original syntax: `${UNDEFINED}` remains as-is
+- Works in any string value (nested objects, lists, mixed strings)
+- Non-string values (numbers, booleans) are not affected
+
+**Usage with GitHub Actions:**
+
+```yaml
+- name: Deploy
+  uses: rtcamp/frappe-deployer@fmx/0
+  env:
+    SITE_NAME: helpdesk.example.com
+    FRAPPE_VERSION: version-15
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    BACKUP_ENABLED: "true"
+  with:
+    config_file: .github/deploy.toml
+```
+
 ## Required Settings
 
 ### Site and Bench
