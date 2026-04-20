@@ -169,18 +169,23 @@ class Config(BaseModel):
         fmd_bare_host = os.environ.get("FMD_BARE_HOST")
         fmd_host_benches_root = os.environ.get("FMD_HOST_BENCHES_ROOT")
         
-        print(f"[DEBUG workspace_root] FMD_BARE_HOST={fmd_bare_host}, FMD_HOST_BENCHES_ROOT={fmd_host_benches_root}")
-        print(f"[DEBUG workspace_root] bench_name={self.bench_name}")
-        print(f"[DEBUG workspace_root] CLI_BENCHES_DIRECTORY={CLI_BENCHES_DIRECTORY}")
+        import sys
+        sys.stderr.write(f"[DEBUG] FMD_BARE_HOST={fmd_bare_host}\n")
+        sys.stderr.write(f"[DEBUG] FMD_HOST_BENCHES_ROOT={fmd_host_benches_root}\n")
+        sys.stderr.write(f"[DEBUG] bench_name={self.bench_name}\n")
+        sys.stderr.write(f"[DEBUG] CLI_BENCHES_DIRECTORY={CLI_BENCHES_DIRECTORY}\n")
+        sys.stderr.flush()
         
         if fmd_bare_host == "1":
             benches_root = fmd_host_benches_root or "/home/frappe/frappe/sites"
             result = Path(benches_root) / self.bench_name
-            print(f"[DEBUG workspace_root] Using bare host path: {result}")
+            sys.stderr.write(f"[DEBUG] Using bare host path: {result}\n")
+            sys.stderr.flush()
             return result
         
         result = CLI_BENCHES_DIRECTORY / self.bench_name
-        print(f"[DEBUG workspace_root] Using CLI_BENCHES_DIRECTORY path: {result}")
+        sys.stderr.write(f"[DEBUG] Using CLI_BENCHES_DIRECTORY path: {result}\n")
+        sys.stderr.flush()
         return result
 
     @property
