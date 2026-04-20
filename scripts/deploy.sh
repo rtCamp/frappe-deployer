@@ -193,8 +193,19 @@ pull_command() {
 
 	current_datetime=$(date +"%Y-%m-%d_%H-%M-%S")
 
+	BASE_CONFIG_CONTENT=""
+	if [[ "${FMD_CONFIG_PATH:-}" ]]; then
+		BASE_CONFIG_CONTENT=$(cat "${GITHUB_WORKSPACE}/${FMD_CONFIG_PATH}")
+	elif [[ "${FMD_CONFIG_CONTENT:-}" ]]; then
+		BASE_CONFIG_CONTENT="${FMD_CONFIG_CONTENT}"
+	fi
+
 	GENERATED_OVERRIDES=$(build_config_overrides "${REMOTE_HOST}" "${REMOTE_USER}" "${REMOTE_PORT}")
-	MERGED_OVERRIDES=$(merge_toml "${FMD_CONFIG_OVERRIDES:-}" "${GENERATED_OVERRIDES}")
+	AFTER_USER_OVERRIDES=$(merge_toml "${BASE_CONFIG_CONTENT}" "${FMD_CONFIG_OVERRIDES:-}")
+	MERGED_CONFIG=$(merge_toml "${AFTER_USER_OVERRIDES}" "${GENERATED_OVERRIDES}")
+
+	LOCAL_CONFIG_TMP=$(mktemp --suffix=.toml)
+	echo "${MERGED_CONFIG}" >"${LOCAL_CONFIG_TMP}"
 
 	REMOTE_FMD_SRC="/tmp/fmd_src_${current_datetime}"
 	rsync -az --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' \
@@ -207,36 +218,12 @@ pull_command() {
 	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		"cd /home/${REMOTE_USER} && mkdir -p /home/${REMOTE_USER}/.fmd/logs && rm -rf /home/${REMOTE_USER}/.fmd/venv && /home/${REMOTE_USER}/.local/bin/uv venv /home/${REMOTE_USER}/.fmd/venv --python 3.10 && /home/${REMOTE_USER}/.local/bin/uv pip install --python /home/${REMOTE_USER}/.fmd/venv/bin/python ${REMOTE_FMD_SRC}"
 
-	COMMAND_LINE="${COMMAND}"
+	REMOTE_CONFIG_PATH="/tmp/fmd_config_${current_datetime}.toml"
+	rsync -az -e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
+		"${LOCAL_CONFIG_TMP}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_CONFIG_PATH}"
+	rm -f "${LOCAL_CONFIG_TMP}"
 
-	if [[ "${FMD_CONFIG_PATH:-}" ]]; then
-		LOCAL_CONFIG_PATH="${GITHUB_WORKSPACE}/${FMD_CONFIG_PATH}"
-		REMOTE_CONFIG_PATH="/tmp/$(basename "${FMD_CONFIG_PATH}")_${current_datetime}"
-		rsync -az -e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
-			"${LOCAL_CONFIG_PATH}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_CONFIG_PATH}"
-		COMMAND_LINE="${COMMAND_LINE} --config-path ${REMOTE_CONFIG_PATH}"
-	fi
-
-	if [[ "${FMD_CONFIG_CONTENT:-}" ]]; then
-		LOCAL_CONFIG_CONTENT_TMP=$(mktemp)
-		REMOTE_CONFIG_CONTENT_PATH="/tmp/fmd_config_content_${current_datetime}.toml"
-		echo "${FMD_CONFIG_CONTENT}" >"${LOCAL_CONFIG_CONTENT_TMP}"
-		rsync -az -e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
-			"${LOCAL_CONFIG_CONTENT_TMP}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_CONFIG_CONTENT_PATH}"
-		COMMAND_LINE="${COMMAND_LINE} --config-path ${REMOTE_CONFIG_CONTENT_PATH}"
-		rm -f "${LOCAL_CONFIG_CONTENT_TMP}"
-	fi
-
-	if [[ -n "${MERGED_OVERRIDES}" ]]; then
-		LOCAL_CONFIG_OVERRIDES_TMP=$(mktemp)
-		REMOTE_CONFIG_OVERRIDES_PATH="/tmp/fmd_config_overrides_${current_datetime}.toml"
-		echo -e "${MERGED_OVERRIDES}" >"${LOCAL_CONFIG_OVERRIDES_TMP}"
-		rsync -az -e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
-			"${LOCAL_CONFIG_OVERRIDES_TMP}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_CONFIG_OVERRIDES_PATH}"
-		COMMAND_LINE="${COMMAND_LINE} --config-overrides ${REMOTE_CONFIG_OVERRIDES_PATH}"
-		rm -f "${LOCAL_CONFIG_OVERRIDES_TMP}"
-	fi
-
+	COMMAND_LINE="${COMMAND} --config ${REMOTE_CONFIG_PATH}"
 	FRAPPE_DEPLOYER_CMD="/home/${REMOTE_USER}/.fmd/venv/bin/frappe-deployer ${COMMAND_LINE}"
 
 	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
@@ -283,7 +270,15 @@ ship_command() {
 
 	setup_ssh
 
-	COMMAND="deploy ship --config ${GITHUB_WORKSPACE}/${FMD_CONFIG_PATH}"
+	BASE_CONFIG_CONTENT=$(cat "${GITHUB_WORKSPACE}/${FMD_CONFIG_PATH}")
+	GENERATED_OVERRIDES=$(build_config_overrides "${REMOTE_HOST}" "${REMOTE_USER}" "${REMOTE_PORT}")
+	AFTER_USER_OVERRIDES=$(merge_toml "${BASE_CONFIG_CONTENT}" "${FMD_CONFIG_OVERRIDES:-}")
+	MERGED_CONFIG=$(merge_toml "${AFTER_USER_OVERRIDES}" "${GENERATED_OVERRIDES}")
+
+	LOCAL_CONFIG_TMP=$(mktemp --suffix=.toml)
+	echo "${MERGED_CONFIG}" >"${LOCAL_CONFIG_TMP}"
+
+	COMMAND="deploy ship --config ${LOCAL_CONFIG_TMP}"
 	COMMAND="${COMMAND} --github-token ${FMD_GITHUB_TOKEN}"
 
 	if [ -n "${INPUT_EXISTING_RELEASE:-}" ]; then
@@ -294,21 +289,10 @@ ship_command() {
 		COMMAND="${COMMAND} --skip-rsync"
 	fi
 
-	GENERATED_OVERRIDES=$(build_config_overrides "${REMOTE_HOST}" "${REMOTE_USER}" "${REMOTE_PORT}")
-	MERGED_OVERRIDES=$(merge_toml "${FMD_CONFIG_OVERRIDES:-}" "${GENERATED_OVERRIDES}")
-
-	if [[ -n "${MERGED_OVERRIDES}" ]]; then
-		LOCAL_CONFIG_OVERRIDES_TMP=$(mktemp)
-		echo -e "${MERGED_OVERRIDES}" >"${LOCAL_CONFIG_OVERRIDES_TMP}"
-		COMMAND="${COMMAND} --config-overrides ${LOCAL_CONFIG_OVERRIDES_TMP}"
-	fi
-
 	fmd ${COMMAND}
 	DEPLOY_EXIT_CODE=$?
 
-	if [[ -n "${LOCAL_CONFIG_OVERRIDES_TMP:-}" ]]; then
-		rm -f "${LOCAL_CONFIG_OVERRIDES_TMP}"
-	fi
+	rm -f "${LOCAL_CONFIG_TMP}"
 
 	RELEASE_ID=$(find . -maxdepth 1 -type d -name 'release_*' | sort -r | head -1 | xargs basename 2>/dev/null || echo "")
 	if [[ -n "${RELEASE_ID}" ]]; then
