@@ -98,13 +98,11 @@ remote_execute() {
 }
 
 setup_ssh() {
-
-  # used for saving private key
     SSH_DIR="$HOME/.ssh"
     mkdir -p "$SSH_DIR"
     chmod 700 "$SSH_DIR"
 
-  [[ "${SSH_PRIVATE_KEY:-}" ]] || emergency "SSH_PRIVATE_KEY is not set."
+    [[ "${SSH_PRIVATE_KEY:-}" ]] || emergency "SSH_PRIVATE_KEY is not set."
 
     if [[ -n "$SSH_PRIVATE_KEY" ]]; then
         echo "$SSH_PRIVATE_KEY" | tr -d '\r' > "$SSH_DIR/id_rsa"
@@ -112,15 +110,15 @@ setup_ssh() {
         eval "$(ssh-agent -s)"
         ssh-add "$SSH_DIR/id_rsa"
 
-cat > /etc/ssh/ssh_config <<EOL
+cat >> "$SSH_DIR/config" <<EOL
 Host $REMOTE_HOST
 HostName $REMOTE_HOST
 IdentityFile ${SSH_DIR}/id_rsa
 User $REMOTE_USER
 EOL
 
-
-  fi
+        chmod 600 "$SSH_DIR/config"
+    fi
 }
 
 construct_ps4() {

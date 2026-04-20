@@ -7,81 +7,125 @@ fi
 
 source "$__dir/helpers.sh"
 
-pull_command() {
-	REMOTE_HOST="${SSH_SERVER}"
-	REMOTE_USER="${SSH_USER}"
-	REMOTE_PORT="${SSH_PORT:-22}"
+toml_get() {
+	local toml_file="$1"
+	local key_path="$2"
+	[[ -f "${toml_file}" ]] || return 1
+	python3 -c "import sys,tomllib; d=tomllib.load(open(sys.argv[1],'rb')); print(d.get('ship',{}).get(sys.argv[2],''))" "${toml_file}" "${key_path}" 2>/dev/null || echo ""
+}
 
-	[[ "${REMOTE_HOST:-}" ]] || emergency "ENV: ${CYAN} SSH_SERVER ${ENDCOLOR} is missing for 'pull' command."
-	[[ "${REMOTE_USER:-}" ]] || emergency "ENV: ${CYAN} SSH_USER ${ENDCOLOR} is missing for 'pull' command."
-	[[ "${SSH_PRIVATE_KEY:-}" ]] || emergency "ENV: ${CYAN} SSH_PRIVATE_KEY ${ENDCOLOR} is missing for 'pull' command."
-
-	[[ "${FRAPPE_DEPLOYER_GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} FRAPPE_DEPLOYER_GITHUB_TOKEN ${ENDCOLOR} is missing."
-	[[ "${INPUT_SITENAME:-}" ]] || emergency "Input: ${CYAN} sitename ${ENDCOLOR} is missing."
-
-	# Construct COMMAND
-	COMMAND="pull ${INPUT_SITENAME} --github-token ${FRAPPE_DEPLOYER_GITHUB_TOKEN}"
-	COMMAND="${COMMAND} --configure"
-
+build_switch_flags() {
+	local cmd=""
+	
 	if [ "${INPUT_DRAIN_WORKERS:-false}" == "true" ]; then
-		COMMAND="${COMMAND} --drain-workers"
+		cmd="${cmd} --drain-workers"
 	else
-		COMMAND="${COMMAND} --no-drain-workers"
+		cmd="${cmd} --no-drain-workers"
 	fi
 
 	if [ -n "${INPUT_DRAIN_WORKERS_TIMEOUT:-}" ]; then
-		COMMAND="${COMMAND} --drain-workers-timeout ${INPUT_DRAIN_WORKERS_TIMEOUT}"
+		cmd="${cmd} --drain-workers-timeout ${INPUT_DRAIN_WORKERS_TIMEOUT}"
 	fi
 
 	if [ -n "${INPUT_DRAIN_WORKERS_POLL:-}" ]; then
-		COMMAND="${COMMAND} --drain-workers-poll ${INPUT_DRAIN_WORKERS_POLL}"
+		cmd="${cmd} --drain-workers-poll ${INPUT_DRAIN_WORKERS_POLL}"
 	fi
 
 	if [ "${INPUT_SKIP_STALE_WORKERS:-true}" == "true" ]; then
-		COMMAND="${COMMAND} --skip-stale-workers"
+		cmd="${cmd} --skip-stale-workers"
 	else
-		COMMAND="${COMMAND} --no-skip-stale-workers"
+		cmd="${cmd} --no-skip-stale-workers"
 	fi
 
 	if [ -n "${INPUT_SKIP_STALE_TIMEOUT:-}" ]; then
-		COMMAND="${COMMAND} --skip-stale-timeout ${INPUT_SKIP_STALE_TIMEOUT}"
+		cmd="${cmd} --skip-stale-timeout ${INPUT_SKIP_STALE_TIMEOUT}"
 	fi
 
 	if [ "${INPUT_MIGRATE:-true}" == "true" ]; then
-		COMMAND="${COMMAND} --migrate"
+		cmd="${cmd} --migrate"
 	else
-		COMMAND="${COMMAND} --no-migrate"
+		cmd="${cmd} --no-migrate"
 	fi
 
 	if [ -n "${INPUT_MIGRATE_TIMEOUT:-}" ]; then
-		COMMAND="${COMMAND} --migrate-timeout ${INPUT_MIGRATE_TIMEOUT}"
+		cmd="${cmd} --migrate-timeout ${INPUT_MIGRATE_TIMEOUT}"
 	fi
 
 	if [ -n "${INPUT_MIGRATE_COMMAND:-}" ]; then
-		COMMAND="${COMMAND} --migrate-command '${INPUT_MIGRATE_COMMAND}'"
+		cmd="${cmd} --migrate-command ${INPUT_MIGRATE_COMMAND@Q}"
 	fi
 
 	if [ -n "${INPUT_MAINTENANCE_MODE_PHASES:-}" ]; then
 		for phase in ${INPUT_MAINTENANCE_MODE_PHASES}; do
-			COMMAND="${COMMAND} --maintenance-mode-phases ${phase}"
+			cmd="${cmd} --maintenance-mode-phases ${phase}"
 		done
 	fi
 
 	if [ -n "${INPUT_WORKER_KILL_TIMEOUT:-}" ]; then
-		COMMAND="${COMMAND} --worker-kill-timeout ${INPUT_WORKER_KILL_TIMEOUT}"
+		cmd="${cmd} --worker-kill-timeout ${INPUT_WORKER_KILL_TIMEOUT}"
 	fi
 
 	if [ -n "${INPUT_WORKER_KILL_POLL:-}" ]; then
-		COMMAND="${COMMAND} --worker-kill-poll ${INPUT_WORKER_KILL_POLL}"
+		cmd="${cmd} --worker-kill-poll ${INPUT_WORKER_KILL_POLL}"
 	fi
 
 	if [ -n "${INPUT_ADDITIONAL_COMMANDS:-}" ]; then
-		COMMAND="${COMMAND} ${INPUT_ADDITIONAL_COMMANDS}"
+		cmd="${cmd} ${INPUT_ADDITIONAL_COMMANDS}"
 	fi
 
-	SSH_KEY_PATH="/tmp/ssh_key"
-	echo "${SSH_PRIVATE_KEY}" >"${SSH_KEY_PATH}"
-	chmod 600 "${SSH_KEY_PATH}"
+	echo "${cmd}"
+}
+
+parse_app_env() {
+	while IFS= read -r line; do
+		[[ -z "${line// /}" ]] && continue
+		[[ "${line}" == \#* ]] && continue
+		kv="${line#*:}"
+		if [[ "${kv}" == *"="* ]]; then
+			echo "${kv}"
+		else
+			warn "app_env: skipping malformed line (expected 'KEY=VALUE' or 'app-name:KEY=VALUE'): ${line}"
+		fi
+	done <<<"${INPUT_APP_ENV:-}"
+}
+
+pull_command() {
+	REMOTE_PORT="${SSH_PORT:-22}"
+
+	[[ "${SSH_PRIVATE_KEY:-}" ]] || emergency "ENV: ${CYAN} SSH_PRIVATE_KEY ${ENDCOLOR} is missing for 'pull' command."
+	[[ "${FMD_GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} FMD_GITHUB_TOKEN ${ENDCOLOR} is missing."
+	[[ "${INPUT_SITENAME:-}" ]] || emergency "Input: ${CYAN} sitename ${ENDCOLOR} is missing."
+
+	TEMP_SSH_DIR=$(mktemp -d /tmp/ssh_dir.XXXXXX)
+	export HOME="${TEMP_SSH_DIR}"
+	trap 'rm -rf "${TEMP_SSH_DIR}"' EXIT
+
+	TOML_CONFIG_FILE=""
+	if [[ -n "${FMD_CONFIG_PATH:-}" ]]; then
+		TOML_CONFIG_FILE="${GITHUB_WORKSPACE}/${FMD_CONFIG_PATH}"
+	elif [[ -n "${FMD_CONFIG_CONTENT:-}" ]]; then
+		TOML_CONFIG_FILE=$(mktemp /tmp/fmd_config_content.XXXXXX.toml)
+		echo "${FMD_CONFIG_CONTENT}" >"${TOML_CONFIG_FILE}"
+	fi
+
+	if [[ -z "${SSH_SERVER:-}" ]] && [[ -n "${TOML_CONFIG_FILE}" ]]; then
+		SSH_SERVER=$(toml_get "${TOML_CONFIG_FILE}" "host")
+	fi
+	[[ -n "${SSH_SERVER}" ]] || emergency "Either set ${CYAN}ssh_server${ENDCOLOR} input or define ${CYAN}[ship].host${ENDCOLOR} in TOML config."
+
+	if [[ -z "${SSH_USER:-}" ]] && [[ -n "${TOML_CONFIG_FILE}" ]]; then
+		SSH_USER=$(toml_get "${TOML_CONFIG_FILE}" "ssh_user")
+		SSH_USER="${SSH_USER:-frappe}"
+	fi
+	[[ -n "${SSH_USER}" ]] || emergency "Either set ${CYAN}ssh_user${ENDCOLOR} input or define ${CYAN}[ship].ssh_user${ENDCOLOR} in TOML config."
+
+	REMOTE_HOST="${SSH_SERVER}"
+	REMOTE_USER="${SSH_USER}"
+
+	COMMAND="pull ${INPUT_SITENAME} --github-token ${FMD_GITHUB_TOKEN}"
+	COMMAND="${COMMAND} --configure"
+	COMMAND="${COMMAND}$(build_switch_flags)"
+
 	setup_ssh
 
 	current_datetime=$(date +"%Y-%m-%d_%H-%M-%S")
@@ -91,18 +135,9 @@ pull_command() {
 		REMOTE_APP_ENV_FILE="/tmp/.fmd_app_env_${current_datetime}"
 		LOCAL_APP_ENV_TMP=$(mktemp)
 
-		while IFS= read -r line; do
-			[[ -z "${line// /}" ]] && continue
-			[[ "${line}" == \#* ]] && continue
-			kv="${line#*:}"
-			if [[ "${kv}" == *"="* ]]; then
-				printf "%s\n" "${kv}" >>"${LOCAL_APP_ENV_TMP}"
-			else
-				warn "app_env: skipping malformed line (expected 'app-name:KEY=VALUE'): ${line}"
-			fi
-		done <<<"${INPUT_APP_ENV}"
+		parse_app_env >"${LOCAL_APP_ENV_TMP}"
 
-		rsync -az -e "ssh -p ${REMOTE_PORT} -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no" \
+		rsync -az -e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
 			"${LOCAL_APP_ENV_TMP}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_APP_ENV_FILE}"
 		ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "chmod 600 ${REMOTE_APP_ENV_FILE}"
 		rm -f "${LOCAL_APP_ENV_TMP}"
@@ -110,7 +145,7 @@ pull_command() {
 
 	REMOTE_FMD_SRC="/tmp/fmd_src_${current_datetime}"
 	rsync -az --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' \
-		-e "ssh -p ${REMOTE_PORT} -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no" \
+		-e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
 		"${GITHUB_ACTION_PATH}/" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_FMD_SRC}/"
 
 	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
@@ -121,16 +156,32 @@ pull_command() {
 
 	COMMAND_LINE="${COMMAND}"
 
-	if [[ "${FRAPPE_DEPLOYER_CONFIG_PATH:-}" ]]; then
-		LOCAL_CONFIG_PATH="${GITHUB_WORKSPACE}/${FRAPPE_DEPLOYER_CONFIG_PATH}"
-		REMOTE_CONFIG_PATH="/tmp/$(basename ${FRAPPE_DEPLOYER_CONFIG_PATH})_${current_datetime}"
-		rsync -az -e "ssh -p ${REMOTE_PORT} -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no" \
+	if [[ "${FMD_CONFIG_PATH:-}" ]]; then
+		LOCAL_CONFIG_PATH="${GITHUB_WORKSPACE}/${FMD_CONFIG_PATH}"
+		REMOTE_CONFIG_PATH="/tmp/$(basename "${FMD_CONFIG_PATH}")_${current_datetime}"
+		rsync -az -e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
 			"${LOCAL_CONFIG_PATH}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_CONFIG_PATH}"
 		COMMAND_LINE="${COMMAND_LINE} --config-path ${REMOTE_CONFIG_PATH}"
 	fi
 
-	if [[ "${FRAPPE_DEPLOYER_CONFIG_CONTENT:-}" ]]; then
-		COMMAND_LINE="${COMMAND_LINE} --config-content '${FRAPPE_DEPLOYER_CONFIG_CONTENT}'"
+	if [[ "${FMD_CONFIG_CONTENT:-}" ]]; then
+		LOCAL_CONFIG_CONTENT_TMP=$(mktemp)
+		REMOTE_CONFIG_CONTENT_PATH="/tmp/fmd_config_content_${current_datetime}.toml"
+		echo "${FMD_CONFIG_CONTENT}" >"${LOCAL_CONFIG_CONTENT_TMP}"
+		rsync -az -e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
+			"${LOCAL_CONFIG_CONTENT_TMP}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_CONFIG_CONTENT_PATH}"
+		COMMAND_LINE="${COMMAND_LINE} --config-path ${REMOTE_CONFIG_CONTENT_PATH}"
+		rm -f "${LOCAL_CONFIG_CONTENT_TMP}"
+	fi
+
+	if [[ "${FMD_CONFIG_OVERRIDES:-}" ]]; then
+		LOCAL_CONFIG_OVERRIDES_TMP=$(mktemp)
+		REMOTE_CONFIG_OVERRIDES_PATH="/tmp/fmd_config_overrides_${current_datetime}.toml"
+		echo "${FMD_CONFIG_OVERRIDES}" >"${LOCAL_CONFIG_OVERRIDES_TMP}"
+		rsync -az -e "ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
+			"${LOCAL_CONFIG_OVERRIDES_TMP}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_CONFIG_OVERRIDES_PATH}"
+		COMMAND_LINE="${COMMAND_LINE} --config-overrides ${REMOTE_CONFIG_OVERRIDES_PATH}"
+		rm -f "${LOCAL_CONFIG_OVERRIDES_TMP}"
 	fi
 
 	FRAPPE_DEPLOYER_CMD="/home/${REMOTE_USER}/.fmd/venv/bin/frappe-deployer ${COMMAND_LINE}"
@@ -141,32 +192,53 @@ pull_command() {
 	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		"cd /home/${REMOTE_USER}/.fmd/logs && ${FRAPPE_DEPLOYER_CMD} 2>&1"
 
+	DEPLOY_EXIT_CODE=$?
+
 	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		"rm -rf ${REMOTE_FMD_SRC}" || true
 	if [[ -n "${REMOTE_APP_ENV_FILE}" ]]; then
 		ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 			"rm -f ${REMOTE_APP_ENV_FILE}" || true
 	fi
+
+	if [ "${DEPLOY_EXIT_CODE}" -eq 0 ]; then
+		echo "deployment_status=success" >>"${GITHUB_OUTPUT}"
+	else
+		echo "deployment_status=failure" >>"${GITHUB_OUTPUT}"
+		exit ${DEPLOY_EXIT_CODE}
+	fi
 }
 
 ship_command() {
-	REMOTE_HOST="${SSH_SERVER}"
-	REMOTE_USER="${SSH_USER}"
 	REMOTE_PORT="${SSH_PORT:-22}"
 
-	[[ "${REMOTE_HOST:-}" ]] || emergency "ENV: ${CYAN} SSH_SERVER ${ENDCOLOR} is missing for 'ship' command."
-	[[ "${REMOTE_USER:-}" ]] || emergency "ENV: ${CYAN} SSH_USER ${ENDCOLOR} is missing for 'ship' command."
 	[[ "${SSH_PRIVATE_KEY:-}" ]] || emergency "ENV: ${CYAN} SSH_PRIVATE_KEY ${ENDCOLOR} is missing for 'ship' command."
-	[[ "${FRAPPE_DEPLOYER_GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} FRAPPE_DEPLOYER_GITHUB_TOKEN ${ENDCOLOR} is missing."
-	[[ "${FRAPPE_DEPLOYER_CONFIG_PATH:-}" ]] || emergency "Input: ${CYAN} config_path ${ENDCOLOR} is required for 'ship' command."
+	[[ "${FMD_GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} FMD_GITHUB_TOKEN ${ENDCOLOR} is missing."
+	[[ "${FMD_CONFIG_PATH:-}" ]] || emergency "Input: ${CYAN} config_path ${ENDCOLOR} is required for 'ship' command."
 
-	SSH_KEY_PATH="/tmp/ssh_key"
-	echo "${SSH_PRIVATE_KEY}" >"${SSH_KEY_PATH}"
-	chmod 600 "${SSH_KEY_PATH}"
+	TEMP_SSH_DIR=$(mktemp -d /tmp/ssh_dir.XXXXXX)
+	export HOME="${TEMP_SSH_DIR}"
+	trap 'rm -rf "${TEMP_SSH_DIR}"' EXIT
+
+	TOML_CONFIG_FILE="${GITHUB_WORKSPACE}/${FMD_CONFIG_PATH}"
+
+	if [[ -z "${SSH_SERVER:-}" ]]; then
+		SSH_SERVER=$(toml_get "${TOML_CONFIG_FILE}" "host")
+		[[ -n "${SSH_SERVER}" ]] || emergency "Either set ${CYAN}ssh_server${ENDCOLOR} input or define ${CYAN}[ship].host${ENDCOLOR} in TOML config."
+	fi
+
+	if [[ -z "${SSH_USER:-}" ]]; then
+		SSH_USER=$(toml_get "${TOML_CONFIG_FILE}" "ssh_user")
+		SSH_USER="${SSH_USER:-frappe}"
+	fi
+
+	REMOTE_HOST="${SSH_SERVER}"
+	REMOTE_USER="${SSH_USER}"
+
 	setup_ssh
 
-	COMMAND="deploy ship --config ${GITHUB_WORKSPACE}/${FRAPPE_DEPLOYER_CONFIG_PATH}"
-	COMMAND="${COMMAND} --github-token ${FRAPPE_DEPLOYER_GITHUB_TOKEN}"
+	COMMAND="deploy ship --config ${GITHUB_WORKSPACE}/${FMD_CONFIG_PATH}"
+	COMMAND="${COMMAND} --github-token ${FMD_GITHUB_TOKEN}"
 
 	if [ -n "${INPUT_EXISTING_RELEASE:-}" ]; then
 		COMMAND="${COMMAND} --existing-release ${INPUT_EXISTING_RELEASE}"
@@ -180,85 +252,59 @@ ship_command() {
 		COMMAND="${COMMAND} --runner-image ${INPUT_RUNNER_IMAGE}"
 	fi
 
-	if [ "${INPUT_DRAIN_WORKERS:-false}" == "true" ]; then
-		COMMAND="${COMMAND} --drain-workers"
-	else
-		COMMAND="${COMMAND} --no-drain-workers"
-	fi
-
-	if [ -n "${INPUT_DRAIN_WORKERS_TIMEOUT:-}" ]; then
-		COMMAND="${COMMAND} --drain-workers-timeout ${INPUT_DRAIN_WORKERS_TIMEOUT}"
-	fi
-
-	if [ -n "${INPUT_DRAIN_WORKERS_POLL:-}" ]; then
-		COMMAND="${COMMAND} --drain-workers-poll ${INPUT_DRAIN_WORKERS_POLL}"
-	fi
-
-	if [ "${INPUT_SKIP_STALE_WORKERS:-true}" == "true" ]; then
-		COMMAND="${COMMAND} --skip-stale-workers"
-	else
-		COMMAND="${COMMAND} --no-skip-stale-workers"
-	fi
-
-	if [ -n "${INPUT_SKIP_STALE_TIMEOUT:-}" ]; then
-		COMMAND="${COMMAND} --skip-stale-timeout ${INPUT_SKIP_STALE_TIMEOUT}"
-	fi
-
-	if [ "${INPUT_MIGRATE:-true}" == "true" ]; then
-		COMMAND="${COMMAND} --migrate"
-	else
-		COMMAND="${COMMAND} --no-migrate"
-	fi
-
-	if [ -n "${INPUT_MIGRATE_TIMEOUT:-}" ]; then
-		COMMAND="${COMMAND} --migrate-timeout ${INPUT_MIGRATE_TIMEOUT}"
-	fi
-
-	if [ -n "${INPUT_MAINTENANCE_MODE_PHASES:-}" ]; then
-		for phase in ${INPUT_MAINTENANCE_MODE_PHASES}; do
-			COMMAND="${COMMAND} --maintenance-mode-phases ${phase}"
-		done
-	fi
-
-	if [ -n "${INPUT_WORKER_KILL_TIMEOUT:-}" ]; then
-		COMMAND="${COMMAND} --worker-kill-timeout ${INPUT_WORKER_KILL_TIMEOUT}"
-	fi
-
-	if [ -n "${INPUT_WORKER_KILL_POLL:-}" ]; then
-		COMMAND="${COMMAND} --worker-kill-poll ${INPUT_WORKER_KILL_POLL}"
-	fi
-
-	if [ -n "${INPUT_ADDITIONAL_COMMANDS:-}" ]; then
-		COMMAND="${COMMAND} ${INPUT_ADDITIONAL_COMMANDS}"
-	fi
+	COMMAND="${COMMAND}$(build_switch_flags)"
 
 	if [[ -n "${INPUT_APP_ENV:-}" ]]; then
-		while IFS= read -r line; do
-			[[ -z "${line// /}" ]] && continue
-			[[ "${line}" == \#* ]] && continue
-			kv="${line#*:}"
-			if [[ "${kv}" == *"="* ]]; then
-				export "${kv?}"
-			else
-				warn "app_env: skipping malformed line (expected 'app-name:KEY=VALUE'): ${line}"
-			fi
-		done <<<"${INPUT_APP_ENV}"
+		while read -r kv; do
+			export "${kv?}"
+		done < <(parse_app_env)
 	fi
 
-	fmd ${COMMAND}
+	if [[ "${FMD_CONFIG_OVERRIDES:-}" ]]; then
+		LOCAL_CONFIG_OVERRIDES_TMP=$(mktemp)
+		echo "${FMD_CONFIG_OVERRIDES}" >"${LOCAL_CONFIG_OVERRIDES_TMP}"
+		COMMAND="${COMMAND} --config-overrides ${LOCAL_CONFIG_OVERRIDES_TMP}"
+	fi
+
+	"${GITHUB_ACTION_PATH}/fmd" ${COMMAND}
+	DEPLOY_EXIT_CODE=$?
+
+	if [[ -n "${LOCAL_CONFIG_OVERRIDES_TMP:-}" ]]; then
+		rm -f "${LOCAL_CONFIG_OVERRIDES_TMP}"
+	fi
+
+	RELEASE_ID=$(find . -maxdepth 1 -type d -name 'release_*' | sort -r | head -1 | xargs basename 2>/dev/null || echo "")
+	if [[ -n "${RELEASE_ID}" ]]; then
+		echo "release_id=${RELEASE_ID}" >>"${GITHUB_OUTPUT}"
+	fi
+
+	if [ "${DEPLOY_EXIT_CODE}" -eq 0 ]; then
+		echo "deployment_status=success" >>"${GITHUB_OUTPUT}"
+	else
+		echo "deployment_status=failure" >>"${GITHUB_OUTPUT}"
+		exit ${DEPLOY_EXIT_CODE}
+	fi
 }
 
 build_image_command() {
-	[[ "${FRAPPE_DEPLOYER_GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} FRAPPE_DEPLOYER_GITHUB_TOKEN ${ENDCOLOR} is missing."
+	[[ "${FMD_GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} FMD_GITHUB_TOKEN ${ENDCOLOR} is missing."
 
-	COMMAND="build-image --push --github-token ${FRAPPE_DEPLOYER_GITHUB_TOKEN}"
+	COMMAND="build-image --push --github-token ${FMD_GITHUB_TOKEN}"
 
-	if [[ "${FRAPPE_DEPLOYER_CONFIG_PATH:-}" ]]; then
-		COMMAND="${COMMAND} --config-path ${GITHUB_WORKSPACE}/${FRAPPE_DEPLOYER_CONFIG_PATH}"
+	if [[ "${FMD_CONFIG_PATH:-}" ]]; then
+		COMMAND="${COMMAND} --config-path ${GITHUB_WORKSPACE}/${FMD_CONFIG_PATH}"
 	fi
 
-	if [[ "${FRAPPE_DEPLOYER_CONFIG_CONTENT:-}" ]]; then
-		COMMAND="${COMMAND} --config-content '${FRAPPE_DEPLOYER_CONFIG_CONTENT}'"
+	if [[ "${FMD_CONFIG_CONTENT:-}" ]]; then
+		LOCAL_CONFIG_CONTENT_TMP=$(mktemp)
+		echo "${FMD_CONFIG_CONTENT}" >"${LOCAL_CONFIG_CONTENT_TMP}"
+		COMMAND="${COMMAND} --config-path ${LOCAL_CONFIG_CONTENT_TMP}"
+	fi
+
+	if [[ "${FMD_CONFIG_OVERRIDES:-}" ]]; then
+		LOCAL_CONFIG_OVERRIDES_TMP=$(mktemp)
+		echo "${FMD_CONFIG_OVERRIDES}" >"${LOCAL_CONFIG_OVERRIDES_TMP}"
+		COMMAND="${COMMAND} --config-overrides ${LOCAL_CONFIG_OVERRIDES_TMP}"
 	fi
 
 	if [[ "${INPUT_OUTPUT_DIR:-}" ]]; then
@@ -274,19 +320,27 @@ build_image_command() {
 	fi
 
 	if [[ -n "${INPUT_APP_ENV:-}" ]]; then
-		while IFS= read -r line; do
-			[[ -z "${line// /}" ]] && continue
-			[[ "${line}" == \#* ]] && continue
-			kv="${line#*:}"
-			if [[ "${kv}" == *"="* ]]; then
-				export "${kv?}"
-			else
-				warn "app_env: skipping malformed line (expected 'app-name:KEY=VALUE'): ${line}"
-			fi
-		done <<<"${INPUT_APP_ENV}"
+		while read -r kv; do
+			export "${kv?}"
+		done < <(parse_app_env)
 	fi
 
-	frappe-deployer ${COMMAND}
+	"${GITHUB_ACTION_PATH}/frappe-deployer" ${COMMAND}
+	BUILD_EXIT_CODE=$?
+
+	if [[ -n "${LOCAL_CONFIG_CONTENT_TMP:-}" ]]; then
+		rm -f "${LOCAL_CONFIG_CONTENT_TMP}"
+	fi
+	if [[ -n "${LOCAL_CONFIG_OVERRIDES_TMP:-}" ]]; then
+		rm -f "${LOCAL_CONFIG_OVERRIDES_TMP}"
+	fi
+
+	if [ "${BUILD_EXIT_CODE}" -eq 0 ]; then
+		echo "deployment_status=success" >>"${GITHUB_OUTPUT}"
+	else
+		echo "deployment_status=failure" >>"${GITHUB_OUTPUT}"
+		exit ${BUILD_EXIT_CODE}
+	fi
 }
 
 main() {

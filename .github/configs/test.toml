@@ -18,6 +18,10 @@ ref = "develop"
 repo = "frappe/erpnext"
 ref = "develop"
 
+[ship]
+host = "1.2.3.4"
+ssh_user = "frappe"
+
 [build_frappe]
 name = "ghcr.io/rtcamp/frappe-deployer-frappe"
 tag = "v0.1"

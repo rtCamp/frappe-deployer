@@ -19,6 +19,7 @@ jobs:
         uses: rtcamp/frappe-deployer@main
         with:
           command: ship
+          sitename: ${{ vars.SITE_NAME }}
           config_path: .github/configs/site.toml
           gh_token: ${{ secrets.GH_TOKEN }}
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
