@@ -59,27 +59,8 @@ if merged:
 		import tomli_w
 		print(tomli_w.dumps(merged), end='')
 	except ImportError:
-		for section, values in merged.items():
-			if isinstance(values, dict):
-				print(f"[{section}]")
-				for key, val in values.items():
-					if isinstance(val, bool):
-						print(f"{key} = {str(val).lower()}")
-					elif isinstance(val, str):
-						print(f'{key} = "{val}"')
-					elif isinstance(val, list):
-						formatted_list = ", ".join([f'"{item}"' if isinstance(item, str) else str(item) for item in val])
-						print(f"{key} = [{formatted_list}]")
-					else:
-						print(f"{key} = {val}")
-				print()
-			else:
-				if isinstance(values, bool):
-					print(f"{section} = {str(values).lower()}")
-				elif isinstance(values, str):
-					print(f'{section} = "{values}"')
-				else:
-					print(f"{section} = {values}")
+		import toml
+		print(toml.dumps(merged), end='')
 PYTHON_EOF
 	local _exit=$?
 	rm -f "${_base_f}" "${_override_f}"
