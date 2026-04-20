@@ -76,7 +76,7 @@ class DockerRunner(CommandRunner):
 
     def workdir_for_bench(self, bench_directory) -> str:
         if self.mode == "image":
-            return "/workspace/frappe-bench"
+            return "/bench"
         return self._host_to_container(bench_directory.path)
 
     def workdir_for_sites(self, bench_directory) -> str:
@@ -143,7 +143,7 @@ class DockerRunner(CommandRunner):
         if _DockerClient is None:
             raise RuntimeError("frappe_manager.docker.docker_client.DockerClient unavailable")
 
-        bench_mount = "/workspace/frappe-bench"
+        bench_mount = "/bench"
         base_env = {
             "HOME": bench_mount,
             "USER": "frappe",
