@@ -67,7 +67,7 @@ def configure(
     if release:
         overrides["release"] = release
 
-    config = load_config(config_path, overrides=overrides or None, create_if_missing=True)
+    config = load_config(config_path, overrides=overrides or None, create_if_missing=True, skip_repo_validation=True)
     printer = get_printer()
     image_runner, exec_runner, host_runner = build_runners(config)
     printer.start("Configuring")

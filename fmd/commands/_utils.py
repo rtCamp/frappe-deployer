@@ -89,6 +89,7 @@ def load_config(
     config_path: Optional[Path] = None,
     overrides: Optional[dict] = None,
     create_if_missing: bool = False,
+    skip_repo_validation: bool = False,
 ) -> Config:
     effective: dict = dict(overrides) if overrides else {}
     if _verbose is not None and "verbose" not in effective:
@@ -98,16 +99,21 @@ def load_config(
     if config_path is None:
         if not overrides or "site_name" not in overrides:
             raise ValueError("bench_name argument or --config/-c is required.")
-        return Config.from_toml(overrides=overrides)
+        config = Config.from_toml(overrides=overrides)
+        config._skip_repo_validation = skip_repo_validation
+        return config
 
     if not config_path.exists():
         if create_if_missing and overrides and "site_name" in overrides:
             config = Config.from_toml(overrides=overrides)
             config_path.parent.mkdir(parents=True, exist_ok=True)
             config.to_toml(config_path)
+            config._skip_repo_validation = skip_repo_validation
             return config
         raise ConfigPathDoesntExist(str(config_path))
-    return Config.from_toml(config_file_path=config_path, overrides=overrides or None)
+    config = Config.from_toml(config_file_path=config_path, overrides=overrides or None)
+    config._skip_repo_validation = skip_repo_validation
+    return config
 
 
 def build_runners(config: Config):

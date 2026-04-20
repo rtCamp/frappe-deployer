@@ -34,6 +34,7 @@ class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     _config_file_path: Optional[Path] = PrivateAttr(default=None)
+    _skip_repo_validation: bool = PrivateAttr(default=False)
 
     site_name: str = Field(..., description="The name of the site.")
     bench_name: Optional[str] = Field(None, description="The bench/container identifier. Defaults to site_name.")
@@ -107,16 +108,17 @@ class Config(BaseModel):
             ]
             concurrent.futures.wait(futures)
 
-        all_accessible = True
-        for app in self.apps:
-            if not app.exists:
-                all_accessible = False
-                from fmd.config.utils import richprint
+        if not self._skip_repo_validation:
+            all_accessible = True
+            for app in self.apps:
+                if not app.exists:
+                    all_accessible = False
+                    from fmd.config.utils import richprint
 
-                richprint.print(f"Error: repo not accessible: {app.repo_url}")
+                    richprint.print(f"Error: repo not accessible: {app.repo_url}")
 
-        if not all_accessible:
-            raise RuntimeError("Please ensure all app repos are accessible.")
+            if not all_accessible:
+                raise RuntimeError("Please ensure all app repos are accessible.")
 
         return self
 

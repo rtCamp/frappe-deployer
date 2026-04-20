@@ -79,7 +79,7 @@ def switch(
     if deploy:
         overrides["deploy"] = deploy
 
-    config = load_config(config_path, overrides=overrides or None)
+    config = load_config(config_path, overrides=overrides or None, skip_repo_validation=True)
     printer = get_printer()
     image_runner, exec_runner, host_runner = build_runners(config)
     printer.start("Switching release")
