@@ -162,6 +162,8 @@ class DockerRunner(CommandRunner):
             "LC_ALL": "en_US.UTF-8",
             "LANG": "en_US.UTF-8",
             "LANGUAGE": "en_US.UTF-8",
+            "USERID": str(os.getuid()),
+            "USERGROUP": str(os.getgid()),
         }
         for _k in ("DOCKER_HOST", "GITHUB_TOKEN", "GIT_TOKEN", "UV_LINK_MODE", "DOCKER_DEFAULT_PLATFORM"):
             if _k in os.environ:
@@ -172,7 +174,7 @@ class DockerRunner(CommandRunner):
             base_env["DOCKER_HOST"] = self.docker_host
 
         docker_command = shlex.join(command)
-        docker_command = f"-c 'umask 000; source /etc/bash.bashrc; {docker_command}'"
+        docker_command = f"-c 'source /etc/bash.bashrc; {docker_command}'"
 
         effective_workdir = workdir or "/workspace/frappe-bench"
         image = self._resolve_image()
@@ -181,7 +183,7 @@ class DockerRunner(CommandRunner):
 
         output = _DockerClient().run(
             image=image,
-            user="frappe",
+            user="root",
             command=docker_command,
             workdir=effective_workdir,
             env=base_env,
