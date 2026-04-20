@@ -58,31 +58,12 @@ inputs:
     description: "Skip rsync step (useful when release already on remote server)"
     required: false
     default: "false"
-  runner_image:
-    description: "Docker image for building release in image mode (overrides auto-detection)"
-    required: false
 
   # --- Switch behavior (both modes) ---
   drain_workers:
     description: "Drain workers before restart"
     required: false
     default: "false"
-  drain_workers_timeout:
-    description: "Timeout in seconds to wait for workers to drain"
-    required: false
-    default: "300"
-  drain_workers_poll:
-    description: "Poll interval in seconds while draining workers"
-    required: false
-    default: "5"
-  skip_stale_workers:
-    description: "Skip stale workers when draining"
-    required: false
-    default: "true"
-  skip_stale_timeout:
-    description: "Timeout in seconds to consider a worker stale"
-    required: false
-    default: "15"
   migrate:
     description: "Run bench migrate after switch"
     required: false
@@ -90,35 +71,22 @@ inputs:
   migrate_timeout:
     description: "Timeout in seconds for bench migrate"
     required: false
-    default: "300"
-  migrate_command:
-    description: "Custom migrate command override"
+  maintenance_mode:
+    description: "Enable maintenance mode during deploy"
     required: false
+    default: "false"
   maintenance_mode_phases:
-    description: "Maintenance mode phases: space-separated list of 'drain' and/or 'migrate'"
+    description: "Maintenance mode phases: space-separated list (e.g., 'drain migrate' or 'migrate')"
     required: false
     default: ""
-  worker_kill_timeout:
-    description: "Timeout in seconds before force-killing workers"
+  backups:
+    description: "Take DB backup before switch"
     required: false
-    default: "15"
-  worker_kill_poll:
-    description: "Poll interval in seconds while waiting to kill workers"
+    default: "false"
+  rollback:
+    description: "Roll back to previous release on failure"
     required: false
-    default: "3.0"
-  additional_commands:
-    description: "Additional CLI flags to append to the fmd deploy command (WARNING: potential shell injection risk)"
-    required: false
-
-  # --- App environment variables ---
-  app_env:
-    description: |
-      Environment variables for app build scripts. One KEY=VALUE per line.
-      Optional app-name: prefix (e.g., 'myapp:KEY=VALUE') is kept for compatibility but ignored.
-      All variables are available to every app's fm_pre_build/fm_post_build scripts.
-      Note: values must be single-line. For multiline content, base64-encode the secret
-      and decode inside fm_pre_build: echo "${MY_VAR}" | base64 -d > path/to/.env
-    required: false
+    default: "false"
 
 outputs:
   release_id:
@@ -165,20 +133,14 @@ runs:
         INPUT_COMMAND: ${{ inputs.command }}
         INPUT_SITENAME: ${{ inputs.sitename }}
         INPUT_DRAIN_WORKERS: ${{ inputs.drain_workers }}
-        INPUT_DRAIN_WORKERS_TIMEOUT: ${{ inputs.drain_workers_timeout }}
-        INPUT_DRAIN_WORKERS_POLL: ${{ inputs.drain_workers_poll }}
-        INPUT_SKIP_STALE_WORKERS: ${{ inputs.skip_stale_workers }}
-        INPUT_SKIP_STALE_TIMEOUT: ${{ inputs.skip_stale_timeout }}
         INPUT_MIGRATE: ${{ inputs.migrate }}
         INPUT_MIGRATE_TIMEOUT: ${{ inputs.migrate_timeout }}
-        INPUT_MIGRATE_COMMAND: ${{ inputs.migrate_command }}
+        INPUT_MAINTENANCE_MODE: ${{ inputs.maintenance_mode }}
         INPUT_MAINTENANCE_MODE_PHASES: ${{ inputs.maintenance_mode_phases }}
-        INPUT_WORKER_KILL_TIMEOUT: ${{ inputs.worker_kill_timeout }}
-        INPUT_WORKER_KILL_POLL: ${{ inputs.worker_kill_poll }}
-        INPUT_ADDITIONAL_COMMANDS: ${{ inputs.additional_commands }}
+        INPUT_BACKUPS: ${{ inputs.backups }}
+        INPUT_ROLLBACK: ${{ inputs.rollback }}
         INPUT_EXISTING_RELEASE: ${{ inputs.existing_release }}
         INPUT_SKIP_RSYNC: ${{ inputs.skip_rsync }}
-        INPUT_RUNNER_IMAGE: ${{ inputs.runner_image }}
         SSH_PRIVATE_KEY: ${{ inputs.ssh_private_key }}
         SSH_SERVER: ${{ inputs.ssh_server }}
         SSH_USER: ${{ inputs.ssh_user }}
@@ -187,7 +149,6 @@ runs:
         FMD_CONFIG_CONTENT: ${{ inputs.config_content }}
         FMD_CONFIG_OVERRIDES: ${{ inputs.config_overrides }}
         FMD_GITHUB_TOKEN: ${{ inputs.gh_token }}
-        INPUT_APP_ENV: ${{ inputs.app_env }}
 
     - name: Clean up temporary directory
       if: always()
