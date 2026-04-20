@@ -11,7 +11,8 @@ toml_get() {
 	local toml_file="$1"
 	local key_path="$2"
 	[[ -f "${toml_file}" ]] || return 1
-	python3 -c "import sys,tomllib; d=tomllib.load(open(sys.argv[1],'rb')); print(d.get('ship',{}).get(sys.argv[2],''))" "${toml_file}" "${key_path}" 2>/dev/null || echo ""
+	# Try root level first, then [ship] section
+	python3 -c "import sys,tomllib; d=tomllib.load(open(sys.argv[1],'rb')); print(d.get(sys.argv[2],'') or d.get('ship',{}).get(sys.argv[2],''))" "${toml_file}" "${key_path}" 2>/dev/null || echo ""
 }
 
 merge_toml() {
