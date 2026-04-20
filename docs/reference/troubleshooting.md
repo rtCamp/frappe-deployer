@@ -5,7 +5,29 @@ Common fmd-specific issues and solutions.
 ## Configuration Issues
 
 ### Private Repository Access
-**Problem**: Can't clone private repos
+
+**Problem**: Ship mode fails with "repo not accessible" during remote configure
+```
+Error: repo not accessible: my-org/private-app
+RuntimeError: Please ensure all app repos are accessible.
+```
+
+**Root Cause**: Ship mode runs configure/switch on remote server where private repos aren't accessible.
+
+**Solution**: This is expected and should work automatically since v0.x (fmx/0 branch). The remote configure step **skips** repository validation because it uses pre-built artifacts from the local build.
+
+**How it works internally**:
+1. Local build (CI/local): Validates repos and builds artifacts ✅
+2. Rsync to remote: Transfers built artifacts
+3. Remote configure: Skips validation (uses contextvars.ContextVar) ✅
+4. Remote switch: Activates release
+
+If you still see this error:
+- Ensure you're using `rtcamp/frappe-deployer@fmx/0` or later
+- Check that `FMD_ACTION_REF` environment variable is set correctly
+- Verify remote fmd is installed from correct branch via uvx
+
+**Problem**: Can't clone private repos during local build
 ```
 ERROR: Repository access denied
 ```

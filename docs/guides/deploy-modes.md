@@ -73,9 +73,36 @@ Even in CI, you can SSH to production and run pull:
 
 ### How It Works
 
-1. Build release in Docker on your local machine or CI runner
-2. Rsync the built release directory to production server
-3. SSH to production and switch to the new release
+Ship mode coordinates a multi-step deployment workflow:
+
+#### 1. Local Build Phase
+- Runs `fmd release create` in Docker on CI runner/local machine
+- Pulls runner image (e.g., `ghcr.io/rtcamp/fmd-runner:latest`)
+- Installs Python dependencies via uv
+- Installs Node.js dependencies  
+- Builds production assets (JS, CSS)
+- Creates immutable release directory: `workspace/release_YYYYMMDD_HHMMSS/`
+
+#### 2. Transfer Phase
+- Rsyncs entire release directory to remote server
+- Transfers TOML config file
+- Ensures remote has uv/uvx installed for running fmd
+
+#### 3. Remote Configuration Phase
+- Runs `fmd release configure` on remote via uvx
+- Creates bench directory structure if not exists
+- Symlinks apps into bench
+- No git access required (uses pre-built artifacts)
+
+#### 4. Remote Switch Phase  
+- Runs `fmd release switch` to activate new release
+- Updates `workspace/frappe-bench` symlink to new release
+- Optionally drains workers, enables maintenance mode
+- Runs migrations if configured
+- Takes backups if configured
+- Restarts services
+
+**Key insight**: Ship builds locally but delegates configuration/switch to remote fmd instance via uvx.
 
 ### Usage
 
