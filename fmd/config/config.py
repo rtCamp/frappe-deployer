@@ -1,4 +1,5 @@
 import concurrent.futures
+import contextvars
 import io
 from pathlib import Path
 from typing import Any, List, Optional
@@ -29,6 +30,12 @@ from fmd.config.release import ReleaseConfig
 from fmd.config.remote_worker import RemoteWorkerConfig
 from fmd.config.ship import ShipConfig
 
+# Context variable to control repo validation during Config construction
+_skip_repo_validation_context: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "_skip_repo_validation_context", default=False
+)
+
+
 
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -57,6 +64,10 @@ class Config(BaseModel):
 
     @model_validator(mode="after")
     def _configure_apps(self) -> "Config":
+        print(f"[DEBUG Config._configure_apps] Entry")
+        skip_validation = _skip_repo_validation_context.get()
+        print(f"[DEBUG Config._configure_apps] Context var _skip_repo_validation={skip_validation}")
+        
         if self.bench_name is None:
             self.bench_name = self.site_name
 
@@ -87,6 +98,7 @@ class Config(BaseModel):
                 app.symlink = app.symlink or self.release.symlink_subdir_apps
 
         if not self.apps:
+            print(f"[DEBUG Config._configure_apps] No apps, returning early")
             return self
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -108,7 +120,10 @@ class Config(BaseModel):
             ]
             concurrent.futures.wait(futures)
 
-        if not self._skip_repo_validation:
+        print(f"[DEBUG Config._configure_apps] Before validation check")
+        skip_validation = _skip_repo_validation_context.get()
+        if not skip_validation:
+            print(f"[DEBUG Config._configure_apps] Running repo validation (context var is False)")
             all_accessible = True
             for app in self.apps:
                 if not app.exists:
@@ -119,6 +134,8 @@ class Config(BaseModel):
 
             if not all_accessible:
                 raise RuntimeError("Please ensure all app repos are accessible.")
+        else:
+            print(f"[DEBUG Config._configure_apps] SKIPPING repo validation (context var is True)")
 
         return self
 
@@ -164,56 +181,65 @@ class Config(BaseModel):
         config_file_path: Optional[Path] = None,
         config_string: Optional[str] = None,
         overrides: Optional[dict[str, Any]] = None,
+        skip_repo_validation: bool = False,
     ) -> "Config":
-        config_data: dict[str, Any] = {}
+        print(f"[DEBUG Config.from_toml] Called with skip_repo_validation={skip_repo_validation}")
+        
+        token = _skip_repo_validation_context.set(skip_repo_validation)
+        try:
+            config_data: dict[str, Any] = {}
 
-        if config_file_path:
-            with open(config_file_path, "r") as f:
-                config_data = toml.load(f)
+            if config_file_path:
+                with open(config_file_path, "r") as f:
+                    config_data = toml.load(f)
 
-        if config_string:
-            with io.StringIO(config_string) as f:
-                config_data = toml.load(f)
+            if config_string:
+                with io.StringIO(config_string) as f:
+                    config_data = toml.load(f)
 
-        if overrides:
-            _NESTED_SECTIONS = {
-                "bake",
-                "bake_nginx",
-                "configure",
-                "deploy",
-                "switch",
-                "release",
-                "fm",
-                "fc",
-                "ship",
-                "remote_worker",
-            }
+            if overrides:
+                _NESTED_SECTIONS = {
+                    "bake",
+                    "bake_nginx",
+                    "configure",
+                    "deploy",
+                    "switch",
+                    "release",
+                    "fm",
+                    "fc",
+                    "ship",
+                    "remote_worker",
+                }
 
-            for key, value in overrides.items():
-                if key in _NESTED_SECTIONS:
-                    if isinstance(value, dict):
-                        config_data[key] = config_data.get(key, {}) | value
-                    else:
-                        config_data[key] = value
-                elif key == "apps":
-
-                    def _app_key(app: dict) -> tuple:
-                        return (app.get("repo", "").lower(), app.get("ref"), app.get("subdir_path"))
-
-                    existing = {_app_key(a): a for a in config_data.get("apps", [])}
-                    for app in value:
-                        k = _app_key(app)
-                        if k in existing:
-                            merged = existing[k].copy()
-                            merged.update(app)
-                            existing[k] = merged
+                for key, value in overrides.items():
+                    if key in _NESTED_SECTIONS:
+                        if isinstance(value, dict):
+                            config_data[key] = config_data.get(key, {}) | value
                         else:
-                            existing[k] = app
-                    config_data["apps"] = list(existing.values())
-                elif key in Config.model_fields:
-                    config_data[key] = value
+                            config_data[key] = value
+                    elif key == "apps":
 
-        obj = Config(**config_data)
-        if config_file_path:
-            obj._config_file_path = config_file_path
-        return obj
+                        def _app_key(app: dict) -> tuple:
+                            return (app.get("repo", "").lower(), app.get("ref"), app.get("subdir_path"))
+
+                        existing = {_app_key(a): a for a in config_data.get("apps", [])}
+                        for app in value:
+                            k = _app_key(app)
+                            if k in existing:
+                                merged = existing[k].copy()
+                                merged.update(app)
+                                existing[k] = merged
+                            else:
+                                existing[k] = app
+                        config_data["apps"] = list(existing.values())
+                    elif key in Config.model_fields:
+                        config_data[key] = value
+
+            obj = Config(**config_data)
+            obj._skip_repo_validation = skip_repo_validation
+            print(f"[DEBUG Config.from_toml] Created Config object")
+            if config_file_path:
+                obj._config_file_path = config_file_path
+            return obj
+        finally:
+            _skip_repo_validation_context.reset(token)

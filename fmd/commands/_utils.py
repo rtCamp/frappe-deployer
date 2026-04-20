@@ -91,6 +91,8 @@ def load_config(
     create_if_missing: bool = False,
     skip_repo_validation: bool = False,
 ) -> Config:
+    print(f"[DEBUG load_config] Called with skip_repo_validation={skip_repo_validation}, config_path={config_path}")
+    
     effective: dict = dict(overrides) if overrides else {}
     if _verbose is not None and "verbose" not in effective:
         effective["verbose"] = _verbose
@@ -99,20 +101,20 @@ def load_config(
     if config_path is None:
         if not overrides or "site_name" not in overrides:
             raise ValueError("bench_name argument or --config/-c is required.")
-        config = Config.from_toml(overrides=overrides)
-        config._skip_repo_validation = skip_repo_validation
+        config = Config.from_toml(overrides=overrides, skip_repo_validation=skip_repo_validation)
+        print(f"[DEBUG load_config] No config_path branch")
         return config
 
     if not config_path.exists():
         if create_if_missing and overrides and "site_name" in overrides:
-            config = Config.from_toml(overrides=overrides)
+            config = Config.from_toml(overrides=overrides, skip_repo_validation=skip_repo_validation)
             config_path.parent.mkdir(parents=True, exist_ok=True)
             config.to_toml(config_path)
-            config._skip_repo_validation = skip_repo_validation
+            print(f"[DEBUG load_config] Create missing branch")
             return config
         raise ConfigPathDoesntExist(str(config_path))
-    config = Config.from_toml(config_file_path=config_path, overrides=overrides or None)
-    config._skip_repo_validation = skip_repo_validation
+    config = Config.from_toml(config_file_path=config_path, overrides=overrides or None, skip_repo_validation=skip_repo_validation)
+    print(f"[DEBUG load_config] Normal path branch")
     return config
 
 
