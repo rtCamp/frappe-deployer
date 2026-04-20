@@ -136,17 +136,22 @@ class ShipManager:
         if self.config.ship.fmd_source:
             return self.config.ship.fmd_source
 
+        import os
+        import subprocess
+        import typer
+
+        fmd_action_ref = os.environ.get("FMD_ACTION_REF", "")
+        if fmd_action_ref:
+            typer.echo(f"[DEBUG] Using FMD_ACTION_REF: {fmd_action_ref}")
+            return f"git+https://github.com/rtcamp/frappe-deployer.git@{fmd_action_ref}"
+
         local_fmd_root = Path(__file__).parent.parent.parent
         local_git_dir = local_fmd_root / ".git"
-
-        import typer
 
         typer.echo(f"[DEBUG] local_fmd_root: {local_fmd_root}")
         typer.echo(f"[DEBUG] .git exists: {local_git_dir.exists()}")
 
         if local_git_dir.exists():
-            import subprocess
-
             result = subprocess.run(
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=local_fmd_root, capture_output=True, text=True
             )
