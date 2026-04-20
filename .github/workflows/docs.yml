@@ -1,0 +1,54 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'zensical.toml'
+      - 'fmd/__about__.py'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Configure git
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+
+      - name: Deploy documentation
+        run: |
+          version=$(uv run python -c "from fmd.__about__ import __version__; print(__version__)")
+          slug=$(uv run python -c "
+          import re
+          from fmd.__about__ import __version__
+          m = re.match(r'^(\d+\.\d+)', __version__)
+          print('v' + m.group(1) if m else __version__)
+          ")
+          
+          # Deploy with version aliases
+          uv run mike deploy --push --update-aliases "$slug" latest --title "$version" -F zensical.toml
+          
+          # Set default version (only needed once, but safe to repeat)
+          uv run mike set-default --push latest -F zensical.toml
