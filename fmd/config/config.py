@@ -167,25 +167,14 @@ class Config(BaseModel):
         assert self.bench_name is not None
         
         # Check for bare host deployment at runtime (env vars set in SSH command)
-        bare_host = os.environ.get("FMD_BARE_HOST")
-        benches_root_env = os.environ.get("FMD_HOST_BENCHES_ROOT")
+        if os.environ.get("FMD_BARE_HOST") == "1":
+            benches_root = os.environ.get("FMD_HOST_BENCHES_ROOT", "/home/frappe/frappe/sites")
+            return Path(benches_root) / self.bench_name
         
-        if bare_host == "1":
-            benches_root = benches_root_env if benches_root_env else "/home/frappe/frappe/sites"
-            result = Path(benches_root) / self.bench_name
-            print(f"[DEBUG workspace_root] FMD_BARE_HOST={bare_host}, FMD_HOST_BENCHES_ROOT={benches_root_env}, returning={result}")
-            return result
-        
-        result = CLI_BENCHES_DIRECTORY / self.bench_name
-        print(f"[DEBUG workspace_root] FMD_BARE_HOST={bare_host}, using CLI_BENCHES_DIRECTORY={CLI_BENCHES_DIRECTORY}, returning={result}")
-        return result
+        return CLI_BENCHES_DIRECTORY / self.bench_name
 
     @property
     def bench_path(self) -> Path:
-        # On bare host, bench is at workspace_root/frappe-bench (no workspace subdir)
-        if os.environ.get("FMD_BARE_HOST") == "1":
-            return self.workspace_root / "frappe-bench"
-        
         if self.ship and self._config_file_path is not None:
             return self.workspace_root / "workspace" / "frappe-bench"
         return self.workspace_root / "workspace" / "frappe-bench"
