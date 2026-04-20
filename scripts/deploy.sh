@@ -17,7 +17,7 @@ toml_get() {
 merge_toml() {
 	local user_toml="$1"
 	local generated_toml="$2"
-	python3 << 'PYTHON_EOF'
+	python3 - "${user_toml}" "${generated_toml}" << 'PYTHON_EOF'
 import sys
 import tomllib
 
