@@ -266,7 +266,7 @@ ship_command() {
 		COMMAND="${COMMAND} --config-overrides ${LOCAL_CONFIG_OVERRIDES_TMP}"
 	fi
 
-	"${GITHUB_ACTION_PATH}/fmd" ${COMMAND}
+	fmd ${COMMAND}
 	DEPLOY_EXIT_CODE=$?
 
 	if [[ -n "${LOCAL_CONFIG_OVERRIDES_TMP:-}" ]]; then
@@ -325,7 +325,7 @@ build_image_command() {
 		done < <(parse_app_env)
 	fi
 
-	"${GITHUB_ACTION_PATH}/frappe-deployer" ${COMMAND}
+	fmd ${COMMAND}
 	BUILD_EXIT_CODE=$?
 
 	if [[ -n "${LOCAL_CONFIG_CONTENT_TMP:-}" ]]; then
