@@ -174,7 +174,7 @@ class DockerRunner(CommandRunner):
             base_env["DOCKER_HOST"] = self.docker_host
 
         docker_command = shlex.join(command)
-        docker_command = f"-c 'source /etc/bash.bashrc; {docker_command}'"
+        bash_command = ["/bin/bash", "-c", f"source /etc/bash.bashrc; {docker_command}"]
 
         effective_workdir = workdir or "/workspace/frappe-bench"
         image = self._resolve_image()
@@ -184,10 +184,10 @@ class DockerRunner(CommandRunner):
         output = _DockerClient().run(
             image=image,
             user="root",
-            command=docker_command,
+            command=shlex.join(bash_command),
             workdir=effective_workdir,
             env=base_env,
-            entrypoint="/bin/bash",
+            entrypoint="/scripts/exec-entrypoint.sh",
             platform=self.platform or None,
             pull="missing",
             volume=volumes,
