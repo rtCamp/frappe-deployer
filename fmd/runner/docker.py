@@ -121,16 +121,6 @@ class DockerRunner(CommandRunner):
         return result
 
     @staticmethod
-    def _chmod_recursive(path: Path, mode: int) -> None:
-        try:
-            path.chmod(mode)
-        except OSError:
-            pass
-        if path.is_dir():
-            for child in path.iterdir():
-                DockerRunner._chmod_recursive(child, mode)
-
-    @staticmethod
     def _tag_stderr_stream(stream: Iterable) -> Iterable:
         ANSI_DIM = "\033[2m"
         ANSI_RESET = "\033[0m"
@@ -182,14 +172,12 @@ class DockerRunner(CommandRunner):
             base_env["DOCKER_HOST"] = self.docker_host
 
         docker_command = shlex.join(command)
-        docker_command = f"-c 'source /etc/bash.bashrc; {docker_command}'"
+        docker_command = f"-c 'umask 000; source /etc/bash.bashrc; {docker_command}'"
 
         effective_workdir = workdir or "/workspace/frappe-bench"
         image = self._resolve_image()
 
         volumes = [f"{bench_directory.path.absolute()}:/workspace/frappe-bench"]
-
-        self._chmod_recursive(bench_directory.path.absolute(), 0o777)
 
         output = _DockerClient().run(
             image=image,
