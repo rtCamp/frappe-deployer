@@ -15,14 +15,18 @@ toml_get() {
 }
 
 merge_toml() {
-	local user_toml="$1"
-	local generated_toml="$2"
-	python3 - "${user_toml}" "${generated_toml}" << 'PYTHON_EOF'
+	local base_toml="$1"
+	local override_toml="$2"
+	local _base_f _override_f
+	_base_f=$(mktemp --suffix=.toml)
+	_override_f=$(mktemp --suffix=.toml)
+	printf '%s' "${base_toml}" >"${_base_f}"
+	printf '%s' "${override_toml}" >"${_override_f}"
+	python3 - "${_base_f}" "${_override_f}" << 'PYTHON_EOF'
 import sys
 import tomllib
 
 def deep_merge(base, override):
-	"""Deep merge override into base, modifying base in place."""
 	for key, value in override.items():
 		if key in base and isinstance(base[key], dict) and isinstance(value, dict):
 			deep_merge(base[key], value)
@@ -30,64 +34,56 @@ def deep_merge(base, override):
 			base[key] = value
 	return base
 
-user_toml = sys.argv[1] if len(sys.argv) > 1 else ""
-generated_toml = sys.argv[2] if len(sys.argv) > 2 else ""
-
+base_file = sys.argv[1]
+override_file = sys.argv[2]
 merged = {}
 
-# Parse user TOML (if provided)
-if user_toml and user_toml.strip():
+base_content = open(base_file).read().strip()
+if base_content:
 	try:
-		merged = tomllib.loads(user_toml)
+		merged = tomllib.loads(base_content)
 	except Exception as e:
-		print(f"Error parsing user config_overrides: {e}", file=sys.stderr)
+		print(f"Error parsing base TOML: {e}", file=sys.stderr)
 		sys.exit(1)
 
-# Parse generated TOML (if provided)
-if generated_toml and generated_toml.strip():
+override_content = open(override_file).read().strip()
+if override_content:
 	try:
-		generated = tomllib.loads(generated_toml)
-		deep_merge(merged, generated)
+		deep_merge(merged, tomllib.loads(override_content))
 	except Exception as e:
-		print(f"Error parsing generated config: {e}", file=sys.stderr)
+		print(f"Error parsing override TOML: {e}", file=sys.stderr)
 		sys.exit(1)
 
-# Output merged TOML
 if merged:
-	import io
 	try:
-		# Use tomli_w if available (Python 3.11+), otherwise manual formatting
-		try:
-			import tomli_w
-			print(tomli_w.dumps(merged), end='')
-		except ImportError:
-			# Manual TOML formatting (simple cases only)
-			for section, values in merged.items():
-				if isinstance(values, dict):
-					print(f"[{section}]")
-					for key, val in values.items():
-						if isinstance(val, bool):
-							print(f"{key} = {str(val).lower()}")
-						elif isinstance(val, str):
-							print(f'{key} = "{val}"')
-						elif isinstance(val, list):
-							formatted_list = ", ".join([f'"{item}"' if isinstance(item, str) else str(item) for item in val])
-							print(f"{key} = [{formatted_list}]")
-						else:
-							print(f"{key} = {val}")
-					print()
-				else:
-					# Top-level key-value
-					if isinstance(values, bool):
-						print(f"{section} = {str(values).lower()}")
-					elif isinstance(values, str):
-						print(f'{section} = "{values}"')
+		import tomli_w
+		print(tomli_w.dumps(merged), end='')
+	except ImportError:
+		for section, values in merged.items():
+			if isinstance(values, dict):
+				print(f"[{section}]")
+				for key, val in values.items():
+					if isinstance(val, bool):
+						print(f"{key} = {str(val).lower()}")
+					elif isinstance(val, str):
+						print(f'{key} = "{val}"')
+					elif isinstance(val, list):
+						formatted_list = ", ".join([f'"{item}"' if isinstance(item, str) else str(item) for item in val])
+						print(f"{key} = [{formatted_list}]")
 					else:
-						print(f"{section} = {values}")
-	except Exception as e:
-		print(f"Error formatting merged TOML: {e}", file=sys.stderr)
-		sys.exit(1)
+						print(f"{key} = {val}")
+				print()
+			else:
+				if isinstance(values, bool):
+					print(f"{section} = {str(values).lower()}")
+				elif isinstance(values, str):
+					print(f'{section} = "{values}"')
+				else:
+					print(f"{section} = {values}")
 PYTHON_EOF
+	local _exit=$?
+	rm -f "${_base_f}" "${_override_f}"
+	return ${_exit}
 }
 
 build_config_overrides() {
