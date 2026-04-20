@@ -40,9 +40,9 @@ inputs:
       Use for environment-specific values: site_name, secrets, site_config keys.
       Values here take precedence over the base config.
       Example:
-        site_name = "${{ vars.SITE_NAME }}"
+        site_name = "mysite.example.com"
         [fc]
-        api_key = "${{ secrets.FC_KEY }}"
+        api_key = "your-fc-api-key"
     required: false
 
   # --- Pull-only inputs ---
