@@ -166,12 +166,22 @@ class Config(BaseModel):
         
         assert self.bench_name is not None
         
-        # Check for bare host deployment at runtime (env vars set in SSH command)
-        if os.environ.get("FMD_BARE_HOST") == "1":
-            benches_root = os.environ.get("FMD_HOST_BENCHES_ROOT", "/home/frappe/frappe/sites")
-            return Path(benches_root) / self.bench_name
+        fmd_bare_host = os.environ.get("FMD_BARE_HOST")
+        fmd_host_benches_root = os.environ.get("FMD_HOST_BENCHES_ROOT")
         
-        return CLI_BENCHES_DIRECTORY / self.bench_name
+        print(f"[DEBUG workspace_root] FMD_BARE_HOST={fmd_bare_host}, FMD_HOST_BENCHES_ROOT={fmd_host_benches_root}")
+        print(f"[DEBUG workspace_root] bench_name={self.bench_name}")
+        print(f"[DEBUG workspace_root] CLI_BENCHES_DIRECTORY={CLI_BENCHES_DIRECTORY}")
+        
+        if fmd_bare_host == "1":
+            benches_root = fmd_host_benches_root or "/home/frappe/frappe/sites"
+            result = Path(benches_root) / self.bench_name
+            print(f"[DEBUG workspace_root] Using bare host path: {result}")
+            return result
+        
+        result = CLI_BENCHES_DIRECTORY / self.bench_name
+        print(f"[DEBUG workspace_root] Using CLI_BENCHES_DIRECTORY path: {result}")
+        return result
 
     @property
     def bench_path(self) -> Path:
