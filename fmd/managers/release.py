@@ -264,9 +264,20 @@ class ReleaseManager:
 
         if src_uv.is_dir() and not release_uv.exists():
             shutil.copytree(src_uv, release_uv, symlinks=True)
+            self._open_permissions(release_uv)
 
         if src_fnm.is_dir() and not release_fnm.exists():
             shutil.copytree(src_fnm, release_fnm, symlinks=True)
+            self._open_permissions(release_fnm)
+
+    @staticmethod
+    def _open_permissions(path: Path) -> None:
+        for p in [path, *path.rglob("*")]:
+            try:
+                if not p.is_symlink():
+                    p.chmod(0o777)
+            except OSError:
+                pass
 
     def _setup_supervisor_config(self, release_path: Path) -> None:
         try:
