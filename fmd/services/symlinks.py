@@ -73,7 +73,7 @@ class SymlinkService:
     def configure_data_dir(self, data: BenchDirectory, current: BenchDirectory, workspace_root: Path):
         if not data.path.exists():
             self.printer.change_head(f"Creating {DATA_DIR_NAME} dir")
-            data.path.mkdir()
+            data.path.mkdir(parents=True)
             self.printer.print("Created release data dir")
 
         self.printer.change_head("Moving sites into data dir")
