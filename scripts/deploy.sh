@@ -150,7 +150,6 @@ pull_command() {
 
 	[[ "${SSH_PRIVATE_KEY:-}" ]] || emergency "ENV: ${CYAN} SSH_PRIVATE_KEY ${ENDCOLOR} is missing for 'pull' command."
 	[[ "${FMD_GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} FMD_GITHUB_TOKEN ${ENDCOLOR} is missing."
-	[[ "${INPUT_SITENAME:-}" ]] || emergency "Input: ${CYAN} sitename ${ENDCOLOR} is missing."
 
 	TEMP_SSH_DIR=$(mktemp -d /tmp/ssh_dir.XXXXXX)
 	export HOME="${TEMP_SSH_DIR}"
@@ -163,6 +162,11 @@ pull_command() {
 		TOML_CONFIG_FILE=$(mktemp /tmp/fmd_config_content.XXXXXX.toml)
 		echo "${FMD_CONFIG_CONTENT}" >"${TOML_CONFIG_FILE}"
 	fi
+
+	if [[ -z "${INPUT_SITENAME:-}" ]] && [[ -n "${TOML_CONFIG_FILE}" ]]; then
+		INPUT_SITENAME=$(toml_get "${TOML_CONFIG_FILE}" "site_name")
+	fi
+	[[ -n "${INPUT_SITENAME}" ]] || emergency "Either set ${CYAN}sitename${ENDCOLOR} input or define ${CYAN}site_name${ENDCOLOR} in TOML config."
 
 	if [[ -z "${SSH_SERVER:-}" ]] && [[ -n "${TOML_CONFIG_FILE}" ]]; then
 		SSH_SERVER=$(toml_get "${TOML_CONFIG_FILE}" "host")
