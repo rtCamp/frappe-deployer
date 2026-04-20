@@ -140,13 +140,30 @@ class ShipManager:
         local_git_dir = local_fmd_root / ".git"
 
         if local_git_dir.exists():
+            import os
             import subprocess
 
+            # In GitHub Actions, GITHUB_REF contains the actual branch even in detached HEAD
+            github_ref = os.environ.get("GITHUB_REF", "")
+            if github_ref.startswith("refs/heads/"):
+                branch = github_ref.replace("refs/heads/", "")
+                return f"git+https://github.com/rtcamp/frappe-deployer.git@{branch}"
+
+            # Try git rev-parse for local dev
             result = subprocess.run(
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=local_fmd_root, capture_output=True, text=True
             )
-            branch = result.stdout.strip() if result.returncode == 0 else "main"
-            return f"git+https://github.com/rtcamp/frappe-deployer.git@{branch}"
+            if result.returncode == 0 and result.stdout.strip() != "HEAD":
+                branch = result.stdout.strip()
+                return f"git+https://github.com/rtcamp/frappe-deployer.git@{branch}"
+
+            # Detached HEAD: use commit SHA instead of defaulting to main
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=local_fmd_root, capture_output=True, text=True
+            )
+            if result.returncode == 0:
+                commit_sha = result.stdout.strip()
+                return f"git+https://github.com/rtcamp/frappe-deployer.git@{commit_sha}"
 
         return "git+https://github.com/rtcamp/frappe-deployer.git@main"
 
