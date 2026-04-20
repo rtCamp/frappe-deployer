@@ -165,6 +165,12 @@ class Config(BaseModel):
             return self._config_file_path.parent
         
         assert self.bench_name is not None
+        
+        # Check for bare host deployment at runtime (env vars set in SSH command)
+        if os.environ.get("FMD_BARE_HOST") == "1":
+            benches_root = os.environ.get("FMD_HOST_BENCHES_ROOT", "/home/frappe/frappe/sites")
+            return Path(benches_root) / self.bench_name
+        
         return CLI_BENCHES_DIRECTORY / self.bench_name
 
     @property
