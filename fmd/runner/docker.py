@@ -121,6 +121,16 @@ class DockerRunner(CommandRunner):
         return result
 
     @staticmethod
+    def _chmod_recursive(path: Path, mode: int) -> None:
+        try:
+            path.chmod(mode)
+        except OSError:
+            pass
+        if path.is_dir():
+            for child in path.iterdir():
+                DockerRunner._chmod_recursive(child, mode)
+
+    @staticmethod
     def _tag_stderr_stream(stream: Iterable) -> Iterable:
         ANSI_DIM = "\033[2m"
         ANSI_RESET = "\033[0m"
@@ -179,17 +189,7 @@ class DockerRunner(CommandRunner):
 
         volumes = [f"{bench_directory.path.absolute()}:/workspace/frappe-bench"]
 
-        _DockerClient().run(
-            image=image,
-            user="root",
-            command="-c 'chown -R frappe:frappe /workspace/frappe-bench'",
-            entrypoint="/bin/bash",
-            platform=self.platform or None,
-            pull="missing",
-            volume=volumes,
-            stream=False,
-            rm=True,
-        )
+        self._chmod_recursive(bench_directory.path.absolute(), 0o777)
 
         output = _DockerClient().run(
             image=image,
