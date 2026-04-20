@@ -183,7 +183,7 @@ class DockerRunner(CommandRunner):
             f"LANGUAGE=en_US.UTF-8"
         )
         bash_command = [
-            "/bin/bash", "-c",
+            "-c",
             f"chmod 755 /workspace && exec gosu {uid}:{gid} env {gosu_env} /bin/bash -c {shlex.quote(inner_cmd)}"
         ]
 
