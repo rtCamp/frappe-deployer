@@ -256,7 +256,7 @@ pull_command() {
 	rm -f "${LOCAL_CONFIG_TMP}"
 	
 	COMMAND="pull ${INPUT_SITENAME} --github-token ${FMD_GITHUB_TOKEN} --config ${REMOTE_CONFIG_PATH}"
-	FRAPPE_DEPLOYER_CMD="/home/${REMOTE_USER}/.fmd/venv/bin/frappe-deployer ${COMMAND}"
+	FRAPPE_DEPLOYER_CMD="/home/${REMOTE_USER}/.fmd/venv/bin/fmd ${COMMAND}"
 	
 	ssh -p "${REMOTE_PORT}" -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		"cd /home/${REMOTE_USER}/.fmd/logs && ${FRAPPE_DEPLOYER_CMD} 2>&1"
