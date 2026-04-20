@@ -158,6 +158,8 @@ class Config(BaseModel):
     def workspace_root(self) -> Path:
         if self.ship and self._config_file_path is not None:
             return self._config_file_path.parent
+        if self.release and self.release.mode == "host":
+            return Path("/home") / os.environ.get("USER", "frappe") / "frappe" / "sites" / (self.bench_name or "default")
         assert self.bench_name is not None
         return CLI_BENCHES_DIRECTORY / self.bench_name
 
