@@ -100,7 +100,7 @@ def _deploy_remote(config: Config, printer) -> None:
     printer.print("Executing pull deployment on remote server")
     result = subprocess.run(
         ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
-         f"cd /home/{ssh_user}/.fmd/logs && {remote_cmd} 2>&1"],
+         f"cd /home/{ssh_user}/.fmd/logs && {env_vars} {remote_cmd} 2>&1"],
         check=False
     )
     
