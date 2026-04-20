@@ -179,6 +179,18 @@ class DockerRunner(CommandRunner):
 
         volumes = [f"{bench_directory.path.absolute()}:/workspace/frappe-bench"]
 
+        _DockerClient().run(
+            image=image,
+            user="root",
+            command="-c 'chown -R frappe:frappe /workspace/frappe-bench'",
+            entrypoint="/bin/bash",
+            platform=self.platform or None,
+            pull="missing",
+            volume=volumes,
+            stream=False,
+            rm=True,
+        )
+
         output = _DockerClient().run(
             image=image,
             user="frappe",
