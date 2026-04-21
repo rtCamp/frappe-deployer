@@ -49,6 +49,9 @@ This creates the workspace structure:
 
 ## Step 3: Deploy Frappe + ERPNext
 
+!!! tip "Configuration Files for Repeated Deployments"
+    Before running your first deployment, consider creating a `site.toml` file (see [Step 6](#step-6-using-a-configuration-file) below). This makes future deployments cleaner and easier to track in version control.
+
 Now deploy your apps with a single command:
 
 ```bash
@@ -95,6 +98,9 @@ fmd release list mysite.localhost
 
 ## Step 5: Access Your Site
 
+!!! warning "Default Password Security"
+    Change the default `admin` password immediately after first login. Go to **User Settings → Change Password** in the Frappe UI.
+
 Your site is now live! Access it at:
 
 ```
@@ -107,6 +113,9 @@ Default credentials:
 - **Password**: `admin` (or the password you set during bench creation)
 
 ## Using a Configuration File
+
+!!! tip "Best Practice: Use Configuration Files"
+    Command-line flags are great for quick tests, but configuration files provide version control, reproducibility, and team collaboration benefits. Create a `site.toml` file and commit it to your repository.
 
 For repeated deployments, use a config file instead of command-line flags.
 
