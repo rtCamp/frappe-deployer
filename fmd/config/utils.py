@@ -65,7 +65,7 @@ def get_repo_url(repo: str, ref: Optional[str] = None, token: Optional[str] = No
     repo_urls = [(url, "https")]
 
     if token:
-        repo_urls += [(f"https://{token}:x-oauth-basic@github.com/{repo}", "token")]
+        repo_urls += [(f"https://{token}@github.com/{repo}", "token")]
 
     repo_urls += [(f"git@github.com:{repo}.git", "ssh")]
 
