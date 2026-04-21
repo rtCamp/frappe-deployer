@@ -177,14 +177,14 @@ class Config(BaseModel):
             return self.workspace_root / "workspace" / "frappe-bench"
         return self.workspace_root / "workspace" / "frappe-bench"
 
-    def to_toml(self, file_path: Path) -> None:
+    def to_toml(self, file_path: Path, mask_secrets: bool = True) -> None:
         def _mask(data: Any) -> Any:
             if isinstance(data, dict):
                 out = {}
                 for k, v in data.items():
-                    if k == "github_token" and v:
+                    if mask_secrets and k == "github_token" and v:
                         out[k] = "********"
-                    elif k == "repo_url" and v and "@" in str(v):
+                    elif mask_secrets and k == "repo_url" and v and "@" in str(v):
                         parts = str(v).split("@")
                         protocol_token = parts[0].split("//")
                         out[k] = f"{protocol_token[0]}//*********@{parts[1]}"
@@ -196,10 +196,12 @@ class Config(BaseModel):
             return data
 
         config_dict = self.model_dump(exclude_none=True)
-        masked = _mask(config_dict)
+        
+        if mask_secrets:
+            config_dict = _mask(config_dict)
 
         with open(file_path, "w") as f:
-            toml.dump(masked, f)
+            toml.dump(config_dict, f)
 
     @staticmethod
     def from_toml(
