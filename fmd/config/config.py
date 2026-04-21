@@ -97,9 +97,6 @@ class Config(BaseModel):
         if self.bench_name is None:
             self.bench_name = self.site_name
 
-        if self.ship is not None and self.ship.remote_path is None:
-            self.ship.remote_path = f"/home/{self.ship.ssh_user}/frappe/sites/{self.site_name}"
-
         if self.deploy is not None:
             print("WARNING: [deploy] section is deprecated. Please rename to [switch] in your config.")
             if self.switch == SwitchConfig():

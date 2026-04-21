@@ -19,6 +19,8 @@ class ShipManager:
         self.printer = printer
         self.ssh = SSHClient(config.ship.host, config.ship.ssh_user, config.ship.ssh_port)
 
+        self._resolve_remote_path()
+
         docker_host = f"ssh://{config.ship.ssh_user}@{config.ship.host}"
 
         platform = self._detect_platform()
@@ -45,6 +47,21 @@ class ShipManager:
             host_runner,
             printer,
         )
+
+    def _resolve_remote_path(self) -> None:
+        assert self.config.ship is not None
+        if self.config.ship.remote_path is not None:
+            return
+
+        try:
+            home = self.ssh.run("echo $HOME", capture=True).strip()
+            self.printer.print(f"[dim]remote_path: resolved $HOME → {home!r}[/dim]")
+        except Exception as e:
+            self.printer.warning(f"Failed to resolve remote $HOME: {e}. Falling back to static default.")
+            home = f"/home/{self.config.ship.ssh_user}"
+
+        self.config.ship.remote_path = f"{home}/frappe/sites/{self.config.site_name}"
+        self.printer.print(f"[dim]remote_path: {self.config.ship.remote_path}[/dim]")
 
     def _detect_platform(self) -> str | None:
         if self.config.release.platform:
