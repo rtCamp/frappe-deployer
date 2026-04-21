@@ -166,24 +166,20 @@ class Config(BaseModel):
         
         assert self.bench_name is not None
         
-        import sys
-        sys.stderr.write(f"[DEBUG workspace_root] self.pull={self.pull}\n")
+        print(f"[DEBUG workspace_root] self.pull={self.pull}")
         if self.pull:
-            sys.stderr.write(f"[DEBUG workspace_root] self.pull.benches_root={self.pull.benches_root}\n")
-            sys.stderr.write(f"[DEBUG workspace_root] self.pull.on_remote={self.pull.on_remote}\n")
-        sys.stderr.write(f"[DEBUG workspace_root] CLI_BENCHES_DIRECTORY={CLI_BENCHES_DIRECTORY}\n")
-        sys.stderr.flush()
+            print(f"[DEBUG workspace_root] self.pull.benches_root={self.pull.benches_root}")
+            print(f"[DEBUG workspace_root] self.pull.on_remote={self.pull.on_remote}")
+        print(f"[DEBUG workspace_root] CLI_BENCHES_DIRECTORY={CLI_BENCHES_DIRECTORY}")
         
         # Check if running on remote with benches_root configured
         if self.pull and self.pull.benches_root:
             result = Path(self.pull.benches_root) / self.bench_name
-            sys.stderr.write(f"[DEBUG workspace_root] Using benches_root path: {result}\n")
-            sys.stderr.flush()
+            print(f"[DEBUG workspace_root] Using benches_root path: {result}")
             return result
         
         result = CLI_BENCHES_DIRECTORY / self.bench_name
-        sys.stderr.write(f"[DEBUG workspace_root] Using CLI_BENCHES_DIRECTORY path: {result}\n")
-        sys.stderr.flush()
+        print(f"[DEBUG workspace_root] Using CLI_BENCHES_DIRECTORY path: {result}")
         return result
 
     @property
