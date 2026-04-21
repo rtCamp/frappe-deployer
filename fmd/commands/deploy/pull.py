@@ -21,7 +21,6 @@ def _deploy_remote(config: Config, printer) -> None:
     ssh_server = pull_config.ssh_server
     ssh_user = pull_config.ssh_user
     ssh_port = pull_config.ssh_port
-    benches_root = pull_config.benches_root
     
     # Determine FMD source - prefer config, fallback to env var, then PyPI
     fmd_source = pull_config.fmd_source
@@ -72,9 +71,10 @@ def _deploy_remote(config: Config, printer) -> None:
     with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
         local_config_path = Path(f.name)
     
-    # Strip pull section from remote config to prevent recursive remote deployment
+    # Set on_remote=True to prevent recursive deployment on remote server
     remote_config = config.model_copy(deep=True)
-    remote_config.pull = None
+    if remote_config.pull:
+        remote_config.pull.on_remote = True
     remote_config.to_toml(local_config_path)
     
     remote_config_path = f"/tmp/fmd_config_{current_datetime}.toml"
@@ -87,7 +87,6 @@ def _deploy_remote(config: Config, printer) -> None:
     local_config_path.unlink()
     
     # Build command with environment variables prepended inline
-    # FMD_BARE_HOST tells fmd to use host paths instead of Docker paths
     cmd_parts = [
         f"/home/{ssh_user}/.fmd/venv/bin/fmd", "deploy", "pull",
         config.site_name, "--config", remote_config_path
@@ -97,20 +96,8 @@ def _deploy_remote(config: Config, printer) -> None:
     
     remote_cmd = " ".join(cmd_parts)
     
-    # Execute pull command on remote with env vars for bare host mode
     printer.print("Executing pull deployment on remote server")
-    
-    # Build environment variable export if benches_root is configured
-    env_export = ""
-    if benches_root:
-        printer.print(f"DEBUG: benches_root = {benches_root}")
-        env_export = f"export FMD_BARE_HOST=1; export FMD_HOST_BENCHES_ROOT={benches_root}; "
-        printer.print(f"DEBUG: env_export = {env_export}")
-    else:
-        printer.print("DEBUG: benches_root is None or empty")
-    
-    ssh_cmd = f"cd /home/{ssh_user}/.fmd/logs && {env_export}{remote_cmd} 2>&1"
-    printer.print(f"DEBUG: SSH command = {ssh_cmd}")
+    ssh_cmd = f"cd /home/{ssh_user}/.fmd/logs && {remote_cmd} 2>&1"
     
     result = subprocess.run(
         ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}", ssh_cmd],
@@ -361,14 +348,14 @@ def pull(
     config = load_config(config_path, overrides=overrides or None, create_if_missing=True)
     printer = get_printer()
     
-    # Check if [pull] section exists - if yes, execute remotely
-    if config.pull is not None:
+    # Check if should execute remotely: [pull] exists AND not already on remote
+    if config.pull is not None and not config.pull.on_remote:
         printer.start("Deploying remotely")
         _deploy_remote(config, printer)
         printer.stop()
         typer.echo("Remote deploy complete.")
     else:
-        # Local execution - existing behavior
+        # Local/remote execution - existing behavior
         image_runner, exec_runner, host_runner = build_runners(config)
         printer.start("Deploying")
         manager = PullManager(config, exec_runner, exec_runner, host_runner, printer)
