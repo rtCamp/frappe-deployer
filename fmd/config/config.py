@@ -173,8 +173,6 @@ class Config(BaseModel):
 
     @property
     def bench_path(self) -> Path:
-        if self.pull and self.pull.benches_root:
-            return self.workspace_root / "frappe-bench"
         if self.ship and self._config_file_path is not None:
             return self.workspace_root / "workspace" / "frappe-bench"
         return self.workspace_root / "workspace" / "frappe-bench"
