@@ -124,6 +124,9 @@ runs:
         source .venv/bin/activate && ${{ github.action_path }}/scripts/deploy.sh
       env:
         CI: true
+        GIT_CONFIG_COUNT: 1
+        GIT_CONFIG_KEY_0: url.https://x-access-token:${{ inputs.gh_token }}@github.com/.insteadOf
+        GIT_CONFIG_VALUE_0: https://github.com/
         INPUT_COMMAND: ${{ inputs.command }}
         INPUT_SITENAME: ${{ inputs.sitename }}
         INPUT_DRAIN_WORKERS: ${{ inputs.drain_workers }}
