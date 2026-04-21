@@ -29,7 +29,18 @@ import tomllib
 
 def deep_merge(base, override):
 	for key, value in override.items():
-		if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+		if key == "apps" and isinstance(value, list) and isinstance(base.get(key), list):
+			def app_key(a):
+				return (a.get("repo", "").lower(), a.get("subdir_path", "") or "")
+			existing = {app_key(a): a for a in base[key]}
+			for app in value:
+				k = app_key(app)
+				if k in existing:
+					existing[k] = {**existing[k], **{f: v for f, v in app.items() if v != ""}}
+				else:
+					existing[k] = app
+			base[key] = list(existing.values())
+		elif key in base and isinstance(base[key], dict) and isinstance(value, dict):
 			deep_merge(base[key], value)
 		else:
 			base[key] = value
