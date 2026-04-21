@@ -166,21 +166,19 @@ class Config(BaseModel):
         
         assert self.bench_name is not None
         
-        print(f"[DEBUG workspace_root] self.pull={self.pull}")
-        if self.pull:
-            print(f"[DEBUG workspace_root] self.pull.benches_root={self.pull.benches_root}")
-            print(f"[DEBUG workspace_root] self.pull.on_remote={self.pull.on_remote}")
-        print(f"[DEBUG workspace_root] CLI_BENCHES_DIRECTORY={CLI_BENCHES_DIRECTORY}")
-        
         # Check if running on remote with benches_root configured
         if self.pull and self.pull.benches_root:
-            result = Path(self.pull.benches_root) / self.bench_name
-            print(f"[DEBUG workspace_root] Using benches_root path: {result}")
-            return result
+            return Path(self.pull.benches_root) / self.bench_name
         
-        result = CLI_BENCHES_DIRECTORY / self.bench_name
-        print(f"[DEBUG workspace_root] Using CLI_BENCHES_DIRECTORY path: {result}")
-        return result
+        # Failsafe: if on_remote=True but benches_root is missing, raise error
+        if self.pull and self.pull.on_remote:
+            raise ValueError(
+                f"Configuration error: on_remote=True but benches_root not set. "
+                f"pull.benches_root={self.pull.benches_root}, "
+                f"pull.on_remote={self.pull.on_remote}"
+            )
+        
+        return CLI_BENCHES_DIRECTORY / self.bench_name
 
     @property
     def bench_path(self) -> Path:
