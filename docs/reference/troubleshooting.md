@@ -8,7 +8,7 @@ Common fmd-specific issues and solutions.
 
 **Problem**: Ship mode fails with "repo not accessible" during remote configure
 ```
-Error: repo not accessible: ApexTraderFunding/private-app
+Error: repo not accessible: my-org/private-app
 RuntimeError: Please ensure all app repos are accessible.
 ```
 

@@ -5,3 +5,4 @@ fmd_old
 .env
 .tmp/*
 /site/
+*test*.toml
