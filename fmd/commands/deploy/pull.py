@@ -98,7 +98,11 @@ def _deploy_remote(config: Config, printer) -> None:
     ssh_cmd = f"cd /home/{ssh_user}/.fmd/logs && {remote_cmd} 2>&1"
     
     result = subprocess.run(
-        ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}", ssh_cmd],
+        ["ssh", "-p", str(ssh_port), 
+         "-o", "StrictHostKeyChecking=no",
+         "-o", "ServerAliveInterval=60",
+         "-o", "ServerAliveCountMax=10",
+         f"{ssh_user}@{ssh_server}", ssh_cmd],
         check=False
     )
     
