@@ -4,3 +4,4 @@ fmd_old
 .aider*
 .env
 .tmp/*
+/site/
