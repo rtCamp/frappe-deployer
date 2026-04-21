@@ -103,11 +103,17 @@ def _deploy_remote(config: Config, printer) -> None:
     # Build environment variable prefix if benches_root is configured
     env_prefix = ""
     if benches_root:
+        printer.print(f"DEBUG: benches_root = {benches_root}")
         env_prefix = f"env FMD_BARE_HOST=1 FMD_HOST_BENCHES_ROOT={benches_root} "
+        printer.print(f"DEBUG: env_prefix = {env_prefix}")
+    else:
+        printer.print("DEBUG: benches_root is None or empty")
+    
+    ssh_cmd = f"cd /home/{ssh_user}/.fmd/logs && {env_prefix}{remote_cmd} 2>&1"
+    printer.print(f"DEBUG: SSH command = {ssh_cmd}")
     
     result = subprocess.run(
-        ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
-         f"cd /home/{ssh_user}/.fmd/logs && {env_prefix}{remote_cmd} 2>&1"],
+        ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}", ssh_cmd],
         check=False
     )
     
