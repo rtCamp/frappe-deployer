@@ -153,6 +153,11 @@ build_config_overrides() {
 	local ssh_port="${4:-22}"
 	local overrides=""
 
+	if [[ -n "${FMD_GITHUB_TOKEN:-}" ]]; then
+		overrides+="github_token = \"${FMD_GITHUB_TOKEN}\"\n"
+		overrides+="\n"
+	fi
+
 	if [[ -n "${host}" ]]; then
 		if [[ "${command}" == "pull" ]]; then
 			overrides+="[pull]\n"
@@ -249,7 +254,6 @@ pull_command() {
 	LOCAL_CONFIG_TMP=$(merge_deployment_config "pull" "${REMOTE_HOST}" "${REMOTE_USER}" "${REMOTE_PORT}")
 	
 	COMMAND="deploy pull ${INPUT_SITENAME} --config ${LOCAL_CONFIG_TMP}"
-	COMMAND="${COMMAND} --github-token ${FMD_GITHUB_TOKEN}"
 	
 	fmd ${COMMAND}
 	DEPLOY_EXIT_CODE=$?
@@ -276,7 +280,6 @@ ship_command() {
 	LOCAL_CONFIG_TMP=$(merge_deployment_config "ship" "${REMOTE_HOST}" "${REMOTE_USER}" "${REMOTE_PORT}")
 	
 	COMMAND="deploy ship --config ${LOCAL_CONFIG_TMP}"
-	COMMAND="${COMMAND} --github-token ${FMD_GITHUB_TOKEN}"
 	
 	if [ -n "${INPUT_EXISTING_RELEASE:-}" ]; then
 		COMMAND="${COMMAND} --existing-release ${INPUT_EXISTING_RELEASE}"

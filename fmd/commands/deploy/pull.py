@@ -91,8 +91,6 @@ def _deploy_remote(config: Config, printer) -> None:
         f"/home/{ssh_user}/.fmd/venv/bin/fmd", "deploy", "pull",
         config.site_name, "--config", remote_config_path
     ]
-    if config.github_token:
-        cmd_parts.extend(["--github-token", config.github_token])
     
     remote_cmd = " ".join(cmd_parts)
     
