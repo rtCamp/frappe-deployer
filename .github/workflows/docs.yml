@@ -6,7 +6,8 @@ on:
     paths:
       - 'docs/**'
       - 'zensical.toml'
-      - 'fmd/__about__.py'
+      - 'fmd/**'
+      - 'scripts/update_cli_docs.py'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -31,6 +32,9 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --group dev
+
+      - name: Generate command reference docs
+        run: uv run python scripts/update_cli_docs.py
 
       - name: Configure git
         run: |

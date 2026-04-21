@@ -87,7 +87,7 @@ fmd --version
 
 You should see output like:
 
-```
+```text
 fmd version 0.1.0
 ```
 
@@ -153,7 +153,11 @@ source ~/.bashrc
 
 If you get permission errors during installation:
 
-**Never use sudo with pip**. Use `uv tool` or `pipx` instead, which install in user space.
+!!! danger "Never use sudo with pip"
+    Don't use `sudo pip install`. This breaks system Python and causes permission issues.
+    Always use `uv tool`, `pipx`, or user-space installations.
+
+**Recommended**: Use `uv tool` or `pipx` (they install in user space automatically).
 
 If you must use pip directly:
 
