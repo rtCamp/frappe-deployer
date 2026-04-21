@@ -21,6 +21,7 @@ def _deploy_remote(config: Config, printer) -> None:
     ssh_server = pull_config.ssh_server
     ssh_user = pull_config.ssh_user
     ssh_port = pull_config.ssh_port
+    benches_root = pull_config.benches_root
     
     # Determine FMD source - prefer config, fallback to env var, then PyPI
     fmd_source = pull_config.fmd_source
@@ -95,11 +96,17 @@ def _deploy_remote(config: Config, printer) -> None:
     
     remote_cmd = " ".join(cmd_parts)
     
-    # Execute pull command on remote with env vars prepended to command
+    # Execute pull command on remote with env vars for bare host mode
     printer.print("Executing pull deployment on remote server")
+    
+    # Build environment variable prefix if benches_root is configured
+    env_prefix = ""
+    if benches_root:
+        env_prefix = f"env FMD_BARE_HOST=1 FMD_HOST_BENCHES_ROOT={benches_root} "
+    
     result = subprocess.run(
         ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
-         f"cd /home/{ssh_user}/.fmd/logs && env FMD_BARE_HOST=1 FMD_HOST_BENCHES_ROOT=/home/{ssh_user}/frappe/sites {remote_cmd} 2>&1"],
+         f"cd /home/{ssh_user}/.fmd/logs && {env_prefix}{remote_cmd} 2>&1"],
         check=False
     )
     
