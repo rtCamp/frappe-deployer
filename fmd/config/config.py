@@ -166,27 +166,11 @@ class Config(BaseModel):
         
         assert self.bench_name is not None
         
-        fmd_bare_host = os.environ.get("FMD_BARE_HOST")
-        fmd_host_benches_root = os.environ.get("FMD_HOST_BENCHES_ROOT")
+        # Check if running on remote with benches_root configured
+        if self.pull and self.pull.benches_root:
+            return Path(self.pull.benches_root) / self.bench_name
         
-        import sys
-        sys.stderr.write(f"[DEBUG] FMD_BARE_HOST={fmd_bare_host}\n")
-        sys.stderr.write(f"[DEBUG] FMD_HOST_BENCHES_ROOT={fmd_host_benches_root}\n")
-        sys.stderr.write(f"[DEBUG] bench_name={self.bench_name}\n")
-        sys.stderr.write(f"[DEBUG] CLI_BENCHES_DIRECTORY={CLI_BENCHES_DIRECTORY}\n")
-        sys.stderr.flush()
-        
-        if fmd_bare_host == "1":
-            benches_root = fmd_host_benches_root or "/home/frappe/frappe/sites"
-            result = Path(benches_root) / self.bench_name
-            sys.stderr.write(f"[DEBUG] Using bare host path: {result}\n")
-            sys.stderr.flush()
-            return result
-        
-        result = CLI_BENCHES_DIRECTORY / self.bench_name
-        sys.stderr.write(f"[DEBUG] Using CLI_BENCHES_DIRECTORY path: {result}\n")
-        sys.stderr.flush()
-        return result
+        return CLI_BENCHES_DIRECTORY / self.bench_name
 
     @property
     def bench_path(self) -> Path:
