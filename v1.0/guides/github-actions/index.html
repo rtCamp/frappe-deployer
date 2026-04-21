@@ -2392,7 +2392,7 @@
 </span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">            </span><span class="no">my-private-app:LICENSE_KEY=${{ secrets.MY_APP_LICENSE_KEY }}</span>
 </span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">            </span><span class="no">another-app:API_SECRET=${{ secrets.ANOTHER_API_SECRET }}</span>
 </span></code></pre></div>
-<p>Format: one <code>app-name:KEY=VALUE</code> per line. The <code>app-name</code> prefix must match the Python module name of the app (last path segment of the repo, e.g. <code>godam_core</code> for <code>rtcamp/godam-core</code>). All declared vars are exported before any app's hook scripts run.</p>
+<p>Format: one <code>app-name:KEY=VALUE</code> per line. The <code>app-name</code> prefix must match the Python module name of the app (last path segment of the repo, e.g. <code>godam_core</code> for <code>my-org/custom-app</code>). All declared vars are exported before any app's hook scripts run.</p>
 <h2 id="hooks">Hooks<a class="headerlink" href="#hooks" title="Permanent link">&para;</a></h2>
 <p>Each app can define up to 8 hooks in <code>[[apps]]</code>. The <code>[switch]</code> section has 4 more for restart-time.</p>
 <p><strong>Build-phase hooks</strong> (per-app, in <code>[[apps]]</code>):</p>
@@ -2482,7 +2482,7 @@
 <p>Hooks prefixed <code>host_</code> run on the host machine. All others run inside the Docker container. Each hook value is either an inline shell script or a path to a <code>.sh</code>/<code>.py</code> file.</p>
 <p>Example config with hooks:</p>
 <div class="language-toml highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">[[apps]]</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">repo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;rtcamp/godam-core&quot;</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">repo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;my-org/custom-app&quot;</span>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">ref</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;main&quot;</span>
 </span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">before_bench_build</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;&quot;&quot;</span>
 </span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="s2">npm ci</span>
