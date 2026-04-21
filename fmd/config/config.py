@@ -166,22 +166,15 @@ class Config(BaseModel):
         
         assert self.bench_name is not None
         
-        # Check if running on remote with benches_root configured
         if self.pull and self.pull.benches_root:
             return Path(self.pull.benches_root) / self.bench_name
-        
-        # Failsafe: if on_remote=True but benches_root is missing, raise error
-        if self.pull and self.pull.on_remote:
-            raise ValueError(
-                f"Configuration error: on_remote=True but benches_root not set. "
-                f"pull.benches_root={self.pull.benches_root}, "
-                f"pull.on_remote={self.pull.on_remote}"
-            )
         
         return CLI_BENCHES_DIRECTORY / self.bench_name
 
     @property
     def bench_path(self) -> Path:
+        if self.pull and self.pull.benches_root:
+            return self.workspace_root / "frappe-bench"
         if self.ship and self._config_file_path is not None:
             return self.workspace_root / "workspace" / "frappe-bench"
         return self.workspace_root / "workspace" / "frappe-bench"
