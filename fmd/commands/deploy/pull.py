@@ -72,7 +72,9 @@ def _deploy_remote(config: Config, printer) -> None:
     with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
         local_config_path = Path(f.name)
     
+    # Strip pull section from remote config to prevent recursive remote deployment
     remote_config = config.model_copy(deep=True)
+    remote_config.pull = None
     remote_config.to_toml(local_config_path)
     
     remote_config_path = f"/tmp/fmd_config_{current_datetime}.toml"
