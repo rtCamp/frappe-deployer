@@ -100,16 +100,16 @@ def _deploy_remote(config: Config, printer) -> None:
     # Execute pull command on remote with env vars for bare host mode
     printer.print("Executing pull deployment on remote server")
     
-    # Build environment variable prefix if benches_root is configured
-    env_prefix = ""
+    # Build environment variable export if benches_root is configured
+    env_export = ""
     if benches_root:
         printer.print(f"DEBUG: benches_root = {benches_root}")
-        env_prefix = f"env FMD_BARE_HOST=1 FMD_HOST_BENCHES_ROOT={benches_root} "
-        printer.print(f"DEBUG: env_prefix = {env_prefix}")
+        env_export = f"export FMD_BARE_HOST=1; export FMD_HOST_BENCHES_ROOT={benches_root}; "
+        printer.print(f"DEBUG: env_export = {env_export}")
     else:
         printer.print("DEBUG: benches_root is None or empty")
     
-    ssh_cmd = f"cd /home/{ssh_user}/.fmd/logs && {env_prefix}{remote_cmd} 2>&1"
+    ssh_cmd = f"cd /home/{ssh_user}/.fmd/logs && {env_export}{remote_cmd} 2>&1"
     printer.print(f"DEBUG: SSH command = {ssh_cmd}")
     
     result = subprocess.run(
