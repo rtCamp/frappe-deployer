@@ -75,7 +75,7 @@ def _deploy_remote(config: Config, printer) -> None:
     if remote_config.pull:
         remote_config.pull.on_remote = True
     remote_config.ship = None
-    remote_config.to_toml(local_config_path)
+    remote_config.to_toml(local_config_path, mask_secrets=False)
     
     remote_config_path = f"/tmp/fmd_config_{current_datetime}.toml"
     printer.print(f"Syncing config to remote: {remote_config_path}")
