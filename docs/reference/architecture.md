@@ -187,33 +187,3 @@ rsync_options = []             # extra rsync flags (optional)
 | `config/ship.py` | `ShipConfig` pydantic model |
 | `config/config.py` | Add `ship: Optional[ShipConfig]` |
 | `commands/ship.py` | `fmd ship` CLI command |
-
----
-
-## Refactor plan
-
-### Phase 1 — Eliminate duplication
-
-1. **`runner/build.py`** — new `BuildRunner(CommandRunner)` with `build_frappe` branching
-2. **`runner/__init__.py`** — export `BuildRunner`
-3. **`ops/bench.py`** — move real `_run_script` + `get_script_env` implementations into `BenchMixin` (merged from both managers)
-4. **`bake_manager.py`** — extend `BenchMixin`, add `self.runner = BuildRunner(...)` + `self.host_runner = HostRunner(...)`, delete ~600 lines of duplicated ops
-5. **`pull_manager.py`** — delete `_run_script` + `get_script_env` (now inherited from `BenchMixin`)
-6. **`helpers.py`** — add `log_execution_time` + `extract_timestamp` (currently duplicated in both managers)
-
-Deleted from `BakeManager` (replaced by `BenchMixin`):
-`_run_script`, `get_script_env`, `configure_uv`, `python_env_create`, `bench_install_all_apps_in_python_env`, `bench_setup_requiments`, `bench_restart`, `bench_symlink`, `is_app_installed_in_site`
-
-Kept in `BakeManager` (intentionally different):
-`bench_build`, `clone_apps`, `chown_dir`, `setup_nvm_and_yarn`, `sync_configs_with_files`, `bake`, `is_baked`, `build_images`, `_build_frappe_base_image`, `_build_frappe_image`, `_build_nginx_image`
-
-### Phase 2 — `ship` mode
-
-1. **`config/ship.py`** — `ShipConfig(BaseModel)` with `host`, `remote_path`, `rsync_options`
-2. **`config/config.py`** — add `ship: Optional[ShipConfig] = None`
-3. **`ship_manager.py`** — `ShipManager(BakeManager)` with `rsync_release()` + `finalize_remote()`
-4. **`commands/ship.py`** — `fmd ship` CLI command
-
-### Phase 3 — `publish` mode *(future)*
-
-1. After `bake`, SSH to server via `DOCKER_HOST`, swap compose service image, restart.

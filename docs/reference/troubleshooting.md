@@ -72,6 +72,9 @@ curl -u fc_key:fc_secret \
   https://frappecloud.com/api/method/press.api.bench.apps
 
 # Check team/site names match exactly
+```
+
+```toml
 [fc]
 site_name = "mysite.frappe.cloud"  # Must match FC site name
 team_name = "my-team"              # Must match FC team slug
@@ -130,6 +133,9 @@ ls /tmp/test/apps/my-app  # Should show app files
 
 ### Database Migration Timeout
 **Problem**: Migration exceeds timeout during switch
+
+!!! warning "Migration Timeout Data Loss Risk"
+    If migrations are interrupted mid-execution due to timeout, your database may be left in an inconsistent state. Always test migrations on a staging environment first, and take backups before production deployments.
 
 **Solution**: Increase migration timeout
 ```toml
@@ -201,6 +207,9 @@ fm list
 
 ### Remote Worker Ports Not Exposed
 **Problem**: Remote worker can't connect to Redis/MariaDB
+
+!!! warning "Force Flag Restarts Containers"
+    The `--force` flag restarts all Frappe Manager containers to apply port exposure changes. This causes **brief downtime**. Without `--force`, only the configuration is updated without restarting.
 
 **Solution**: Enable remote worker mode
 ```bash
@@ -284,6 +293,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ### Restore from Backup
 **Problem**: Deployment corrupted database
+
+!!! danger "Database Restore Overwrites Current Data"
+    Restoring from backup **permanently deletes** your current database and replaces it with the backup. This action is irreversible. Always verify you have the correct backup file and take a fresh backup of the current state before restoring.
 
 **Solution**: Manual restore from deployment-backup
 ```bash

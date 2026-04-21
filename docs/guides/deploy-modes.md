@@ -13,6 +13,9 @@ fmd supports two deployment strategies: **pull** and **ship**. Each has differen
 
 **Build on the production server, deploy on the same server.**
 
+!!! tip "When to Choose Pull Mode"
+    Pull mode is ideal when your production server has adequate CPU/RAM for builds (4+ cores, 8+ GB RAM) and you value simplicity over build isolation. For resource-constrained servers or multi-server deployments, consider ship mode instead.
+
 ### How It Works
 
 1. Connect to production server where Frappe Manager bench exists
@@ -70,6 +73,9 @@ Even in CI, you can SSH to production and run pull:
 ## Ship Mode
 
 **Build locally or in CI, then ship to remote production server.**
+
+!!! tip "When to Choose Ship Mode"
+    Ship mode excels in three scenarios: (1) deploying to multiple servers from a single build, (2) offloading builds from resource-constrained production servers, and (3) cross-architecture deployments (e.g., build on x86, deploy to ARM). The tradeoff is more complex setup with SSH keys and rsync configuration.
 
 ### How It Works
 
