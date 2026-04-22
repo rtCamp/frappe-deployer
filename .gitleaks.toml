@@ -4,15 +4,12 @@ title = "frappe-deployer gitleaks config"
 useDefault = true
 
 [[allowlists]]
-description = "Exclude test fixtures, docs, and example configs"
+description = "Exclude test fixtures and example configs only"
 paths = [
   '''tests/fixtures''',
   '''tests/data''',
-  '''docs/''',
-  '''(?i)\.(?:md|org|rst|txt)$''',
-  '''(?i)example[s]?[_/-]''',
-  '''(?i)sample[s]?[_/-]''',
-  '''.github/configs/.*\.toml$''',
+  '''example-config\.toml$''',
+  '''\.github/configs/.*\.toml$''',
 ]
 
 [[rules]]

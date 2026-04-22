@@ -461,9 +461,9 @@ class ReleaseManager:
             )
             self.cleanup_service.cleanup_releases(self.workspace_root, self.bench_path)
 
-        except Exception:
+        except Exception as e:
             if self.config.switch.rollback:
-                self.printer.warning(f"Failed to switch to release {release_name}, rolling back")
+                self.printer.warning(f"Failed to switch to release {release_name}: {e}. Rolling back")
                 if self.bench_path.exists() or self.bench_path.is_symlink():
                     self.bench_path.unlink()
                 self.bench_service.bench_symlink(self.bench_path, BenchDirectory(previous_release))
