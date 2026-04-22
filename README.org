@@ -22,7 +22,7 @@ cd fmd
 pip install -e .
 #+end_src
 
-*Requirements*: Python 3.10+, Docker + Frappe Manager
+*Requirements*: Python 3.13, Docker + Frappe Manager
 
 * Development Setup
 
