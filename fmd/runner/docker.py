@@ -222,6 +222,7 @@ class DockerRunner(CommandRunner):
         uv_env = {
             "UV_PYTHON_INSTALL_DIR": f"{bench_container_path}/.uv/python",
             "UV_CACHE_DIR": f"{bench_container_path}/.uv/cache",
+            "PYTHONUNBUFFERED": "1",
         }
         if env:
             uv_env.update(env)
