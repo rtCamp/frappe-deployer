@@ -24,6 +24,50 @@ pip install -e .
 
 *Requirements*: Python 3.10+, Docker + Frappe Manager
 
+* Development Setup
+
+** Pre-commit Hooks
+
+This project uses [[https://pre-commit.com/][pre-commit]] for automated code quality checks before commits.
+
+*Install hooks* (one-time setup):
+
+#+begin_src bash
+# Install pre-commit (if using uv)
+uv pip install pre-commit
+uv run pre-commit install
+
+# Or with pip
+pip install pre-commit
+pre-commit install
+#+end_src
+
+*What gets checked automatically*:
+
+- *Secret scanning*: Gitleaks detects hardcoded credentials, tokens, API keys
+- *Code quality*: Ruff linting and formatting
+- *Safety checks*: Private key detection, large file blocking, merge conflict markers
+- *File validation*: YAML/TOML syntax checking, trailing whitespace, end-of-file fixes
+
+*Manual check* (runs on all files):
+
+#+begin_src bash
+uv run pre-commit run --all-files
+
+# Or with pip
+pre-commit run --all-files
+#+end_src
+
+*CI enforcement*: All checks also run in GitHub Actions on pull requests.
+
+*Bypass hooks* (emergencies only, CI will still block):
+
+#+begin_src bash
+git commit --no-verify  # ⚠️ Avoid this - CI will fail anyway
+#+end_src
+
+See [[file:.pre-commit-config.yaml][.pre-commit-config.yaml]] for hook configuration.
+
 * Quick Start
 
 #+begin_src bash
