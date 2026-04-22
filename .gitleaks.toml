@@ -1,0 +1,32 @@
+title = "frappe-deployer gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Exclude test fixtures, docs, and example configs"
+paths = [
+  '''tests/fixtures''',
+  '''tests/data''',
+  '''docs/''',
+  '''(?i)\.(?:md|org|rst|txt)$''',
+  '''(?i)example[s]?[_/-]''',
+  '''(?i)sample[s]?[_/-]''',
+  '''.github/configs/.*\.toml$''',
+]
+
+[[rules]]
+id = "generic-api-key"
+
+  [[rules.allowlists]]
+  description = "Frappe site keys and common placeholders"
+  stopwords = [
+    "example",
+    "placeholder",
+    "dummy",
+    "test",
+    "sample",
+    "YOUR_TOKEN",
+    "fc_key",
+    "fc_secret",
+  ]

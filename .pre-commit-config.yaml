@@ -1,0 +1,31 @@
+# .pre-commit-config.yaml
+# Run `pre-commit install` after cloning to enable local hooks
+# Run `pre-commit autoupdate` periodically to update versions
+
+repos:
+  # ── Secret scanning (first gate, blocks commits with secrets) ────────
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # ── Standard safety checks ───────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: detect-private-key           # Catches raw PEM keys
+      - id: check-added-large-files      # Blocks accidental large files
+        args: ['--maxkb=500']
+      - id: check-merge-conflict         # Catches merge conflict markers
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  # ── Python code quality (already use ruff, add security check) ───────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.1
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format

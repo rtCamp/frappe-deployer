@@ -27,7 +27,7 @@ fmd deploy pull site.localhost --app frappe/frappe:version-15
 fmd deploy ship --config site.toml  # Builds locally, deploys remotely
 ```
 
-**Workflow**: 
+**Workflow**:
 1. Create release on local machine (uses fresh Docker container, no live services needed)
 2. rsync release directory to remote server
 3. SSH to remote, run `fmd release switch` to activate

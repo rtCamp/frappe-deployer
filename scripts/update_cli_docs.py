@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import inspect
-import json
 import sys
 from pathlib import Path
 from typing import Any, get_args, get_origin
@@ -212,7 +211,7 @@ def format_examples(examples: list[dict], command_path: list[str], sitename: str
         template_vars = {
             "sitename": custom_sitename,
             "site_name": custom_sitename,
-            "bench_name": custom_sitename.split('.')[0],  # Extract bench name from site name
+            "bench_name": custom_sitename.split(".")[0],  # Extract bench name from site name
             "domain": "example.com",
             "default_version": "version-15",
         }
@@ -380,8 +379,6 @@ def generate_all_docs(output_dir: Path, update_readme: bool = False) -> dict:
         generated_files.append(output_file)
         console.print(f"[green]✓[/green] Generated {output_file.relative_to(output_dir)}")
 
-
-
     console.print(f"\n[bold green]✓ Generated {len(generated_files)} documentation files[/bold green]")
     console.print(f"Output directory: {output_dir}")
 
@@ -390,7 +387,6 @@ def generate_all_docs(output_dir: Path, update_readme: bool = False) -> dict:
 
 def main():
     import argparse
-    import os
 
     parser = argparse.ArgumentParser(description="Generate CLI documentation for fmd")
     parser.add_argument(
