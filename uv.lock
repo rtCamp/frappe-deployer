@@ -240,8 +240,8 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "frappe-manager", git = "https://github.com/rtcamp/frappe-manager.git?rev=develop" },
-    { name = "gitpython", specifier = ">=3.1.43,<4.0.0" },
-    { name = "pydantic", specifier = ">=2.0.0,<3.0.0" },
+    { name = "gitpython", specifier = ">=3.1.46,<4.0.0" },
+    { name = "pydantic", specifier = ">=2.13.3,<3.0.0" },
     { name = "toml", specifier = ">=0.10.2,<0.11.0" },
     { name = "typer", specifier = ">=0.21.0,<0.22.0" },
     { name = "typer-examples", git = "https://github.com/Xieyt/typer-examples?tag=v1.1.0" },
@@ -251,8 +251,8 @@ requires-dist = [
 dev = [
     { name = "mike", git = "https://github.com/squidfunk/mike.git" },
     { name = "pytest", specifier = ">=9.0.3" },
-    { name = "pytest-cov", specifier = ">=7.0.0" },
-    { name = "pytest-mock", specifier = ">=3.15.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "zensical" },
 ]
 
