@@ -148,6 +148,7 @@ runs:
         FMD_GITHUB_TOKEN: ${{ inputs.gh_token }}
         FMD_ACTION_PATH: ${{ github.action_path }}
         FMD_ACTION_REF: ${{ github.action_ref }}
+        FMD_TEMP_DIR: ${{ steps.temp_dir.outputs.path }}
 
     - name: Clean up temporary directory
       if: always()

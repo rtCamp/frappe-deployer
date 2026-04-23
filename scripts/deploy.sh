@@ -97,7 +97,7 @@ resolve_config_file() {
 	if [[ -n "${FMD_CONFIG_PATH:-}" ]]; then
 		TOML_CONFIG_FILE="${GITHUB_WORKSPACE}/${FMD_CONFIG_PATH}"
 	elif [[ -n "${FMD_CONFIG_CONTENT:-}" ]]; then
-		TOML_CONFIG_FILE=$(mktemp /tmp/fmd_config_content.XXXXXX.toml)
+		TOML_CONFIG_FILE=$(mktemp "${FMD_TEMP_DIR:-/tmp}/fmd_config_content.XXXXXX.toml")
 		echo "${FMD_CONFIG_CONTENT}" >"${TOML_CONFIG_FILE}"
 	fi
 	echo "${TOML_CONFIG_FILE}"
@@ -140,7 +140,7 @@ merge_deployment_config() {
 	AFTER_USER_OVERRIDES=$(merge_toml "${BASE_CONFIG_CONTENT}" "${FMD_CONFIG_OVERRIDES:-}")
 	MERGED_CONFIG=$(merge_toml "${AFTER_USER_OVERRIDES}" "${GENERATED_OVERRIDES}")
 
-	LOCAL_CONFIG_TMP=$(mktemp --suffix=.toml)
+	LOCAL_CONFIG_TMP=$(mktemp --suffix=.toml "${FMD_TEMP_DIR:-/tmp}/XXXXXX")
 	echo "${MERGED_CONFIG}" >"${LOCAL_CONFIG_TMP}"
 	echo "${LOCAL_CONFIG_TMP}"
 }
@@ -266,8 +266,8 @@ pull_command() {
 
 	COMMAND="deploy pull ${INPUT_SITENAME} --config ${LOCAL_CONFIG_TMP}"
 
-	fmd ${COMMAND}
-	DEPLOY_EXIT_CODE=$?
+	fmd ${COMMAND} || DEPLOY_EXIT_CODE=$?
+	DEPLOY_EXIT_CODE=${DEPLOY_EXIT_CODE:-0}
 
 	rm -f "${LOCAL_CONFIG_TMP}"
 
@@ -300,8 +300,8 @@ ship_command() {
 		COMMAND="${COMMAND} --skip-rsync"
 	fi
 
-	fmd ${COMMAND}
-	DEPLOY_EXIT_CODE=$?
+	fmd ${COMMAND} || DEPLOY_EXIT_CODE=$?
+	DEPLOY_EXIT_CODE=${DEPLOY_EXIT_CODE:-0}
 
 	rm -f "${LOCAL_CONFIG_TMP}"
 
@@ -323,13 +323,13 @@ build_image_command() {
 	fi
 
 	if [[ "${FMD_CONFIG_CONTENT:-}" ]]; then
-		LOCAL_CONFIG_CONTENT_TMP=$(mktemp)
+		LOCAL_CONFIG_CONTENT_TMP=$(mktemp "${FMD_TEMP_DIR:-/tmp}/XXXXXX")
 		echo "${FMD_CONFIG_CONTENT}" >"${LOCAL_CONFIG_CONTENT_TMP}"
 		COMMAND="${COMMAND} --config-path ${LOCAL_CONFIG_CONTENT_TMP}"
 	fi
 
 	if [[ "${FMD_CONFIG_OVERRIDES:-}" ]]; then
-		LOCAL_CONFIG_OVERRIDES_TMP=$(mktemp)
+		LOCAL_CONFIG_OVERRIDES_TMP=$(mktemp "${FMD_TEMP_DIR:-/tmp}/XXXXXX")
 		echo "${FMD_CONFIG_OVERRIDES}" >"${LOCAL_CONFIG_OVERRIDES_TMP}"
 		COMMAND="${COMMAND} --config-overrides ${LOCAL_CONFIG_OVERRIDES_TMP}"
 	fi
@@ -346,8 +346,8 @@ build_image_command() {
 		COMMAND="${COMMAND} --image-type ${INPUT_IMAGE_TYPE}"
 	fi
 
-	fmd ${COMMAND}
-	BUILD_EXIT_CODE=$?
+	fmd ${COMMAND} || BUILD_EXIT_CODE=$?
+	BUILD_EXIT_CODE=${BUILD_EXIT_CODE:-0}
 
 	if [[ -n "${LOCAL_CONFIG_CONTENT_TMP:-}" ]]; then
 		rm -f "${LOCAL_CONFIG_CONTENT_TMP}"
