@@ -154,7 +154,6 @@ class ShipManager:
             return self.config.ship.fmd_source
 
         import os
-        import subprocess
 
         fmd_action_ref = os.environ.get("FMD_ACTION_REF", "")
         if fmd_action_ref:
@@ -167,15 +166,13 @@ class ShipManager:
             result = subprocess.run(
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=local_fmd_root, capture_output=True, text=True
             )
-            
+
             if result.returncode == 0 and result.stdout.strip() not in ("HEAD", ""):
                 branch = result.stdout.strip()
                 return f"git+https://github.com/rtcamp/frappe-deployer.git@{branch}"
 
-            result = subprocess.run(
-                ["git", "rev-parse", "HEAD"], cwd=local_fmd_root, capture_output=True, text=True
-            )
-            
+            result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=local_fmd_root, capture_output=True, text=True)
+
             if result.returncode == 0:
                 commit_sha = result.stdout.strip()
                 return f"git+https://github.com/rtcamp/frappe-deployer.git@{commit_sha}"
@@ -202,8 +199,6 @@ class ShipManager:
             ],
         )
         self.printer.print("FMD source synced")
-
-        import subprocess
 
         result = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=local_fmd_root, capture_output=True, text=True

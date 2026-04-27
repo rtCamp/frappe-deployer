@@ -225,8 +225,6 @@ class RemoteWorkerManager:
 
         ssh_opt = f"ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p {self.rw.ssh_port}"
 
-        workspace_src = frappe_manager.CLI_BENCHES_DIRECTORY / site_name / "workspace"
-
         rsync_dirs = [
             {"src": self.current.path, "dest": None, "excludes": [], "trailing_slash": True},
             {"src": self.current.path.parent / ".pyenv", "dest": None, "excludes": [], "trailing_slash": True},
@@ -272,7 +270,6 @@ class RemoteWorkerManager:
                 continue
             dest_name = str(d["dest"] if d["dest"] else src.name)
             src_str = str(src) + ("/" if d["trailing_slash"] else "")
-            dest_str = str(src) + ("/" if d["trailing_slash"] else "")
             cmd = (
                 ["rsync", "-avz", "--delete", "--checksum", "-e", ssh_opt]
                 + rsync_patterns

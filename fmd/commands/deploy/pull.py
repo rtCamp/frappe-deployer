@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import List, Optional
 import subprocess
 import tempfile
+import shlex
 from datetime import datetime
 
 import typer
@@ -17,21 +18,22 @@ def _deploy_remote(config: Config, printer) -> None:
     pull_config = config.pull
     if pull_config is None:
         raise ValueError("Remote deployment requires [pull] section in config")
-    
+
     ssh_server = pull_config.ssh_server
     ssh_user = pull_config.ssh_user
     ssh_port = pull_config.ssh_port
-    
+
     # Determine FMD source - prefer config, fallback to env var, then PyPI
     fmd_source = pull_config.fmd_source
     if not fmd_source:
         import os
+
         fmd_source = os.environ.get("FMD_ACTION_PATH")
     if not fmd_source:
         fmd_source = "fmd"
-    
+
     current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    
+
     # Determine FMD source to install on remote
     if "/" in fmd_source and ("github.com" in fmd_source or fmd_source.startswith("git@")):
         install_source = fmd_source
@@ -40,80 +42,141 @@ def _deploy_remote(config: Config, printer) -> None:
         printer.print(f"Syncing local FMD source to remote: {remote_fmd_src}")
         subprocess.run(
             [
-                "rsync", "-az", "--exclude=.git", "--exclude=__pycache__", "--exclude=*.pyc",
-                "-e", f"ssh -p {ssh_port} -o StrictHostKeyChecking=no",
-                f"{fmd_source}/", f"{ssh_user}@{ssh_server}:{remote_fmd_src}/"
+                "rsync",
+                "-az",
+                "--exclude=.git",
+                "--exclude=__pycache__",
+                "--exclude=*.pyc",
+                "-e",
+                f"ssh -p {ssh_port} -o StrictHostKeyChecking=no",
+                f"{fmd_source}/",
+                f"{ssh_user}@{ssh_server}:{remote_fmd_src}/",
             ],
-            check=True
+            check=True,
         )
         install_source = remote_fmd_src
     else:
         install_source = fmd_source
-    
+
     # Setup uv if not present
     printer.print("Setting up uv on remote server")
     subprocess.run(
-        ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
-         f"cd /home/{ssh_user} && test -x /home/{ssh_user}/.local/bin/uv || curl -LsSf https://astral.sh/uv/install.sh | sh"],
-        check=True
+        [
+            "ssh",
+            "-p",
+            str(ssh_port),
+            "-o",
+            "StrictHostKeyChecking=no",
+            f"{ssh_user}@{ssh_server}",
+            f"cd /home/{ssh_user} && test -x /home/{ssh_user}/.local/bin/uv || curl -LsSf https://astral.sh/uv/install.sh | sh",
+        ],
+        check=True,
     )
-    
+
     printer.print("Installing fmd in remote venv")
     subprocess.run(
-        ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
-         f"cd /home/{ssh_user} && mkdir -p /home/{ssh_user}/.fmd/logs && rm -rf /home/{ssh_user}/.fmd/venv && "
-         f"/home/{ssh_user}/.local/bin/uv venv /home/{ssh_user}/.fmd/venv --python 3.13 && "
-         f"/home/{ssh_user}/.local/bin/uv pip install --python /home/{ssh_user}/.fmd/venv/bin/python {install_source}"],
-        check=True
+        [
+            "ssh",
+            "-p",
+            str(ssh_port),
+            "-o",
+            "StrictHostKeyChecking=no",
+            f"{ssh_user}@{ssh_server}",
+            f"cd /home/{ssh_user} && mkdir -p /home/{ssh_user}/.fmd/logs && rm -rf /home/{ssh_user}/.fmd/venv && "
+            f"/home/{ssh_user}/.local/bin/uv venv /home/{ssh_user}/.fmd/venv --python 3.13 && "
+            f"/home/{ssh_user}/.local/bin/uv pip install --python /home/{ssh_user}/.fmd/venv/bin/python {shlex.quote(install_source)}",
+        ],
+        check=True,
     )
-    
+
     # Write config to temp file and rsync to remote
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
         local_config_path = Path(f.name)
-    
-    remote_config = config.model_copy(deep=True)
-    if remote_config.pull:
-        remote_config.pull.on_remote = True
-    remote_config.ship = None
-    remote_config.to_toml(local_config_path, mask_secrets=False)
-    
-    remote_config_path = f"/tmp/fmd_config_{current_datetime}.toml"
-    printer.print(f"Syncing config to remote: {remote_config_path}")
-    subprocess.run(
-        ["rsync", "-az", "-e", f"ssh -p {ssh_port} -o StrictHostKeyChecking=no",
-         str(local_config_path), f"{ssh_user}@{ssh_server}:{remote_config_path}"],
-        check=True
+
+    try:
+        remote_config = config.model_copy(deep=True)
+        if remote_config.pull:
+            remote_config.pull.on_remote = True
+        remote_config.ship = None
+        remote_config.to_toml(local_config_path, mask_secrets=False)
+
+        remote_config_path = f"/tmp/fmd_config_{current_datetime}.toml"
+        printer.print(f"Syncing config to remote: {remote_config_path}")
+        subprocess.run(
+            [
+                "rsync",
+                "-az",
+                "-e",
+                f"ssh -p {ssh_port} -o StrictHostKeyChecking=no",
+                str(local_config_path),
+                f"{ssh_user}@{ssh_server}:{remote_config_path}",
+            ],
+            check=True,
+        )
+    finally:
+        local_config_path.unlink(missing_ok=True)
+
+    # Build command with proper shell escaping
+    remote_cmd = " ".join(
+        [
+            shlex.quote(f"/home/{ssh_user}/.fmd/venv/bin/fmd"),
+            "deploy",
+            "pull",
+            shlex.quote(config.site_name),
+            "--config",
+            shlex.quote(remote_config_path),
+        ]
     )
-    local_config_path.unlink()
-    
-    # Build command with environment variables prepended inline
-    cmd_parts = [
-        f"/home/{ssh_user}/.fmd/venv/bin/fmd", "deploy", "pull",
-        config.site_name, "--config", remote_config_path
-    ]
-    
-    remote_cmd = " ".join(cmd_parts)
-    
+
     printer.print("Executing pull deployment on remote server")
     ssh_cmd = f"cd /home/{ssh_user}/.fmd/logs && {remote_cmd} 2>&1"
-    
-    result = subprocess.run(
-        ["ssh", "-p", str(ssh_port), 
-         "-o", "StrictHostKeyChecking=no",
-         "-o", "ServerAliveInterval=60",
-         "-o", "ServerAliveCountMax=10",
-         f"{ssh_user}@{ssh_server}", ssh_cmd],
-        check=False
-    )
-    
+
+    try:
+        result = subprocess.run(
+            [
+                "ssh",
+                "-p",
+                str(ssh_port),
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "ServerAliveInterval=60",
+                "-o",
+                "ServerAliveCountMax=10",
+                f"{ssh_user}@{ssh_server}",
+                ssh_cmd,
+            ],
+            check=False,
+        )
+    finally:
+        subprocess.run(
+            [
+                "ssh",
+                "-p",
+                str(ssh_port),
+                "-o",
+                "StrictHostKeyChecking=no",
+                f"{ssh_user}@{ssh_server}",
+                f"rm -f {shlex.quote(remote_config_path)}",
+            ],
+            check=False,
+        )
+
     # Cleanup remote FMD source if we uploaded it
     if "/" in fmd_source and Path(fmd_source).exists():
         subprocess.run(
-            ["ssh", "-p", str(ssh_port), "-o", "StrictHostKeyChecking=no", f"{ssh_user}@{ssh_server}",
-             f"rm -rf {install_source}"],
-            check=False
+            [
+                "ssh",
+                "-p",
+                str(ssh_port),
+                "-o",
+                "StrictHostKeyChecking=no",
+                f"{ssh_user}@{ssh_server}",
+                f"rm -rf {shlex.quote(install_source)}",
+            ],
+            check=False,
         )
-    
+
     if result.returncode != 0:
         raise typer.Exit(code=result.returncode)
 
@@ -349,7 +412,7 @@ def pull(
 
     config = load_config(config_path, overrides=overrides or None, create_if_missing=True)
     printer = get_printer()
-    
+
     # Check if should execute remotely: [pull] exists AND not already on remote
     if config.pull is not None and not config.pull.on_remote:
         printer.start("Deploying remotely")

@@ -148,6 +148,7 @@ runs:
         FMD_GITHUB_TOKEN: ${{ inputs.gh_token }}
         FMD_ACTION_PATH: ${{ github.action_path }}
         FMD_ACTION_REF: ${{ github.action_ref }}
+        FMD_TEMP_DIR: ${{ steps.temp_dir.outputs.path }}
 
     - name: Clean up temporary directory
       if: always()
@@ -155,3 +156,8 @@ runs:
       run: |
         docker run --rm --user root -v ${{ steps.temp_dir.outputs.path }}:/data alpine sh -c 'find /data -mindepth 1 -delete'
         rm -rf ${{ steps.temp_dir.outputs.path }}
+        # Prune dangling/unused frappe-manager-frappe images to reclaim disk on self-hosted runners
+        docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" \
+          | grep "^ghcr.io/rtcamp/frappe-manager-frappe:" \
+          | awk '{print $2}' \
+          | xargs -r docker rmi -f || true

@@ -151,7 +151,7 @@ class DockerRunner(CommandRunner):
         # bench refuses to run as root, so we must become frappe after remapping.
         host_uid = os.getuid()
         host_gid = os.getgid()
-        
+
         inner_cmd = f"source /etc/bash.bashrc; {docker_command}"
         bash_script = (
             f"usermod -u {host_uid} frappe 2>/dev/null; "
@@ -190,7 +190,11 @@ class DockerRunner(CommandRunner):
                 "LC_ALL": "en_US.UTF-8",
                 "LANG": "en_US.UTF-8",
                 "LANGUAGE": "en_US.UTF-8",
-                **{k: os.environ[k] for k in ("DOCKER_HOST", "GITHUB_TOKEN", "GIT_TOKEN", "UV_LINK_MODE", "DOCKER_DEFAULT_PLATFORM") if k in os.environ},
+                **{
+                    k: os.environ[k]
+                    for k in ("DOCKER_HOST", "GITHUB_TOKEN", "GIT_TOKEN", "UV_LINK_MODE", "DOCKER_DEFAULT_PLATFORM")
+                    if k in os.environ
+                },
                 **(env or {}),
                 **({"DOCKER_HOST": self.docker_host} if self.docker_host else {}),
             },

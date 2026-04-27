@@ -50,9 +50,9 @@ jobs:
           m = re.match(r'^(\d+\.\d+)', __version__)
           print('v' + m.group(1) if m else __version__)
           ")
-          
+
           # Deploy with version aliases
           uv run mike deploy --push --update-aliases "$slug" latest --title "$version" -F zensical.toml
-          
+
           # Set default version (only needed once, but safe to repeat)
           uv run mike set-default --push latest -F zensical.toml

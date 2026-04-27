@@ -82,10 +82,10 @@ PYTHON_EOF
 # Common function: Setup deployment environment
 setup_deployment_environment() {
 	REMOTE_PORT="${SSH_PORT:-22}"
-	
+
 	[[ "${SSH_PRIVATE_KEY:-}" ]] || emergency "ENV: ${CYAN} SSH_PRIVATE_KEY ${ENDCOLOR} is missing."
 	[[ "${FMD_GITHUB_TOKEN:-}" ]] || emergency "ENV: ${CYAN} FMD_GITHUB_TOKEN ${ENDCOLOR} is missing."
-	
+
 	TEMP_SSH_DIR=$(mktemp -d /tmp/ssh_dir.XXXXXX)
 	export HOME="${TEMP_SSH_DIR}"
 	trap 'rm -rf "${TEMP_SSH_DIR}"' EXIT
@@ -97,7 +97,7 @@ resolve_config_file() {
 	if [[ -n "${FMD_CONFIG_PATH:-}" ]]; then
 		TOML_CONFIG_FILE="${GITHUB_WORKSPACE}/${FMD_CONFIG_PATH}"
 	elif [[ -n "${FMD_CONFIG_CONTENT:-}" ]]; then
-		TOML_CONFIG_FILE=$(mktemp /tmp/fmd_config_content.XXXXXX.toml)
+		TOML_CONFIG_FILE=$(mktemp "${FMD_TEMP_DIR:-/tmp}/fmd_config_content.XXXXXX.toml")
 		echo "${FMD_CONFIG_CONTENT}" >"${TOML_CONFIG_FILE}"
 	fi
 	echo "${TOML_CONFIG_FILE}"
@@ -106,18 +106,18 @@ resolve_config_file() {
 # Common function: Resolve SSH connection details
 resolve_ssh_connection() {
 	local toml_file="$1"
-	
+
 	if [[ -z "${SSH_SERVER:-}" ]] && [[ -n "${toml_file}" ]]; then
 		SSH_SERVER=$(toml_get "${toml_file}" "host")
 	fi
 	[[ -n "${SSH_SERVER}" ]] || emergency "Either set ${CYAN}ssh_server${ENDCOLOR} input or define ${CYAN}[ship].host${ENDCOLOR} in TOML config."
-	
+
 	if [[ -z "${SSH_USER:-}" ]] && [[ -n "${toml_file}" ]]; then
 		SSH_USER=$(toml_get "${toml_file}" "ssh_user")
 		SSH_USER="${SSH_USER:-frappe}"
 	fi
 	[[ -n "${SSH_USER}" ]] || emergency "Either set ${CYAN}ssh_user${ENDCOLOR} input or define ${CYAN}[ship].ssh_user${ENDCOLOR} in TOML config."
-	
+
 	REMOTE_HOST="${SSH_SERVER}"
 	REMOTE_USER="${SSH_USER}"
 }
@@ -128,19 +128,19 @@ merge_deployment_config() {
 	local remote_host="$2"
 	local remote_user="$3"
 	local remote_port="$4"
-	
+
 	BASE_CONFIG_CONTENT=""
 	if [[ "${FMD_CONFIG_PATH:-}" ]]; then
 		BASE_CONFIG_CONTENT=$(cat "${GITHUB_WORKSPACE}/${FMD_CONFIG_PATH}")
 	elif [[ "${FMD_CONFIG_CONTENT:-}" ]]; then
 		BASE_CONFIG_CONTENT="${FMD_CONFIG_CONTENT}"
 	fi
-	
+
 	GENERATED_OVERRIDES=$(build_config_overrides "${command}" "${remote_host}" "${remote_user}" "${remote_port}")
 	AFTER_USER_OVERRIDES=$(merge_toml "${BASE_CONFIG_CONTENT}" "${FMD_CONFIG_OVERRIDES:-}")
 	MERGED_CONFIG=$(merge_toml "${AFTER_USER_OVERRIDES}" "${GENERATED_OVERRIDES}")
-	
-	LOCAL_CONFIG_TMP=$(mktemp --suffix=.toml)
+
+	LOCAL_CONFIG_TMP=$(mktemp --suffix=.toml "${FMD_TEMP_DIR:-/tmp}/XXXXXX")
 	echo "${MERGED_CONFIG}" >"${LOCAL_CONFIG_TMP}"
 	echo "${LOCAL_CONFIG_TMP}"
 }
@@ -148,7 +148,7 @@ merge_deployment_config() {
 # Common function: Handle deployment exit status
 handle_deployment_exit() {
 	local exit_code="$1"
-	
+
 	if [ "${exit_code}" -eq 0 ]; then
 		echo "deployment_status=success" >>"${GITHUB_OUTPUT}"
 	else
@@ -251,65 +251,65 @@ build_config_overrides() {
 
 pull_command() {
 	setup_deployment_environment
-	
+
 	TOML_CONFIG_FILE=$(resolve_config_file)
-	
+
 	if [[ -z "${INPUT_SITENAME:-}" ]] && [[ -n "${TOML_CONFIG_FILE}" ]]; then
 		INPUT_SITENAME=$(toml_get "${TOML_CONFIG_FILE}" "site_name")
 	fi
 	[[ -n "${INPUT_SITENAME}" ]] || emergency "Either set ${CYAN}sitename${ENDCOLOR} input or define ${CYAN}site_name${ENDCOLOR} in TOML config."
-	
+
 	resolve_ssh_connection "${TOML_CONFIG_FILE}"
 	setup_ssh
-	
+
 	LOCAL_CONFIG_TMP=$(merge_deployment_config "pull" "${REMOTE_HOST}" "${REMOTE_USER}" "${REMOTE_PORT}")
-	
+
 	COMMAND="deploy pull ${INPUT_SITENAME} --config ${LOCAL_CONFIG_TMP}"
-	
-	fmd ${COMMAND}
-	DEPLOY_EXIT_CODE=$?
-	
+
+	fmd ${COMMAND} || DEPLOY_EXIT_CODE=$?
+	DEPLOY_EXIT_CODE=${DEPLOY_EXIT_CODE:-0}
+
 	rm -f "${LOCAL_CONFIG_TMP}"
-	
+
 	if [ "${DEPLOY_EXIT_CODE}" -eq 0 ]; then
 		echo "site_name=${INPUT_SITENAME}" >>"${GITHUB_OUTPUT}"
 		echo "deployed_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >>"${GITHUB_OUTPUT}"
 	fi
-	
+
 	handle_deployment_exit ${DEPLOY_EXIT_CODE}
 }
 
 ship_command() {
 	setup_deployment_environment
-	
+
 	TOML_CONFIG_FILE=$(resolve_config_file)
 	[[ -n "${TOML_CONFIG_FILE}" ]] || emergency "Either set ${CYAN}config_path${ENDCOLOR} or ${CYAN}config_content${ENDCOLOR} input."
-	
+
 	resolve_ssh_connection "${TOML_CONFIG_FILE}"
 	setup_ssh
-	
+
 	LOCAL_CONFIG_TMP=$(merge_deployment_config "ship" "${REMOTE_HOST}" "${REMOTE_USER}" "${REMOTE_PORT}")
-	
+
 	COMMAND="deploy ship --config ${LOCAL_CONFIG_TMP}"
-	
+
 	if [ -n "${INPUT_EXISTING_RELEASE:-}" ]; then
 		COMMAND="${COMMAND} --existing-release ${INPUT_EXISTING_RELEASE}"
 	fi
-	
+
 	if [ "${INPUT_SKIP_RSYNC:-false}" == "true" ]; then
 		COMMAND="${COMMAND} --skip-rsync"
 	fi
-	
-	fmd ${COMMAND}
-	DEPLOY_EXIT_CODE=$?
-	
+
+	fmd ${COMMAND} || DEPLOY_EXIT_CODE=$?
+	DEPLOY_EXIT_CODE=${DEPLOY_EXIT_CODE:-0}
+
 	rm -f "${LOCAL_CONFIG_TMP}"
-	
+
 	RELEASE_ID=$(find . -maxdepth 1 -type d -name 'release_*' | sort -r | head -1 | xargs basename 2>/dev/null || echo "")
 	if [[ -n "${RELEASE_ID}" ]]; then
 		echo "release_id=${RELEASE_ID}" >>"${GITHUB_OUTPUT}"
 	fi
-	
+
 	handle_deployment_exit ${DEPLOY_EXIT_CODE}
 }
 
@@ -323,13 +323,13 @@ build_image_command() {
 	fi
 
 	if [[ "${FMD_CONFIG_CONTENT:-}" ]]; then
-		LOCAL_CONFIG_CONTENT_TMP=$(mktemp)
+		LOCAL_CONFIG_CONTENT_TMP=$(mktemp "${FMD_TEMP_DIR:-/tmp}/XXXXXX")
 		echo "${FMD_CONFIG_CONTENT}" >"${LOCAL_CONFIG_CONTENT_TMP}"
 		COMMAND="${COMMAND} --config-path ${LOCAL_CONFIG_CONTENT_TMP}"
 	fi
 
 	if [[ "${FMD_CONFIG_OVERRIDES:-}" ]]; then
-		LOCAL_CONFIG_OVERRIDES_TMP=$(mktemp)
+		LOCAL_CONFIG_OVERRIDES_TMP=$(mktemp "${FMD_TEMP_DIR:-/tmp}/XXXXXX")
 		echo "${FMD_CONFIG_OVERRIDES}" >"${LOCAL_CONFIG_OVERRIDES_TMP}"
 		COMMAND="${COMMAND} --config-overrides ${LOCAL_CONFIG_OVERRIDES_TMP}"
 	fi
@@ -346,8 +346,8 @@ build_image_command() {
 		COMMAND="${COMMAND} --image-type ${INPUT_IMAGE_TYPE}"
 	fi
 
-	fmd ${COMMAND}
-	BUILD_EXIT_CODE=$?
+	fmd ${COMMAND} || BUILD_EXIT_CODE=$?
+	BUILD_EXIT_CODE=${BUILD_EXIT_CODE:-0}
 
 	if [[ -n "${LOCAL_CONFIG_CONTENT_TMP:-}" ]]; then
 		rm -f "${LOCAL_CONFIG_CONTENT_TMP}"
