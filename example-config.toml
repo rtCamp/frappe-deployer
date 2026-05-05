@@ -266,7 +266,7 @@ include_files = []
 # ============================================================================
 # NOTES
 # ============================================================================
-# 
+#
 # 1. Config file location:
 #    - Pass via -c/--config flag: fmd release create -c site.toml
 #    - Or specify site_name and override: fmd release create site.localhost

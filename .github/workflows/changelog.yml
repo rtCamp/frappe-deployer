@@ -18,16 +18,16 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Install git-cliff
         uses: taiki-e/install-action@git-cliff
-      
+
       - name: Generate changelog
         run: |
           if [ -n "${{ inputs.tag }}" ]; then
@@ -35,14 +35,14 @@ jobs:
           else
             git-cliff --output CHANGELOG.md
           fi
-      
+
       - name: Commit changelog
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add CHANGELOG.md
           git diff --staged --quiet || git commit -m "docs: Update CHANGELOG.md for ${GITHUB_REF_NAME}"
-      
+
       - name: Push changes
         run: |
           git push origin HEAD:main || true

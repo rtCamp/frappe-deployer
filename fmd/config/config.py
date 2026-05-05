@@ -54,11 +54,12 @@ def _substitute_env_vars(data: Any) -> Any:
     elif isinstance(data, list):
         return [_substitute_env_vars(item) for item in data]
     elif isinstance(data, str):
+
         def replace_var(match):
             var_name = match.group(1) or match.group(2)
             return os.environ.get(var_name, match.group(0))
-        
-        pattern = r'\$\{([A-Z_][A-Z0-9_]*)\}|\$([A-Z_][A-Z0-9_]*)'
+
+        pattern = r"\$\{([A-Z_][A-Z0-9_]*)\}|\$([A-Z_][A-Z0-9_]*)"
         return re.sub(pattern, replace_var, data)
     else:
         return data
@@ -93,7 +94,7 @@ class Config(BaseModel):
     @model_validator(mode="after")
     def _configure_apps(self) -> "Config":
         skip_validation = _skip_repo_validation_context.get()
-        
+
         if self.bench_name is None:
             self.bench_name = self.site_name
 
@@ -160,12 +161,12 @@ class Config(BaseModel):
     def workspace_root(self) -> Path:
         if self.ship and self._config_file_path is not None:
             return self._config_file_path.parent
-        
+
         assert self.bench_name is not None
-        
+
         if self.pull and self.pull.benches_root:
             return Path(self.pull.benches_root) / self.bench_name
-        
+
         return CLI_BENCHES_DIRECTORY / self.bench_name
 
     @property
@@ -193,7 +194,7 @@ class Config(BaseModel):
             return data
 
         config_dict = self.model_dump(exclude_none=True)
-        
+
         if mask_secrets:
             config_dict = _mask(config_dict)
 

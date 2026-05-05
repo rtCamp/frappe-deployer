@@ -131,7 +131,6 @@ class BenchDirectory:
         return self.path / "monorepo-clones" / dir_name
 
     def get_app_python_module_name(self, app_path: Path):
-
         if not app_path.exists():
             return app_path.name
 
