@@ -8,7 +8,7 @@ from datetime import datetime
 import typer
 from typer_examples import example
 
-from fmd.commands._utils import build_runners, get_printer, load_config, parse_app_option
+from fmd.commands._utils import build_runners, get_printer, is_exec_mode_available, load_config, parse_app_option
 from fmd.managers.pull import PullManager
 from fmd.config.config import Config
 
@@ -422,8 +422,20 @@ def pull(
     else:
         # Local/remote execution - existing behavior
         image_runner, exec_runner, host_runner = build_runners(config)
+
+        if is_exec_mode_available(config.workspace_root):
+            release_runner = exec_runner
+            printer.print("[dim]Using exec mode for release operations (frappe service running)[/dim]")
+        else:
+            release_runner = image_runner
+            printer.print("[dim]Using image mode for release operations (frappe service not running)[/dim]")
+
         printer.start("Deploying")
-        manager = PullManager(config, exec_runner, exec_runner, host_runner, printer)
-        manager.deploy()
+        try:
+            manager = PullManager(config, release_runner, exec_runner, host_runner, printer)
+            manager.deploy()
+        finally:
+            if release_runner:
+                release_runner.cleanup_image()
         printer.stop()
         typer.echo("Deploy complete.")

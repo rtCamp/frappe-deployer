@@ -119,6 +119,10 @@ class ShipManager:
         except Exception:
             pass
 
+        from fmd.runner.image_lifecycle import tag_image_for_run
+
+        self._run_tag, self._image_id = tag_image_for_run(image)
+
         self.printer.print(f"Image [blue]{image}[/blue] ready")
 
     def _rsync_release(self, release_name: str) -> None:
@@ -232,32 +236,42 @@ class ShipManager:
         self.printer.print(f"Remote switched to [blue]{release_name}[/blue]")
 
     def deploy(self, config_path: Path, existing_release: str | None = None, skip_rsync: bool = False) -> None:
-        if existing_release:
-            local_release_path = self.config.workspace_root / "workspace" / existing_release
-            if not local_release_path.exists() and not skip_rsync:
-                raise RuntimeError(f"Existing release {existing_release} not found at {local_release_path}")
-            release_name = existing_release
-            self.printer.print(f"Using existing release [blue]{release_name}[/blue]")
-        else:
-            image = self.remote_image_runner._resolve_image()
-            self._pull_image_locally(image)
+        self._run_tag = None
+        self._image_id = None
+        image = None
 
-            self.config.release.runner_image = image
+        try:
+            if existing_release:
+                local_release_path = self.config.workspace_root / "workspace" / existing_release
+                if not local_release_path.exists() and not skip_rsync:
+                    raise RuntimeError(f"Existing release {existing_release} not found at {local_release_path}")
+                release_name = existing_release
+                self.printer.print(f"Using existing release [blue]{release_name}[/blue]")
+            else:
+                image = self.remote_image_runner._resolve_image()
+                self._pull_image_locally(image)
 
-            release_name = self.release_manager.create()
-            self.printer.print(f"Release [blue]{release_name}[/blue] created locally")
+                self.config.release.runner_image = image
 
-        if not skip_rsync:
-            self._rsync_release(release_name)
-        else:
-            self.printer.print("Skipping release rsync (--skip-rsync enabled)")
+                release_name = self.release_manager.create()
+                self.printer.print(f"Release [blue]{release_name}[/blue] created locally")
 
-        self._rsync_config(config_path)
+            if not skip_rsync:
+                self._rsync_release(release_name)
+            else:
+                self.printer.print("Skipping release rsync (--skip-rsync enabled)")
 
-        remote_config_path = f"{self.config.ship.remote_path}/{config_path.name}"
+            self._rsync_config(config_path)
 
-        self._ensure_uv_on_remote()
-        self._remote_configure_if_needed(remote_config_path)
-        self._remote_switch(release_name, remote_config_path)
+            remote_config_path = f"{self.config.ship.remote_path}/{config_path.name}"
 
-        self.printer.print(f"Ship deploy complete — remote is on [blue]{release_name}[/blue]")
+            self._ensure_uv_on_remote()
+            self._remote_configure_if_needed(remote_config_path)
+            self._remote_switch(release_name, remote_config_path)
+
+            self.printer.print(f"Ship deploy complete — remote is on [blue]{release_name}[/blue]")
+        finally:
+            if self._run_tag and self._image_id and image:
+                from fmd.runner.image_lifecycle import cleanup_run_tag
+
+                cleanup_run_tag(image, self._run_tag, self._image_id)
