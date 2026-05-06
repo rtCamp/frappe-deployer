@@ -42,6 +42,9 @@ class DockerRunner(CommandRunner):
         self.config = config
         self.docker_host = docker_host
         self.platform = platform
+        self._run_tag: Optional[str] = None
+        self._resolved_image: Optional[str] = None
+        self._image_id: Optional[str] = None
 
     def _resolve_image(self) -> str:
         if self.config.release.runner_image:
@@ -151,7 +154,7 @@ class DockerRunner(CommandRunner):
         # bench refuses to run as root, so we must become frappe after remapping.
         host_uid = os.getuid()
         host_gid = os.getgid()
-        
+
         inner_cmd = f"source /etc/bash.bashrc; {docker_command}"
         bash_script = (
             f"usermod -u {host_uid} frappe 2>/dev/null; "
@@ -164,6 +167,12 @@ class DockerRunner(CommandRunner):
         effective_workdir = workdir or bench_mount
         image = self._resolve_image()
         volumes = [f"{bench_directory.path.absolute()}:{bench_mount}"]
+
+        if self._run_tag is None and self._resolved_image is None:
+            from fmd.runner.image_lifecycle import tag_image_for_run
+
+            self._resolved_image = image
+            self._run_tag, self._image_id = tag_image_for_run(image)
 
         output = _DockerClient().run(
             image=image,
@@ -190,7 +199,11 @@ class DockerRunner(CommandRunner):
                 "LC_ALL": "en_US.UTF-8",
                 "LANG": "en_US.UTF-8",
                 "LANGUAGE": "en_US.UTF-8",
-                **{k: os.environ[k] for k in ("DOCKER_HOST", "GITHUB_TOKEN", "GIT_TOKEN", "UV_LINK_MODE", "DOCKER_DEFAULT_PLATFORM") if k in os.environ},
+                **{
+                    k: os.environ[k]
+                    for k in ("DOCKER_HOST", "GITHUB_TOKEN", "GIT_TOKEN", "UV_LINK_MODE", "DOCKER_DEFAULT_PLATFORM")
+                    if k in os.environ
+                },
                 **(env or {}),
                 **({"DOCKER_HOST": self.docker_host} if self.docker_host else {}),
             },
@@ -261,3 +274,12 @@ class DockerRunner(CommandRunner):
         stream = self._tag_stderr_stream(output) if tag_streams else output
         self.printer.live_lines(stream, lines=live_lines)
         return None
+
+    def cleanup_image(self) -> None:
+        if self._run_tag and self._resolved_image and self._image_id:
+            from fmd.runner.image_lifecycle import cleanup_run_tag
+
+            cleanup_run_tag(self._resolved_image, self._run_tag, self._image_id)
+            self._run_tag = None
+            self._resolved_image = None
+            self._image_id = None

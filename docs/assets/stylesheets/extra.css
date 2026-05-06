@@ -33,7 +33,7 @@
 }
 
 /* Better spacing for nested lists */
-.md-typeset ul ul, 
+.md-typeset ul ul,
 .md-typeset ol ol {
   margin-top: 0.5em;
 }

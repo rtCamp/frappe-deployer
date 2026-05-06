@@ -1,4 +1,6 @@
 import sys
+import os
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -26,7 +28,9 @@ def check(label, got, expected):
         print(f"  PASS  {label}")
     else:
         FAIL.append(label)
-        print(f"  FAIL  {label}  ->  expected {_mask_if_sensitive(label, expected)}, got {_mask_if_sensitive(label, got)}")
+        print(
+            f"  FAIL  {label}  ->  expected {_mask_if_sensitive(label, expected)}, got {_mask_if_sensitive(label, got)}"
+        )
 
 
 def reset_verbose():
@@ -231,7 +235,6 @@ check("multiple --app: second repo", apps[1]["repo"], "frappe/erpnext")
 
 # -- new config from flags (create_if_missing) --------------------------------
 print("\n-- new config from flags (create_if_missing) --")
-import tempfile, os
 
 with tempfile.NamedTemporaryFile(suffix=".toml", delete=False) as f:
     tmp = Path(f.name)
@@ -307,7 +310,7 @@ reset_verbose()
 print(f"\n{'=' * 54}")
 print(f"  {len(PASS)} passed  /  {len(FAIL)} failed  /  {len(PASS) + len(FAIL)} total")
 if FAIL:
-    print(f"\nFailed:")
+    print("\nFailed:")
     for f in FAIL:
         print(f"  - {f}")
     sys.exit(1)

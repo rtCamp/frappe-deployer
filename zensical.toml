@@ -113,7 +113,7 @@ accent      = "pink"
   icon = "lucide/moon"
   name = "Switch to dark mode"
 
-# Dark mode — rtCamp orange + purple accents  
+# Dark mode — rtCamp orange + purple accents
 [[project.theme.palette]]
 scheme      = "slate"
 primary     = "deep-orange"

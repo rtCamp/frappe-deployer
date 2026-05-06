@@ -10,5 +10,7 @@ class PullConfig(BaseModel):
     ssh_user: str = Field("frappe", description="SSH username for the remote server")
     ssh_port: int = Field(22, description="SSH port number")
     fmd_source: Optional[str] = Field(None, description="FMD source for uv install (git URL or local path)")
-    benches_root: Optional[str] = Field(None, description="Root directory for benches on bare host (e.g., /home/frappe/frappe/sites)")
+    benches_root: Optional[str] = Field(
+        None, description="Root directory for benches on bare host (e.g., /home/frappe/frappe/sites)"
+    )
     on_remote: bool = Field(False, description="Runtime flag: true when fmd is already executing on remote server")

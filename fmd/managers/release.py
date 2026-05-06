@@ -5,10 +5,9 @@ from pathlib import Path
 from typing import Optional
 
 from fmd.config.config import Config
-from fmd.config.app import AppConfig
 from fmd.consts import DATA_DIR_NAME, BACKUP_DIR_NAME, RELEASE_DIR_NAME
 from fmd.exceptions import SiteAlreadyConfigured, SiteNotConfigured
-from fmd.helpers import get_relative_path, gen_name_with_timestamp
+from fmd.helpers import gen_name_with_timestamp
 from fmd.release_directory import BenchDirectory
 from fmd.services.apps import AppService
 from fmd.services.backup import BackupService
@@ -110,7 +109,7 @@ class ReleaseManager:
             with open(config_path, "w") as f:
                 json.dump(merged_config, f, indent=2)
 
-            self.printer.print(f"Created temporary common_site_config.json")
+            self.printer.print("Created temporary common_site_config.json")
         except Exception as e:
             self.printer.warning(f"Failed to create temporary common_site_config.json: {e}")
 
@@ -464,7 +463,7 @@ class ReleaseManager:
 
         except Exception as e:
             if self.config.switch.rollback:
-                self.printer.warning(f"Failed to switch to release {release_name}, rolling back")
+                self.printer.warning(f"Failed to switch to release {release_name}: {e}. Rolling back")
                 if self.bench_path.exists() or self.bench_path.is_symlink():
                     self.bench_path.unlink()
                 self.bench_service.bench_symlink(self.bench_path, BenchDirectory(previous_release))

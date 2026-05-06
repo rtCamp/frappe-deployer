@@ -1,7 +1,10 @@
 from pathlib import Path
 import importlib
 import shutil
-from typing import Any, Callable
+from typing import Any
+
+from fmd.consts import BACKUP_DIR_NAME, RELEASE_DIR_NAME
+from fmd.runner.base import is_ci
 
 _rich = None
 try:
@@ -35,10 +38,6 @@ except Exception:
 
         def add_row(self, *args, **kwargs):
             pass
-
-
-from fmd.consts import BACKUP_DIR_NAME, RELEASE_DIR_NAME
-from fmd.runner.base import is_ci
 
 
 class CleanupService:

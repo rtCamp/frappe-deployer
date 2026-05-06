@@ -39,7 +39,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 WORKSPACE = Path("/Users/aloksingh/frappe/sites/fm.localhost/workspace")
@@ -69,7 +68,6 @@ def section(title):
 
 
 def docker_run(volumes: list[str], command: str, env: dict | None = None) -> tuple[int, str]:
-
     cmd = ["docker", "run", "--rm", "--user", "frappe", "--entrypoint", "/bin/bash"]
     for v in volumes:
         cmd += ["-v", v]
@@ -83,7 +81,6 @@ def docker_run(volumes: list[str], command: str, env: dict | None = None) -> tup
 
 
 def seed_release(release_path: Path) -> None:
-
     for name in (".uv", ".fnm"):
         src = WORKSPACE / name
         dst = release_path / name

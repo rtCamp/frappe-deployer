@@ -246,10 +246,10 @@ after_restart = "bench --site $SITE_NAME clear-cache"
 
 !!! warning "Hook Script Paths and Execution Context"
     Hook values are inline shell by default. If you reference a file path (ending in `.sh`/`.py` or starting with `/`, `./`, `~/`), fmd reads and executes that file — but it must exist **on the machine running the hook** at deploy time:
-    
+
     - **pull strategy**: Scripts must exist on the remote server (not CI runner)
     - **ship strategy**: `host_*` hooks run on CI runner; other hooks run on remote server
-    
+
     Repo-committed scripts don't automatically transfer to the remote server. For portability, use inline scripts or ensure scripts are deployed separately.
 
 Hook scripts receive these environment variables:

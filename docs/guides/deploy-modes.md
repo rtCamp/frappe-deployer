@@ -85,7 +85,7 @@ Ship mode coordinates a multi-step deployment workflow:
 - Runs `fmd release create` in Docker on CI runner/local machine
 - Pulls runner image (e.g., `ghcr.io/rtcamp/fmd-runner:latest`)
 - Installs Python dependencies via uv
-- Installs Node.js dependencies  
+- Installs Node.js dependencies
 - Builds production assets (JS, CSS)
 - Creates immutable release directory: `workspace/release_YYYYMMDD_HHMMSS/`
 
@@ -100,7 +100,7 @@ Ship mode coordinates a multi-step deployment workflow:
 - Symlinks apps into bench
 - No git access required (uses pre-built artifacts)
 
-#### 4. Remote Switch Phase  
+#### 4. Remote Switch Phase
 - Runs `fmd release switch` to activate new release
 - Updates `workspace/frappe-bench` symlink to new release
 - Optionally drains workers, enables maintenance mode

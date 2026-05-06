@@ -5,7 +5,10 @@ import argparse
 import sys
 from pathlib import Path
 
-def search_and_replace_in_database(site_name: str, search_str: str, replace_str: str, dry_run: bool = False, verbose: bool = False):
+
+def search_and_replace_in_database(
+    site_name: str, search_str: str, replace_str: str, dry_run: bool = False, verbose: bool = False
+):
     """
     Search and replace text in all varchar/text columns across the database.
 
@@ -54,7 +57,7 @@ def search_and_replace_in_database(site_name: str, search_str: str, replace_str:
                 total_matches += match_count
                 affected_tables.add(table)
                 affected_columns.add(f"{table}.{column_name}")
-                
+
                 if table not in matches_by_table:
                     matches_by_table[table] = 0
                 matches_by_table[table] += match_count
@@ -69,12 +72,12 @@ def search_and_replace_in_database(site_name: str, search_str: str, replace_str:
                         LIMIT 3;
                     """
                     before_values = frappe.db.sql(sample_query, (f"%{search_str}%",))
-                    
+
                     # Calculate what the values will be after replacement
                     after_values = []
-                    for before, in before_values:
+                    for (before,) in before_values:
                         after_values.append((before.replace(search_str, replace_str),))
-                    
+
                     # Perform the replacement
                     update_query = f"""
                         UPDATE `{table}`
@@ -83,25 +86,26 @@ def search_and_replace_in_database(site_name: str, search_str: str, replace_str:
                     """
                     frappe.db.sql(update_query, (search_str, replace_str, f"%{search_str}%"))
                     frappe.db.commit()
-                    
+
                     if verbose:
                         for i, (before,) in enumerate(before_values):
-                            after = after_values[i][0] if i < len(after_values) else 'N/A'
+                            after = after_values[i][0] if i < len(after_values) else "N/A"
                             print(f"[{table}.{column_name}] {before} -> {after}")
 
     if total_matches > 0:
         summary = []
-        summary.append(f"\nSearch/Replace Summary:")
+        summary.append("\nSearch/Replace Summary:")
         summary.append(f"'{search_str}' -> '{replace_str}'")
         summary.append(f"Total {'matches' if dry_run else 'replacements'}: {total_matches}")
         if dry_run:
             summary.append("(Dry run - no changes made)")
         print("\n".join(summary))
-        
+
         frappe.msgprint(f"{'Found' if dry_run else 'Replaced'} {total_matches} occurrences")
     else:
         print(f"No occurrences of '{search_str}' found")
         frappe.msgprint("No matches found")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -110,21 +114,14 @@ def main():
     parser.add_argument("site", help="Frappe site name (e.g. mysite.localhost)")
     parser.add_argument("search", help="Text to search for")
     parser.add_argument("replace", help="Text to replace with")
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would be changed without making changes"
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Show detailed output including before/after values"
-    )
+    parser.add_argument("--dry-run", action="store_true", help="Show what would be changed without making changes")
+    parser.add_argument("--verbose", action="store_true", help="Show detailed output including before/after values")
 
     args = parser.parse_args()
 
     # Verify site exists
     import frappe.utils
+
     bench_path = frappe.utils.get_bench_path()
     site_path = Path(bench_path) / "sites" / args.site
 
@@ -134,6 +131,6 @@ def main():
 
     search_and_replace_in_database(args.site, args.search, args.replace, args.dry_run, args.verbose)
 
+
 if __name__ == "__main__":
     main()
-

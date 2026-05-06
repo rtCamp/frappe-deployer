@@ -109,7 +109,9 @@ def load_config(
             config.to_toml(config_path)
             return config
         raise ConfigPathDoesntExist(str(config_path))
-    config = Config.from_toml(config_file_path=config_path, overrides=overrides or None, skip_repo_validation=skip_repo_validation)
+    config = Config.from_toml(
+        config_file_path=config_path, overrides=overrides or None, skip_repo_validation=skip_repo_validation
+    )
     return config
 
 

@@ -133,8 +133,6 @@ def list_releases(
         return table
 
     def collect_metadata(release_dir: Path, index: int):
-        from fmd.services.cleanup import CleanupService
-
         apps_dir = release_dir / "apps"
         app_count = 0
         broken_symlinks = []
