@@ -2603,7 +2603,7 @@
 <h3 id="ship-remote-deployment">ship — Remote Deployment<a class="headerlink" href="#ship-remote-deployment" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>fmd<span class="w"> </span>deploy<span class="w"> </span>ship<span class="w"> </span>--config<span class="w"> </span>site.toml<span class="w">  </span><span class="c1"># Builds locally, deploys remotely</span>
 </span></code></pre></div>
-<p><strong>Workflow</strong>: 
+<p><strong>Workflow</strong>:
 1. Create release on local machine (uses fresh Docker container, no live services needed)
 2. rsync release directory to remote server
 3. SSH to remote, run <code>fmd release switch</code> to activate</p>
