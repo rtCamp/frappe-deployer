@@ -126,7 +126,7 @@ def cleanup_run_tag(image: str, run_tag: str, image_id: str) -> None:
             img
             for img in all_images
             if img.get("ID") == normalized_image_id
-            and fmd_pattern.match(f'{img.get("Repository")}:{img.get("Tag", "")}')
+            and fmd_pattern.match(f"{img.get('Repository')}:{img.get('Tag', '')}")
         ]
 
         if not fmd_tagged_images:
