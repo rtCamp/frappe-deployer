@@ -372,11 +372,6 @@ class ReleaseManager:
 
         apps = self._get_merged_apps_list()
 
-        if self.config.switch.backups and not self.config.ship:
-            self.backup_service.bench_db_and_configs_backup(
-                self.current, self.backup, self.site_name, self.bench_cli, self.workspace_root
-            )
-
         base_dir = build_dir.resolve() if build_dir is not None else self.workspace_path
         self.new = BenchDirectory(base_dir / gen_name_with_timestamp(RELEASE_DIR_NAME))
 
