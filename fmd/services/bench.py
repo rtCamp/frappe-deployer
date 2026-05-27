@@ -108,14 +108,23 @@ class BenchService:
 
             script_env = self.get_script_env(bench_path, bench_directory, site_name, app_name)
 
-            output = host_run(
-                ["bash", container_script_path],
-                bench_directory,
-                container=container,
-                capture_output=True,
-                workdir=workdir,
-                env=script_env,
-            )
+            if container:
+                output = self.runner.run(
+                    ["bash", container_script_path],
+                    bench_directory,
+                    capture_output=True,
+                    workdir=workdir,
+                    env=script_env,
+                )
+            else:
+                output = host_run(
+                    ["bash", container_script_path],
+                    bench_directory,
+                    container=False,
+                    capture_output=True,
+                    workdir=workdir,
+                    env=script_env,
+                )
 
             if output and getattr(output, "combined", None):
                 for line in output.combined:

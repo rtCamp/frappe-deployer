@@ -259,7 +259,7 @@ dev = [
 [[package]]
 name = "frappe-manager"
 version = "0.19.0.dev0"
-source = { git = "https://github.com/rtcamp/frappe-manager.git?rev=develop#a404bb7e978053c4480f58f04c1f4798c7a63c15" }
+source = { git = "https://github.com/rtcamp/frappe-manager.git?rev=develop#6fcdde9ff14d425e0e732bdc376cb64a53a5ec5e" }
 dependencies = [
     { name = "configargparse" },
     { name = "cryptography" },
