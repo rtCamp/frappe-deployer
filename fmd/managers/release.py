@@ -269,7 +269,11 @@ class ReleaseManager:
             release_uv.mkdir(parents=True, exist_ok=True)
 
         if src_fnm.is_dir() and not release_fnm.exists():
-            shutil.copytree(src_fnm, release_fnm, symlinks=True)
+            # Copy .fnm but exclude archives/ (download cache — can be corrupted)
+            def _ignore_archives(path, names):
+                return ["archives"] if "archives" in names else []
+
+            shutil.copytree(src_fnm, release_fnm, symlinks=True, ignore=_ignore_archives)
             self._open_permissions(release_fnm)
         elif not release_fnm.exists():
             # Source missing (broken symlink or first release) — create empty dir

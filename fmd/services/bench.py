@@ -296,34 +296,24 @@ class BenchService:
                 fnm_dir.mkdir(parents=True, exist_ok=True)
                 self.printer.print("Created missing .fnm directory")
 
-            # Check if version already installed
-            try:
-                result = self.runner.run(["fnm", "ls"], bench_directory, capture_output=True)
-                output = ""
-                if hasattr(result, "combined"):
-                    output = result.combined
-                elif hasattr(result, "stdout"):
-                    output = result.stdout
-                version_installed = f"v{nv}" in output
-            except Exception:
-                version_installed = False
+            # Check if version already installed by looking at filesystem directly
+            # (fnm ls can miss corrupted installs)
+            version_dir = fnm_dir / "node-versions" / f"v{nv}"
+            version_installed = version_dir.exists() and any(version_dir.iterdir())
 
             if not version_installed:
-                # Clean up any corrupted partial install before retrying
-                version_dir = fnm_dir / "node-versions" / f"v{nv}"
+                # Clean up any corrupted partial install and cached download
                 if version_dir.exists():
                     self.runner.run(["rm", "-rf", str(version_dir)], bench_directory, capture_output=False)
                     self.printer.print(f"Cleaned up corrupted Node v{nv} directory")
 
-                try:
-                    self.runner.run(["fnm", "install", nv], bench_directory, capture_output=False)
-                    self.printer.print(f"Node {nv} installed")
-                except Exception:
-                    # If install fails, try one more time with clean slate
-                    if version_dir.exists():
-                        self.runner.run(["rm", "-rf", str(version_dir)], bench_directory, capture_output=False)
-                    self.runner.run(["fnm", "install", nv], bench_directory, capture_output=False)
-                    self.printer.print(f"Node {nv} installed (after cleanup)")
+                # Also clean fnm's download cache to avoid EEXIST on corrupted archives
+                fnm_cache = fnm_dir / "archives"
+                if fnm_cache.exists():
+                    self.runner.run(["rm", "-rf", str(fnm_cache)], bench_directory, capture_output=False)
+
+                self.runner.run(["fnm", "install", nv], bench_directory, capture_output=False)
+                self.printer.print(f"Node {nv} installed")
             else:
                 self.printer.print(f"Node {nv} already installed")
 
