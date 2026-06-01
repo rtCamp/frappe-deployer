@@ -296,36 +296,20 @@ class BenchService:
                 fnm_dir.mkdir(parents=True, exist_ok=True)
                 self.printer.print("Created missing .fnm directory")
 
-            # Check if Node is already functional by running it inside the container
-            # This avoids fnm EEXIST errors from corrupted caches (system-level + .fnm/archives/)
-            try:
-                result = self.runner.run(["node", "--version"], bench_directory, capture_output=True)
-                output = ""
-                if hasattr(result, "combined"):
-                    output = result.combined
-                elif hasattr(result, "stdout"):
-                    output = result.stdout
-                if isinstance(output, bytes):
-                    output = output.decode()
-                if f"v{nv}" in output:
-                    self.printer.print(f"Node {nv} already installed and functional")
-                    self.runner.run(["fnm", "default", nv], bench_directory, capture_output=False)
-                    self.printer.print(f"Node {nv} set as default")
-                else:
-                    raise RuntimeError("Node version mismatch")
-            except Exception:
-                # Node not available or wrong version — clean everything and install fresh
-                version_dir = fnm_dir / "node-versions" / f"v{nv}"
-                if version_dir.exists():
-                    self.runner.run(["rm", "-rf", str(version_dir)], bench_directory, capture_output=False)
-                fnm_cache = fnm_dir / "archives"
-                if fnm_cache.exists():
-                    self.runner.run(["rm", "-rf", str(fnm_cache)], bench_directory, capture_output=False)
+            # Clean up any leftover state from previous failed installs
+            version_dir = fnm_dir / "node-versions" / f"v{nv}"
+            if version_dir.exists():
+                self.runner.run(["rm", "-rf", str(version_dir)], bench_directory, capture_output=False)
+                self.printer.print(f"Cleaned up existing Node v{nv} directory")
+            # Clean fnm's temp download directory (where crashed installs leave debris)
+            downloads_dir = fnm_dir / "node-versions" / ".downloads"
+            if downloads_dir.exists():
+                self.runner.run(["rm", "-rf", str(downloads_dir)], bench_directory, capture_output=False)
 
-                self.runner.run(["fnm", "install", nv], bench_directory, capture_output=False)
-                self.printer.print(f"Node {nv} installed")
-                self.runner.run(["fnm", "default", nv], bench_directory, capture_output=False)
-                self.printer.print(f"Node {nv} set as default")
+            self.runner.run(["fnm", "install", nv], bench_directory, capture_output=False)
+            self.printer.print(f"Node {nv} installed")
+            self.runner.run(["fnm", "default", nv], bench_directory, capture_output=False)
+            self.printer.print(f"Node {nv} set as default")
 
         if apps:
             self.printer.change_head("Installing all apps node packages")

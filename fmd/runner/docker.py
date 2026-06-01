@@ -236,6 +236,9 @@ class DockerRunner(CommandRunner):
             "UV_PYTHON_INSTALL_DIR": f"{bench_container_path}/.uv/python",
             "UV_CACHE_DIR": f"{bench_container_path}/.uv/cache",
             "PYTHONUNBUFFERED": "1",
+            "FNM_DIR": f"{bench_container_path}/.fnm",
+            "FNM_MULTISHELL_PATH": f"{bench_container_path}/.fnm",
+            "COREPACK_HOME": f"{bench_container_path}/.fnm/corepack",
         }
         if env:
             uv_env.update(env)
