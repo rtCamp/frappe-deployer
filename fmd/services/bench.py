@@ -299,7 +299,9 @@ class BenchService:
             # Use --fnm-dir explicitly because `source /etc/bash.bashrc` in exec mode
             # runs `eval "$(fnm env)"` which overrides FNM_DIR env var back to the
             # container's default (the bench's .fnm, not the release's).
-            fnm_dir_arg = str(fnm_dir)
+            # Must use container path, not host path.
+            container_workdir = self.runner.workdir_for_bench(bench_directory)
+            fnm_dir_arg = f"{container_workdir}/.fnm"
 
             # Clean up any leftover state from previous failed installs
             version_dir = fnm_dir / "node-versions" / f"v{nv}"
