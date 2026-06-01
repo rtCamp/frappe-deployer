@@ -51,6 +51,9 @@ def switch(
     sync_workers: Optional[bool] = typer.Option(
         None, "--sync-workers/--no-sync-workers", help="Sync to remote workers after switch."
     ),
+    install_apps: Optional[bool] = typer.Option(
+        None, "--install-apps/--no-install-apps", help="Install apps during switch."
+    ),
 ):
     """Switch live bench symlink to a previously-created release."""
     overrides: dict = {}
@@ -76,6 +79,8 @@ def switch(
         deploy["drain_workers"] = drain_workers
     if sync_workers is not None:
         deploy["sync_workers"] = sync_workers
+    if install_apps is not None:
+        deploy["install_apps"] = install_apps
     if deploy:
         overrides["deploy"] = deploy
 

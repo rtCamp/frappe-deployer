@@ -43,6 +43,9 @@ def create(
         None, "--node-version", "-n", help="Node.js version to install via fnm.", show_default=False
     ),
     backups: Optional[bool] = typer.Option(None, "--backups/--no-backups", help="Take DB backup before create."),
+    install_apps: Optional[bool] = typer.Option(
+        None, "--install-apps/--no-install-apps", help="Install apps during release creation."
+    ),
     symlink_subdir_apps: Optional[bool] = typer.Option(
         None, "--symlink-subdir-apps/--no-symlink-subdir-apps", help="Symlink all subdir apps."
     ),
@@ -82,6 +85,8 @@ def create(
     deploy: dict = {}
     if backups is not None:
         deploy["backups"] = backups
+    if install_apps is not None:
+        deploy["install_apps"] = install_apps
     if deploy:
         overrides["deploy"] = deploy
 

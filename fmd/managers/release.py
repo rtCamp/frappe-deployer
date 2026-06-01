@@ -451,9 +451,12 @@ class ReleaseManager:
             )
             self.bench_service.bench_clear_cache(self.current, self.bench_cli, self.site_name)
             self.site_installed_apps = self._get_site_installed_apps(self.current)
-            self.app_service.bench_install_apps(
-                self.current, self.config.apps, self.site_name, self.bench_cli, self._is_app_installed
-            )
+            if self.config.switch.install_apps:
+                self.app_service.bench_install_apps(
+                    self.current, self.config.apps, self.site_name, self.bench_cli, self._is_app_installed
+                )
+            else:
+                self.printer.print("Skipping app installation (install_apps=false)")
             self.cleanup_service.cleanup_releases(self.workspace_root, self.bench_path)
 
         except Exception as e:
