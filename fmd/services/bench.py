@@ -296,29 +296,36 @@ class BenchService:
                 fnm_dir.mkdir(parents=True, exist_ok=True)
                 self.printer.print("Created missing .fnm directory")
 
-            # Check if version already installed by looking at filesystem directly
-            # (fnm ls can miss corrupted installs)
-            version_dir = fnm_dir / "node-versions" / f"v{nv}"
-            version_installed = version_dir.exists() and any(version_dir.iterdir())
-
-            if not version_installed:
-                # Clean up any corrupted partial install and cached download
+            # Check if Node is already functional by running it inside the container
+            # This avoids fnm EEXIST errors from corrupted caches (system-level + .fnm/archives/)
+            try:
+                result = self.runner.run(["node", "--version"], bench_directory, capture_output=True)
+                output = ""
+                if hasattr(result, "combined"):
+                    output = result.combined
+                elif hasattr(result, "stdout"):
+                    output = result.stdout
+                if isinstance(output, bytes):
+                    output = output.decode()
+                if f"v{nv}" in output:
+                    self.printer.print(f"Node {nv} already installed and functional")
+                    self.runner.run(["fnm", "default", nv], bench_directory, capture_output=False)
+                    self.printer.print(f"Node {nv} set as default")
+                else:
+                    raise RuntimeError("Node version mismatch")
+            except Exception:
+                # Node not available or wrong version — clean everything and install fresh
+                version_dir = fnm_dir / "node-versions" / f"v{nv}"
                 if version_dir.exists():
                     self.runner.run(["rm", "-rf", str(version_dir)], bench_directory, capture_output=False)
-                    self.printer.print(f"Cleaned up corrupted Node v{nv} directory")
-
-                # Also clean fnm's download cache to avoid EEXIST on corrupted archives
                 fnm_cache = fnm_dir / "archives"
                 if fnm_cache.exists():
                     self.runner.run(["rm", "-rf", str(fnm_cache)], bench_directory, capture_output=False)
 
                 self.runner.run(["fnm", "install", nv], bench_directory, capture_output=False)
                 self.printer.print(f"Node {nv} installed")
-            else:
-                self.printer.print(f"Node {nv} already installed")
-
-            self.runner.run(["fnm", "default", nv], bench_directory, capture_output=False)
-            self.printer.print(f"Node {nv} set as default")
+                self.runner.run(["fnm", "default", nv], bench_directory, capture_output=False)
+                self.printer.print(f"Node {nv} set as default")
 
         if apps:
             self.printer.change_head("Installing all apps node packages")
