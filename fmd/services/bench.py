@@ -296,6 +296,11 @@ class BenchService:
                 fnm_dir.mkdir(parents=True, exist_ok=True)
                 self.printer.print("Created missing .fnm directory")
 
+            # Use --fnm-dir explicitly because `source /etc/bash.bashrc` in exec mode
+            # runs `eval "$(fnm env)"` which overrides FNM_DIR env var back to the
+            # container's default (the bench's .fnm, not the release's).
+            fnm_dir_arg = str(fnm_dir)
+
             # Clean up any leftover state from previous failed installs
             version_dir = fnm_dir / "node-versions" / f"v{nv}"
             if version_dir.exists():
@@ -306,9 +311,9 @@ class BenchService:
             if downloads_dir.exists():
                 self.runner.run(["rm", "-rf", str(downloads_dir)], bench_directory, capture_output=False)
 
-            self.runner.run(["fnm", "install", nv], bench_directory, capture_output=False)
+            self.runner.run(["fnm", "install", nv, "--fnm-dir", fnm_dir_arg], bench_directory, capture_output=False)
             self.printer.print(f"Node {nv} installed")
-            self.runner.run(["fnm", "default", nv], bench_directory, capture_output=False)
+            self.runner.run(["fnm", "default", nv, "--fnm-dir", fnm_dir_arg], bench_directory, capture_output=False)
             self.printer.print(f"Node {nv} set as default")
 
         if apps:
