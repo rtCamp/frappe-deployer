@@ -264,10 +264,16 @@ class ReleaseManager:
         if src_uv.is_dir() and not release_uv.exists():
             shutil.copytree(src_uv, release_uv, symlinks=True)
             self._open_permissions(release_uv)
+        elif not release_uv.exists():
+            # Source missing (broken symlink or first release) — create empty dir
+            release_uv.mkdir(parents=True, exist_ok=True)
 
         if src_fnm.is_dir() and not release_fnm.exists():
             shutil.copytree(src_fnm, release_fnm, symlinks=True)
             self._open_permissions(release_fnm)
+        elif not release_fnm.exists():
+            # Source missing (broken symlink or first release) — create empty dir
+            release_fnm.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
     def _open_permissions(path: Path) -> None:

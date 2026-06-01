@@ -289,9 +289,46 @@ class BenchService:
         if self.config.release.node_version:
             nv = self.config.release.node_version
             self.printer.change_head(f"Installing Node {nv} via fnm")
-            self.runner.run(["fnm", "install", nv], bench_directory, capture_output=False)
+
+            # Ensure .fnm directory exists (may be missing when bench symlink is broken)
+            fnm_dir = bench_directory.path / ".fnm"
+            if not fnm_dir.exists():
+                fnm_dir.mkdir(parents=True, exist_ok=True)
+                self.printer.print("Created missing .fnm directory")
+
+            # Check if version already installed
+            try:
+                result = self.runner.run(["fnm", "ls"], bench_directory, capture_output=True)
+                output = ""
+                if hasattr(result, "combined"):
+                    output = result.combined
+                elif hasattr(result, "stdout"):
+                    output = result.stdout
+                version_installed = f"v{nv}" in output
+            except Exception:
+                version_installed = False
+
+            if not version_installed:
+                # Clean up any corrupted partial install before retrying
+                version_dir = fnm_dir / "node-versions" / f"v{nv}"
+                if version_dir.exists():
+                    self.runner.run(["rm", "-rf", str(version_dir)], bench_directory, capture_output=False)
+                    self.printer.print(f"Cleaned up corrupted Node v{nv} directory")
+
+                try:
+                    self.runner.run(["fnm", "install", nv], bench_directory, capture_output=False)
+                    self.printer.print(f"Node {nv} installed")
+                except Exception:
+                    # If install fails, try one more time with clean slate
+                    if version_dir.exists():
+                        self.runner.run(["rm", "-rf", str(version_dir)], bench_directory, capture_output=False)
+                    self.runner.run(["fnm", "install", nv], bench_directory, capture_output=False)
+                    self.printer.print(f"Node {nv} installed (after cleanup)")
+            else:
+                self.printer.print(f"Node {nv} already installed")
+
             self.runner.run(["fnm", "default", nv], bench_directory, capture_output=False)
-            self.printer.print(f"Node {nv} installed and set as default")
+            self.printer.print(f"Node {nv} set as default")
 
         if apps:
             self.printer.change_head("Installing all apps node packages")
