@@ -284,6 +284,31 @@ class BenchService:
                     self.config.release.node_version = parse_node_version_for_runtime(detected)
                     self.printer.print(f"Auto-detected Node version: {self.config.release.node_version}")
 
+        # --- Python venv first ---
+        if bench_directory.env.exists():
+            self.printer.change_head("Backing up existing Python venv")
+            env_bak = bench_directory.path / "env.bak"
+            if env_bak.exists():
+                self.runner.run(["rm", "-rf", "env.bak"], bench_directory, capture_output=False)
+            self.runner.run(["mv", "env", "env.bak"], bench_directory, capture_output=False)
+            self.printer.print("Backed up env to env.bak")
+
+        self.printer.change_head("Creating Python venv using uv")
+        venv_cmd = ["uv", "venv", "env", "--seed", "--relocatable", "--no-project"]
+        if self.config.release.python_version:
+            venv_cmd += ["--python", self.config.release.python_version]
+        self.runner.run(venv_cmd, bench_directory, capture_output=False)
+        self.printer.print("Python venv created")
+
+        start_time = time.time()
+
+        self.bench_install_all_apps_in_python_env(bench_directory, apps, current, bench_path, site_name, host_run)
+
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        self.printer.print(f"Apps python env install time: {elapsed_time:.2f} seconds")
+
+        # --- Now Node ---
         node_cmd = [bench_cli, "setup", "requirements", "--node"]
 
         if self.config.release.node_version:
@@ -324,29 +349,6 @@ class BenchService:
             self.printer.print("Installed all apps node packages")
         else:
             self.printer.print("Skipping node packages install (no apps)")
-
-        if bench_directory.env.exists():
-            self.printer.change_head("Backing up existing Python venv")
-            env_bak = bench_directory.path / "env.bak"
-            if env_bak.exists():
-                self.runner.run(["rm", "-rf", "env.bak"], bench_directory, capture_output=False)
-            self.runner.run(["mv", "env", "env.bak"], bench_directory, capture_output=False)
-            self.printer.print("Backed up env to env.bak")
-
-        self.printer.change_head("Creating Python venv using uv")
-        venv_cmd = ["uv", "venv", "env", "--seed", "--relocatable", "--no-project"]
-        if self.config.release.python_version:
-            venv_cmd += ["--python", self.config.release.python_version]
-        self.runner.run(venv_cmd, bench_directory, capture_output=False)
-        self.printer.print("Python venv created")
-
-        start_time = time.time()
-
-        self.bench_install_all_apps_in_python_env(bench_directory, apps, current, bench_path, site_name, host_run)
-
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        self.printer.print(f"Apps python env install time: {elapsed_time:.2f} seconds")
 
         self.printer.change_head("Configuring apps.txt")
         apps_txt_path = bench_directory.sites / "apps.txt"
