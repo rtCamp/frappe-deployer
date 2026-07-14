@@ -150,6 +150,16 @@ runs:
         FMD_ACTION_REF: ${{ github.action_ref }}
         FMD_TEMP_DIR: ${{ steps.temp_dir.outputs.path }}
 
+    - name: Upload workspace on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: fmd-workspace-${{ github.sha }}
+        path: |
+          ${{ steps.temp_dir.outputs.path }}
+          ~/.fmd/logs/
+        if-no-files-found: ignore
+
     - name: Clean up temporary directory
       if: always()
       shell: bash
