@@ -99,7 +99,7 @@ runs:
     - name: Create temporary directory
       id: temp_dir
       shell: bash
-      run: echo "path=$(mktemp -d -p $GITHUB_WORKSPACE)" >> $GITHUB_OUTPUT
+      run: echo "path=$(mktemp -d -p $RUNNER_TEMP)" >> $GITHUB_OUTPUT
 
     - name: Install uv
       shell: bash
