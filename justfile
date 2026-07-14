@@ -91,3 +91,13 @@ clean:
     rm -rf dist/ build/ *.egg-info
     find . -type d -name __pycache__ -exec rm -rf {} +
     find . -type f -name "*.pyc" -delete
+
+# ── Dependabot PR Management (delegates to Justfile_depends) ──────────────────
+depends REPO="auto":
+    just -f scripts/justfile.depends depends {{REPO}}
+
+depends-merge PR REPO="auto":
+    just -f scripts/justfile.depends depends-merge {{PR}} {{REPO}}
+
+depends-recreate PR REPO="auto":
+    just -f scripts/justfile.depends depends-recreate {{PR}} {{REPO}}
