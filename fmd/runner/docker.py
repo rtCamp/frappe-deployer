@@ -74,6 +74,8 @@ class DockerRunner(CommandRunner):
             # In image mode, bench_directory.path is mounted at /workspace/frappe-bench
             try:
                 relative = host_path.relative_to(bench_directory.path)
+                if relative == Path("."):
+                    return "/workspace/frappe-bench"
                 return f"/workspace/frappe-bench/{relative}"
             except ValueError:
                 return "/workspace/frappe-bench"
