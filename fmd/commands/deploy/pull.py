@@ -283,6 +283,12 @@ def pull(
         help="Sync to remote workers after deploy.",
         rich_help_panel="Switch Options",
     ),
+    install_apps: Optional[bool] = typer.Option(
+        None,
+        "--install-apps/--no-install-apps",
+        help="Install apps during deploy.",
+        rich_help_panel="Switch Options",
+    ),
     fc_key: Optional[str] = typer.Option(
         None, "--fc-key", help="Frappe Cloud API key.", show_default=False, rich_help_panel="Frappe Cloud"
     ),
@@ -366,6 +372,8 @@ def pull(
         switch["drain_workers"] = drain_workers
     if sync_workers is not None:
         switch["sync_workers"] = sync_workers
+    if install_apps is not None:
+        switch["install_apps"] = install_apps
     if switch:
         overrides["switch"] = switch
 

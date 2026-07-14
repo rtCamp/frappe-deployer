@@ -1,8 +1,13 @@
 #!/bin/bash
 __dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
-if [[ "${DEBUG:-}" == "true" ]]; then
+if [[ "${DEBUG:-}" == "true" ]] || [[ "${RUNNER_DEBUG:-}" == "1" ]]; then
 	set -x
+fi
+
+FMD_VERBOSE=""
+if [[ "${RUNNER_DEBUG:-}" == "1" ]] || [[ "${FMD_VERBOSE_ENABLED:-}" == "true" ]]; then
+	FMD_VERBOSE="-v"
 fi
 
 source "$__dir/helpers.sh"
@@ -88,6 +93,13 @@ setup_deployment_environment() {
 
 	TEMP_SSH_DIR=$(mktemp -d /tmp/ssh_dir.XXXXXX)
 	export HOME="${TEMP_SSH_DIR}"
+
+	# Save log dir path for artifact upload — use a persistent location
+	# (NOT $HOME which is swapped to a temp dir for SSH key isolation)
+	FMD_LOG_DIR="${FMD_TEMP_DIR:-/tmp}/fmd-logs"
+	export FMD_LOG_DIR
+	echo "FMD_LOG_DIR=${FMD_LOG_DIR}" >> "${GITHUB_ENV:-/dev/null}"
+
 	trap 'rm -rf "${TEMP_SSH_DIR}"' EXIT
 }
 
@@ -266,7 +278,7 @@ pull_command() {
 
 	COMMAND="deploy pull ${INPUT_SITENAME} --config ${LOCAL_CONFIG_TMP}"
 
-	fmd ${COMMAND} || DEPLOY_EXIT_CODE=$?
+	fmd ${FMD_VERBOSE} ${COMMAND} || DEPLOY_EXIT_CODE=$?
 	DEPLOY_EXIT_CODE=${DEPLOY_EXIT_CODE:-0}
 
 	rm -f "${LOCAL_CONFIG_TMP}"
@@ -300,7 +312,7 @@ ship_command() {
 		COMMAND="${COMMAND} --skip-rsync"
 	fi
 
-	fmd ${COMMAND} || DEPLOY_EXIT_CODE=$?
+	fmd ${FMD_VERBOSE} ${COMMAND} || DEPLOY_EXIT_CODE=$?
 	DEPLOY_EXIT_CODE=${DEPLOY_EXIT_CODE:-0}
 
 	rm -f "${LOCAL_CONFIG_TMP}"
@@ -346,7 +358,7 @@ build_image_command() {
 		COMMAND="${COMMAND} --image-type ${INPUT_IMAGE_TYPE}"
 	fi
 
-	fmd ${COMMAND} || BUILD_EXIT_CODE=$?
+	fmd ${FMD_VERBOSE} ${COMMAND} || BUILD_EXIT_CODE=$?
 	BUILD_EXIT_CODE=${BUILD_EXIT_CODE:-0}
 
 	if [[ -n "${LOCAL_CONFIG_CONTENT_TMP:-}" ]]; then

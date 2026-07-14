@@ -8,7 +8,17 @@ from pathlib import Path
 
 from rich.logging import RichHandler
 
-CLI_LOG_DIRECTORY = Path.home() / ".fmd" / "logs"
+_LOG_DIR_ENV = "FMD_LOG_DIR"
+
+
+def _default_log_dir() -> Path:
+    env_dir = os.environ.get(_LOG_DIR_ENV)
+    if env_dir:
+        return Path(env_dir)
+    return Path.home() / ".fmd" / "logs"
+
+
+CLI_LOG_DIRECTORY = _default_log_dir()
 
 
 def namer(name):

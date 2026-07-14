@@ -99,7 +99,7 @@ runs:
     - name: Create temporary directory
       id: temp_dir
       shell: bash
-      run: echo "path=$(mktemp -d)" >> $GITHUB_OUTPUT
+      run: echo "path=$(mktemp -d -p $RUNNER_TEMP)" >> $GITHUB_OUTPUT
 
     - name: Install uv
       shell: bash
@@ -150,9 +150,15 @@ runs:
         FMD_ACTION_REF: ${{ github.action_ref }}
         FMD_TEMP_DIR: ${{ steps.temp_dir.outputs.path }}
 
+    - name: Upload logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: fmd-logs-${{ github.sha }}
+        path: ${{ env.FMD_LOG_DIR }}
+        if-no-files-found: ignore
+
     - name: Clean up temporary directory
       if: always()
       shell: bash
-      run: |
-        docker run --rm --user root -v ${{ steps.temp_dir.outputs.path }}:/data alpine sh -c 'find /data -mindepth 1 -delete'
-        rm -rf ${{ steps.temp_dir.outputs.path }}
+      run: rm -rf ${{ steps.temp_dir.outputs.path }}

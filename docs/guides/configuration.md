@@ -343,6 +343,7 @@ backups = "${BACKUPS_ENABLED}"
         backups = true
         rollback = false
         search_replace = true
+        install_apps = true
         ```
 
         ### Migration
@@ -396,6 +397,18 @@ backups = "${BACKUPS_ENABLED}"
         ```
 
         Run search-replace operations during switch. See [Search-Replace Command](../commands/search-replace.md).
+
+        ### App Installation
+
+        ```toml
+        install_apps = true
+        ```
+
+        - `install_apps`: Install apps during switch/deploy (default: true)
+
+        When set to `false`, app installation is skipped entirely. Apps are still cloned into the release directory but not installed into the site. Useful when apps are already installed or when you want to install them manually later.
+
+        CLI override: `--no-install-apps` flag on `release switch`, `deploy ship`, `deploy pull`, and `release create`.
 
         ### Worker Draining
 

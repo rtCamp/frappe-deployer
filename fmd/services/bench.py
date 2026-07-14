@@ -79,11 +79,21 @@ class BenchService:
     ) -> None:
         self.printer.change_head(f"Running {script_type}")
 
-        script_dir = current.path.parent / "deployment_tmp"
-        script_dir.mkdir(parents=True, exist_ok=True)
-
-        script_name = f"temp_script_{int(time.time())}.sh"
-        script_path = script_dir / script_name
+        if container:
+            # Write temp script inside the release directory (which is mounted in Docker)
+            script_dir = bench_directory.path / ".fmd_tmp"
+            script_dir.mkdir(parents=True, exist_ok=True)
+            script_name = f"temp_script_{int(time.time())}.sh"
+            script_path = script_dir / script_name
+            container_script_path = f"/workspace/frappe-bench/.fmd_tmp/{script_name}"
+            workdir = custom_workdir or "/workspace/frappe-bench"
+        else:
+            script_dir = bench_directory.path / "deployment_tmp"
+            script_dir.mkdir(parents=True, exist_ok=True)
+            script_name = f"temp_script_{int(time.time())}.sh"
+            script_path = script_dir / script_name
+            container_script_path = str(script_path)
+            workdir = custom_workdir or str(script_dir)
 
         try:
             content = script_content or ""
@@ -98,13 +108,6 @@ class BenchService:
                 script_file.write(content)
 
             script_path.chmod(0o755)
-
-            if container:
-                container_script_path = f"/workspace/deployment_tmp/{script_name}"
-                workdir = custom_workdir or "/workspace/deployment_tmp"
-            else:
-                container_script_path = str(script_path)
-                workdir = custom_workdir or str(script_dir)
 
             script_env = self.get_script_env(bench_path, bench_directory, site_name, app_name)
 
@@ -223,10 +226,12 @@ class BenchService:
                 )
 
             try:
-                self.runner.run(install_cmd + [f"apps/{app.dir_name}"], bench_directory, capture_output=False)
+                app_abs_path = f"{self.runner.workdir_for_bench(bench_directory)}/apps/{app.dir_name}"
+                self.runner.run(install_cmd + [app_abs_path], bench_directory, capture_output=False)
             except Exception:
                 self.printer.print(f"uv failed for {app.dir_name}, falling back to pip")
-                self.runner.run(["pip", "install", "-e", f"apps/{app.dir_name}"], bench_directory, capture_output=False)
+                app_abs_path = f"{self.runner.workdir_for_bench(bench_directory)}/apps/{app.dir_name}"
+                self.runner.run(["pip", "install", "-e", app_abs_path], bench_directory, capture_output=False)
 
             if app.after_python_install:
                 self._run_script(
@@ -284,22 +289,7 @@ class BenchService:
                     self.config.release.node_version = parse_node_version_for_runtime(detected)
                     self.printer.print(f"Auto-detected Node version: {self.config.release.node_version}")
 
-        node_cmd = [bench_cli, "setup", "requirements", "--node"]
-
-        if self.config.release.node_version:
-            nv = self.config.release.node_version
-            self.printer.change_head(f"Installing Node {nv} via fnm")
-            self.runner.run(["fnm", "install", nv], bench_directory, capture_output=False)
-            self.runner.run(["fnm", "default", nv], bench_directory, capture_output=False)
-            self.printer.print(f"Node {nv} installed and set as default")
-
-        if apps:
-            self.printer.change_head("Installing all apps node packages")
-            self.runner.run(node_cmd, bench_directory, capture_output=False)
-            self.printer.print("Installed all apps node packages")
-        else:
-            self.printer.print("Skipping node packages install (no apps)")
-
+        # --- Python venv first ---
         if bench_directory.env.exists():
             self.printer.change_head("Backing up existing Python venv")
             env_bak = bench_directory.path / "env.bak"
@@ -322,6 +312,48 @@ class BenchService:
         end_time = time.time()
         elapsed_time = end_time - start_time
         self.printer.print(f"Apps python env install time: {elapsed_time:.2f} seconds")
+
+        # --- Now Node ---
+        node_cmd = [bench_cli, "setup", "requirements", "--node"]
+
+        if self.config.release.node_version:
+            nv = self.config.release.node_version
+            self.printer.change_head(f"Installing Node {nv} via fnm")
+
+            # Ensure .fnm directory exists (may be missing when bench symlink is broken)
+            fnm_dir = bench_directory.path / ".fnm"
+            if not fnm_dir.exists():
+                fnm_dir.mkdir(parents=True, exist_ok=True)
+                self.printer.print("Created missing .fnm directory")
+
+            # Use --fnm-dir explicitly because `source /etc/bash.bashrc` in exec mode
+            # runs `eval "$(fnm env)"` which overrides FNM_DIR env var back to the
+            # container's default (the bench's .fnm, not the release's).
+            # Must use container path, not host path.
+            container_workdir = self.runner.workdir_for_bench(bench_directory)
+            fnm_dir_arg = f"{container_workdir}/.fnm"
+
+            # Clean up any leftover state from previous failed installs
+            version_dir = fnm_dir / "node-versions" / f"v{nv}"
+            if version_dir.exists():
+                self.runner.run(["rm", "-rf", str(version_dir)], bench_directory, capture_output=False)
+                self.printer.print(f"Cleaned up existing Node v{nv} directory")
+            # Clean fnm's temp download directory (where crashed installs leave debris)
+            downloads_dir = fnm_dir / "node-versions" / ".downloads"
+            if downloads_dir.exists():
+                self.runner.run(["rm", "-rf", str(downloads_dir)], bench_directory, capture_output=False)
+
+            self.runner.run(["fnm", "install", nv, "--fnm-dir", fnm_dir_arg], bench_directory, capture_output=False)
+            self.printer.print(f"Node {nv} installed")
+            self.runner.run(["fnm", "default", nv, "--fnm-dir", fnm_dir_arg], bench_directory, capture_output=False)
+            self.printer.print(f"Node {nv} set as default")
+
+        if apps:
+            self.printer.change_head("Installing all apps node packages")
+            self.runner.run(node_cmd, bench_directory, capture_output=False)
+            self.printer.print("Installed all apps node packages")
+        else:
+            self.printer.print("Skipping node packages install (no apps)")
 
         self.printer.change_head("Configuring apps.txt")
         apps_txt_path = bench_directory.sites / "apps.txt"

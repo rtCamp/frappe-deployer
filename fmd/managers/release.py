@@ -264,10 +264,16 @@ class ReleaseManager:
         if src_uv.is_dir() and not release_uv.exists():
             shutil.copytree(src_uv, release_uv, symlinks=True)
             self._open_permissions(release_uv)
+        elif not release_uv.exists():
+            # Source missing (broken symlink or first release) — create empty dir
+            release_uv.mkdir(parents=True, exist_ok=True)
 
         if src_fnm.is_dir() and not release_fnm.exists():
             shutil.copytree(src_fnm, release_fnm, symlinks=True)
             self._open_permissions(release_fnm)
+        elif not release_fnm.exists():
+            # Source missing (broken symlink or first release) — create empty dir
+            release_fnm.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
     def _open_permissions(path: Path) -> None:
@@ -451,10 +457,14 @@ class ReleaseManager:
             )
             self.bench_service.bench_clear_cache(self.current, self.bench_cli, self.site_name)
             self.site_installed_apps = self._get_site_installed_apps(self.current)
-            self.app_service.bench_install_apps(
-                self.current, self.config.apps, self.site_name, self.bench_cli, self._is_app_installed
-            )
+            if self.config.switch.install_apps:
+                self.app_service.bench_install_apps(
+                    self.current, self.config.apps, self.site_name, self.bench_cli, self._is_app_installed
+                )
+            else:
+                self.printer.print("Skipping app installation (install_apps=false)")
             self.cleanup_service.cleanup_releases(self.workspace_root, self.bench_path)
+            self._sync_remote_workers()
 
         except Exception as e:
             if self.config.switch.rollback:
@@ -608,3 +618,20 @@ class ReleaseManager:
             "worker_kill_poll": getattr(d, "worker_kill_poll", 3.0),
             "maintenance_phases": d.maintenance_mode_phases if d.maintenance_mode else None,
         }
+
+    def _sync_remote_workers(self) -> None:
+        sync_workers = getattr(self.config.switch, "sync_workers", False) or getattr(
+            self.config.deploy, "sync_workers", False
+        )
+        if not sync_workers:
+            return
+        if not self.config.remote_worker:
+            self.printer.print("Remote worker sync requested but no [remote_worker] config — skipping")
+            return
+
+        from fmd.managers.remote_worker import RemoteWorkerManager
+
+        self.printer.change_head("Syncing to remote workers")
+        rw_manager = RemoteWorkerManager(self.config, self.printer)
+        rw_manager.sync()
+        self.printer.print("Remote worker sync complete")

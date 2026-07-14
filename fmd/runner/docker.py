@@ -69,7 +69,16 @@ class DockerRunner(CommandRunner):
         exec_path = Path("/workspace/.cache/frappe-deployer-venv")
         return host, exec_path
 
-    def _host_to_container(self, host_path: Path) -> str:
+    def _host_to_container(self, host_path: Path, bench_directory=None) -> str:
+        if self.mode == "image" and bench_directory is not None:
+            # In image mode, bench_directory.path is mounted at /workspace/frappe-bench
+            try:
+                relative = host_path.relative_to(bench_directory.path)
+                if relative == Path("."):
+                    return "/workspace/frappe-bench"
+                return f"/workspace/frappe-bench/{relative}"
+            except ValueError:
+                return "/workspace/frappe-bench"
         workspace_mount = self.config.workspace_root / "workspace"
         try:
             relative = host_path.relative_to(workspace_mount)
@@ -78,15 +87,13 @@ class DockerRunner(CommandRunner):
             return "/workspace/frappe-bench"
 
     def workdir_for_bench(self, bench_directory) -> str:
-        if self.mode == "image":
-            return "/workspace/frappe-bench"
-        return self._host_to_container(bench_directory.path)
+        return self._host_to_container(bench_directory.path, bench_directory)
 
     def workdir_for_sites(self, bench_directory) -> str:
-        return self._host_to_container(bench_directory.sites)
+        return self._host_to_container(bench_directory.sites, bench_directory)
 
     def app_exec_path(self, bench_directory, app_name: str) -> str:
-        return self._host_to_container(bench_directory.apps / app_name)
+        return self._host_to_container(bench_directory.apps / app_name, bench_directory)
 
     def backup_path(self, host_backup_dir: Path, file_name: str) -> str:
         return f"/workspace/{'/'.join(host_backup_dir.parts[-2:])}/{file_name}"
