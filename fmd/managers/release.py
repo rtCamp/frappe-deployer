@@ -464,6 +464,7 @@ class ReleaseManager:
             else:
                 self.printer.print("Skipping app installation (install_apps=false)")
             self.cleanup_service.cleanup_releases(self.workspace_root, self.bench_path)
+            self._sync_remote_workers()
 
         except Exception as e:
             if self.config.switch.rollback:
@@ -617,3 +618,20 @@ class ReleaseManager:
             "worker_kill_poll": getattr(d, "worker_kill_poll", 3.0),
             "maintenance_phases": d.maintenance_mode_phases if d.maintenance_mode else None,
         }
+
+    def _sync_remote_workers(self) -> None:
+        sync_workers = getattr(self.config.switch, "sync_workers", False) or getattr(
+            self.config.deploy, "sync_workers", False
+        )
+        if not sync_workers:
+            return
+        if not self.config.remote_worker:
+            self.printer.print("Remote worker sync requested but no [remote_worker] config — skipping")
+            return
+
+        from fmd.managers.remote_worker import RemoteWorkerManager
+
+        self.printer.change_head("Syncing to remote workers")
+        rw_manager = RemoteWorkerManager(self.config, self.printer)
+        rw_manager.sync()
+        self.printer.print("Remote worker sync complete")

@@ -227,9 +227,6 @@ class RemoteWorkerManager:
 
         rsync_dirs = [
             {"src": self.current.path, "dest": None, "excludes": [], "trailing_slash": True},
-            {"src": self.current.path.parent / ".pyenv", "dest": None, "excludes": [], "trailing_slash": True},
-            {"src": self.current.path.parent / ".nvm", "dest": None, "excludes": [], "trailing_slash": True},
-            {"src": self.current.path.parent / ".oh-my-zsh", "dest": None, "excludes": [], "trailing_slash": True},
             {
                 "src": self.data.path,
                 "dest": None,
