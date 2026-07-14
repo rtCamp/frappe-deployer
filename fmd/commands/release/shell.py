@@ -99,6 +99,7 @@ def shell(
     typer.echo()
 
     # Build docker run command for interactive shell
+    # Must use --entrypoint to bypass the image's default entrypoint (which requires USERID)
     cmd = [
         "docker",
         "run",
@@ -106,6 +107,8 @@ def shell(
         "--rm",
         "--user",
         "root",
+        "--entrypoint",
+        "/bin/bash",
         "--volume",
         f"{release_path}:{bench_mount}",
         "--workdir",
@@ -137,7 +140,6 @@ def shell(
         "--env",
         "PYTHONUNBUFFERED=1",
         image,
-        "/bin/bash",
         "-c",
         f"usermod -u {host_uid} frappe 2>/dev/null; "
         f"groupmod -g {host_gid} frappe 2>/dev/null; "
