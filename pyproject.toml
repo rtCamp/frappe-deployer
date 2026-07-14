@@ -8,10 +8,10 @@ license = { text = "MIT" }
 authors = [{ name = "Alok Singh", email = "alokmilenium@gmail.com" }]
 dependencies = [
     "frappe-manager",
-    "gitpython>=3.1.46,<4.0.0",
+    "gitpython>=3.1.51,<4.0.0",
     "typer>=0.21.0,<0.22.0",
     "toml>=0.10.2,<0.11.0",
-    "pydantic>=2.13.3,<3.0.0",
+    "pydantic>=2.13.4,<3.0.0",
     "typer-examples",
 ]
 
@@ -28,7 +28,7 @@ mike = { git = "https://github.com/squidfunk/mike.git" }
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.3",
+    "pytest>=9.1.1",
     "pytest-mock>=3.15.1",
     "pytest-cov>=7.1.0",
     "zensical",
