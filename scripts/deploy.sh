@@ -93,6 +93,13 @@ setup_deployment_environment() {
 
 	TEMP_SSH_DIR=$(mktemp -d /tmp/ssh_dir.XXXXXX)
 	export HOME="${TEMP_SSH_DIR}"
+
+	# Save log dir path for artifact upload — use a persistent location
+	# (NOT $HOME which is swapped to a temp dir for SSH key isolation)
+	FMD_LOG_DIR="${FMD_TEMP_DIR:-/tmp}/fmd-logs"
+	export FMD_LOG_DIR
+	echo "FMD_LOG_DIR=${FMD_LOG_DIR}" >> "${GITHUB_ENV:-/dev/null}"
+
 	trap 'rm -rf "${TEMP_SSH_DIR}"' EXIT
 }
 

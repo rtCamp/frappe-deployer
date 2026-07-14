@@ -155,7 +155,7 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: fmd-logs-${{ github.sha }}
-        path: ~/.fmd/logs/
+        path: ${{ env.FMD_LOG_DIR }}
         if-no-files-found: ignore
 
     - name: Clean up temporary directory
