@@ -226,10 +226,12 @@ class BenchService:
                 )
 
             try:
-                self.runner.run(install_cmd + [f"apps/{app.dir_name}"], bench_directory, capture_output=False)
+                app_abs_path = f"{self.runner.workdir_for_bench(bench_directory)}/apps/{app.dir_name}"
+                self.runner.run(install_cmd + [app_abs_path], bench_directory, capture_output=False)
             except Exception:
                 self.printer.print(f"uv failed for {app.dir_name}, falling back to pip")
-                self.runner.run(["pip", "install", "-e", f"apps/{app.dir_name}"], bench_directory, capture_output=False)
+                app_abs_path = f"{self.runner.workdir_for_bench(bench_directory)}/apps/{app.dir_name}"
+                self.runner.run(["pip", "install", "-e", app_abs_path], bench_directory, capture_output=False)
 
             if app.after_python_install:
                 self._run_script(
