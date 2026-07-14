@@ -99,7 +99,7 @@ runs:
     - name: Create temporary directory
       id: temp_dir
       shell: bash
-      run: echo "path=$(mktemp -d)" >> $GITHUB_OUTPUT
+      run: echo "path=$(mktemp -d -p $GITHUB_WORKSPACE)" >> $GITHUB_OUTPUT
 
     - name: Install uv
       shell: bash
@@ -161,6 +161,4 @@ runs:
     - name: Clean up temporary directory
       if: always()
       shell: bash
-      run: |
-        docker run --rm --user root -v ${{ steps.temp_dir.outputs.path }}:/data alpine sh -c 'find /data -mindepth 1 -delete'
-        rm -rf ${{ steps.temp_dir.outputs.path }}
+      run: rm -rf ${{ steps.temp_dir.outputs.path }}
