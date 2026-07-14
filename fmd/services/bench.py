@@ -79,11 +79,21 @@ class BenchService:
     ) -> None:
         self.printer.change_head(f"Running {script_type}")
 
-        script_dir = current.path.parent / "deployment_tmp"
-        script_dir.mkdir(parents=True, exist_ok=True)
-
-        script_name = f"temp_script_{int(time.time())}.sh"
-        script_path = script_dir / script_name
+        if container:
+            # Write temp script inside the release directory (which is mounted in Docker)
+            script_dir = bench_directory.path / ".fmd_tmp"
+            script_dir.mkdir(parents=True, exist_ok=True)
+            script_name = f"temp_script_{int(time.time())}.sh"
+            script_path = script_dir / script_name
+            container_script_path = f"/workspace/frappe-bench/.fmd_tmp/{script_name}"
+            workdir = custom_workdir or "/workspace/frappe-bench"
+        else:
+            script_dir = bench_directory.path / "deployment_tmp"
+            script_dir.mkdir(parents=True, exist_ok=True)
+            script_name = f"temp_script_{int(time.time())}.sh"
+            script_path = script_dir / script_name
+            container_script_path = str(script_path)
+            workdir = custom_workdir or str(script_dir)
 
         try:
             content = script_content or ""
@@ -98,13 +108,6 @@ class BenchService:
                 script_file.write(content)
 
             script_path.chmod(0o755)
-
-            if container:
-                container_script_path = f"/workspace/deployment_tmp/{script_name}"
-                workdir = custom_workdir or "/workspace/deployment_tmp"
-            else:
-                container_script_path = str(script_path)
-                workdir = custom_workdir or str(script_dir)
 
             script_env = self.get_script_env(bench_path, bench_directory, site_name, app_name)
 
