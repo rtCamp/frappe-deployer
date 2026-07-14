@@ -83,9 +83,13 @@ class DockerRunner(CommandRunner):
         return self._host_to_container(bench_directory.path)
 
     def workdir_for_sites(self, bench_directory) -> str:
+        if self.mode == "image":
+            return "/workspace/frappe-bench/sites"
         return self._host_to_container(bench_directory.sites)
 
     def app_exec_path(self, bench_directory, app_name: str) -> str:
+        if self.mode == "image":
+            return f"/workspace/frappe-bench/apps/{app_name}"
         return self._host_to_container(bench_directory.apps / app_name)
 
     def backup_path(self, host_backup_dir: Path, file_name: str) -> str:
