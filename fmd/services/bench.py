@@ -85,8 +85,14 @@ class BenchService:
             script_dir.mkdir(parents=True, exist_ok=True)
             script_name = f"temp_script_{int(time.time())}.sh"
             script_path = script_dir / script_name
-            container_script_path = f"/workspace/frappe-bench/.fmd_tmp/{script_name}"
-            workdir = custom_workdir or "/workspace/frappe-bench"
+            # Derive the container path from the same bench_directory the script was
+            # written to. During a deploy this is the release dir (mounted at
+            # /workspace/release_<ts>/), not /workspace/frappe-bench -- hard-coding the
+            # latter makes the container look in the wrong dir and fail with exit 127
+            # (bash: .../\.fmd_tmp/temp_script_*.sh: No such file or directory).
+            container_workdir = self.runner.workdir_for_bench(bench_directory)
+            container_script_path = f"{container_workdir}/.fmd_tmp/{script_name}"
+            workdir = custom_workdir or container_workdir
         else:
             script_dir = bench_directory.path / "deployment_tmp"
             script_dir.mkdir(parents=True, exist_ok=True)
