@@ -63,7 +63,7 @@ def enable(
         remote_worker["ssh_port"] = rw_port
     if remote_worker:
         overrides["remote_worker"] = remote_worker
-    config = load_config(config_path, overrides=overrides if overrides else None)
+    config = load_config(config_path, overrides=overrides if overrides else None, skip_repo_validation=True)
     printer = get_printer()
     printer.start("Working")
     manager = RemoteWorkerManager(config, printer)
@@ -115,7 +115,7 @@ def sync(
         remote_worker["ssh_port"] = rw_port
     if remote_worker:
         overrides["remote_worker"] = remote_worker
-    config = load_config(config_path, overrides=overrides if overrides else None)
+    config = load_config(config_path, overrides=overrides if overrides else None, skip_repo_validation=True)
     printer = get_printer()
     printer.start("Working")
     manager = RemoteWorkerManager(config, printer)

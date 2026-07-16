@@ -78,8 +78,9 @@ class RemoteWorkerManager:
         self.rw = rw
         self.ssh = SSHClient(rw.server_ip, rw.ssh_user, rw.ssh_port)
         self.current = BenchDirectory(config.bench_path)
-        self.data = BenchDirectory(config.workspace_root / DATA_DIR_NAME)
-        self._remote_base = Path(rw.fm_benches_path) / config.site_name / "workspace"
+        self.data = BenchDirectory(config.workspace_root / "workspace" / DATA_DIR_NAME)
+        self._site_base = Path(rw.fm_benches_path) / config.site_name
+        self._remote_base = self._site_base / "workspace"
 
     def _fm_bench(self):
         from frappe_manager.docker import ComposeFile
@@ -187,21 +188,26 @@ class RemoteWorkerManager:
 
     def _stop_all_compose_services(self) -> None:
         self.printer.change_head("Stop all remote-worker services")
-        self.ssh.run_list(
-            [
-                "docker",
-                "compose",
-                "-f",
-                "docker-compose.yml",
-                "-f",
-                "docker-compose.workers.yml",
-                "down",
-                "--timeout",
-                "10",
-            ],
-            workdir=str(self._remote_base),
-        )
-        self.printer.print("Stopped all remote-worker services")
+        try:
+            self.ssh.run_list(
+                [
+                    "docker",
+                    "compose",
+                    "-f",
+                    "docker-compose.yml",
+                    "-f",
+                    "docker-compose.workers.yml",
+                    "down",
+                    "--timeout",
+                    "10",
+                ],
+                workdir=str(self._site_base),
+            )
+            self.printer.print("Stopped all remote-worker services")
+        except RuntimeError:
+            self.printer.print("No remote-worker services to stop (first sync?)")
+        except RuntimeError:
+            self.printer.print("No remote-worker services to stop (first sync?)")
 
     def _rsync_workspace(self) -> None:
         site_name = self.config.site_name
@@ -213,6 +219,8 @@ class RemoteWorkerManager:
             "--exclude=**/__pycache__/***",
             "--exclude=**/.pytest_cache/***",
             "--exclude=**/.cache/***",
+            "--exclude=**/env.bak/***",
+            "--exclude=**/env.backup.*/***",
             "--exclude=*.pyc",
             "--exclude=*.pyo",
             "--exclude=*.pyd",
@@ -222,6 +230,9 @@ class RemoteWorkerManager:
             "--exclude=*.swo",
             "--exclude=*.sql",
         ]
+
+        for pattern in self.rw.exclude_patterns or []:
+            rsync_patterns.append(f"--exclude={pattern}")
 
         ssh_opt = f"ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p {self.rw.ssh_port}"
 
@@ -323,18 +334,18 @@ class RemoteWorkerManager:
 
     def _only_start_workers_compose_services(self) -> None:
         self.printer.change_head("Stopping all services other than workers")
-        self.ssh.run_list(["docker", "compose", "-f", "docker-compose.yml", "down"], workdir=str(self._remote_base))
+        self.ssh.run_list(["docker", "compose", "-f", "docker-compose.yml", "down"], workdir=str(self._site_base))
         self.ssh.run_list(
             ["docker", "compose", "-f", "docker-compose.yml", "up", "-d", "schedule"],
-            workdir=str(self._remote_base),
+            workdir=str(self._site_base),
         )
         self.printer.change_head("Starting remote-worker services")
         self.ssh.run_list(
             ["docker", "compose", "-f", "docker-compose.workers.yml", "up", "-d"],
-            workdir=str(self._remote_base),
+            workdir=str(self._site_base),
         )
         self.ssh.run_list(
             ["docker", "compose", "-f", "docker-compose.workers.yml", "restart"],
-            workdir=str(self._remote_base),
+            workdir=str(self._site_base),
         )
         self.printer.print("Started remote-worker services")
