@@ -78,7 +78,7 @@ class RemoteWorkerManager:
         self.rw = rw
         self.ssh = SSHClient(rw.server_ip, rw.ssh_user, rw.ssh_port)
         self.current = BenchDirectory(config.bench_path)
-        self.data = BenchDirectory(config.workspace_root / DATA_DIR_NAME)
+        self.data = BenchDirectory(config.workspace_root / "workspace" / DATA_DIR_NAME)
         self._site_base = Path(rw.fm_benches_path) / config.site_name
         self._remote_base = self._site_base / "workspace"
 
