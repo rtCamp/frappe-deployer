@@ -219,6 +219,8 @@ class RemoteWorkerManager:
             "--exclude=**/__pycache__/***",
             "--exclude=**/.pytest_cache/***",
             "--exclude=**/.cache/***",
+            "--exclude=**/env.bak/***",
+            "--exclude=**/env.backup.*/***",
             "--exclude=*.pyc",
             "--exclude=*.pyo",
             "--exclude=*.pyd",
