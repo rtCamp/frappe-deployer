@@ -187,21 +187,24 @@ class RemoteWorkerManager:
 
     def _stop_all_compose_services(self) -> None:
         self.printer.change_head("Stop all remote-worker services")
-        self.ssh.run_list(
-            [
-                "docker",
-                "compose",
-                "-f",
-                "docker-compose.yml",
-                "-f",
-                "docker-compose.workers.yml",
-                "down",
-                "--timeout",
-                "10",
-            ],
-            workdir=str(self._remote_base),
-        )
-        self.printer.print("Stopped all remote-worker services")
+        try:
+            self.ssh.run_list(
+                [
+                    "docker",
+                    "compose",
+                    "-f",
+                    "docker-compose.yml",
+                    "-f",
+                    "docker-compose.workers.yml",
+                    "down",
+                    "--timeout",
+                    "10",
+                ],
+                workdir=str(self._remote_base),
+            )
+            self.printer.print("Stopped all remote-worker services")
+        except RuntimeError:
+            self.printer.print("No remote-worker services to stop (first sync?)")
 
     def _rsync_workspace(self) -> None:
         site_name = self.config.site_name
