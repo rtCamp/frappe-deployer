@@ -231,6 +231,9 @@ class RemoteWorkerManager:
             "--exclude=*.sql",
         ]
 
+        for pattern in self.rw.exclude_patterns or []:
+            rsync_patterns.append(f"--exclude={pattern}")
+
         ssh_opt = f"ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p {self.rw.ssh_port}"
 
         rsync_dirs = [

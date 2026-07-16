@@ -11,6 +11,10 @@ class RemoteWorkerConfig(BaseModel):
     ssh_port: Optional[int] = Field(22, description="SSH port number")
     include_dirs: Optional[List[str]] = Field(default_factory=list, description="Additional directories to sync")
     include_files: Optional[List[str]] = Field(default_factory=list, description="Additional files to sync")
+    exclude_patterns: Optional[List[str]] = Field(
+        default_factory=list,
+        description="Additional rsync exclude patterns (e.g. '**/large_dir/', '*.tmp')",
+    )
 
     @property
     def fm_benches_path(self) -> str:
