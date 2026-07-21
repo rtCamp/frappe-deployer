@@ -228,6 +228,36 @@ host_after_restart = ""
 # Script on host after bench restart
 
 # ============================================================================
+# SHIP: Remote Deploy Configuration
+# ============================================================================
+# Settings for `fmd deploy ship` - build the release locally (or in CI, inside
+# Docker), rsync it to a remote server over SSH, then finalize the switch there.
+# Only required when using ship mode. See NOTES for the pull vs ship tradeoff.
+
+[ship]
+host = ""
+# Remote server hostname or IP address. Required for ship mode.
+
+ssh_user = "frappe"
+# SSH username for the remote server. Default: "frappe"
+
+ssh_port = 22
+# SSH port. Default: 22
+
+remote_path = ""
+# Absolute path on the remote server where the bench/workspace lives.
+# Empty = auto-detect as "$HOME/frappe/sites/<site_name>" (resolves remote $HOME
+# over SSH, falling back to "/home/<ssh_user>/frappe/sites/<site_name>").
+
+fmd_source = ""
+# FMD source used to run fmd on the remote via uvx (git URL or local path).
+# Empty = auto-detect (uses the running fmd checkout, else installs from PyPI).
+
+rsync_options = []
+# Extra flags passed to rsync when syncing the release to the remote.
+# Example: ["--bwlimit=10000", "--compress-level=9"]
+
+# ============================================================================
 # FRAPPE CLOUD: Sync from Frappe Cloud
 # ============================================================================
 
