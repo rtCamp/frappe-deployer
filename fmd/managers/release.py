@@ -448,7 +448,7 @@ class ReleaseManager:
                 self.bench_cli,
                 source_workspace_root,
                 using_bench_backup=False,
-                compress=True,
+                compress=False,
                 sql_delete_after_compress=False,
             )
 
