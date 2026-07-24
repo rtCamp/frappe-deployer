@@ -319,6 +319,13 @@ def pull(
         help="Merge FC app list into config apps.",
         rich_help_panel="Frappe Cloud",
     ),
+    restore_db_from_site: Optional[str] = typer.Option(
+        None,
+        "--restore-db-from-site",
+        help="Restore DB from another local FM bench/site at switch time.",
+        show_default=False,
+        rich_help_panel="FM",
+    ),
     rw_server: Optional[str] = typer.Option(
         None,
         "--rw-server",
@@ -409,6 +416,11 @@ def pull(
         if "switch" not in overrides:
             overrides["switch"] = {}
         overrides["switch"]["use_fc_db"] = fc_use_db
+
+    if restore_db_from_site is not None:
+        if "switch" not in overrides:
+            overrides["switch"] = {}
+        overrides["switch"]["restore_db_from_site"] = restore_db_from_site
 
     if rw_server:
         rw: dict = {"server_ip": rw_server}

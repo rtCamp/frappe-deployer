@@ -180,6 +180,14 @@ sync_workers = false
 use_fc_db = false
 # Download latest FC backup and restore at switch time. Default: false
 
+restore_db_from_site = ""
+# Name of another local FM bench/site to restore the database from at switch
+# time. Leave empty to disable. When set, fmd exports that site's database,
+# restores it into this site, copies its encryption_key into this site's
+# site_config.json (so encrypted fields stay decryptable), and — when
+# search_replace is true — rewrites the old site name to this one.
+# CLI: --restore-db-from-site <bench_name>. Default: "" (disabled)
+
 # Worker draining configuration:
 drain_workers = false
 # Gracefully drain workers before restart. Default: false
@@ -232,7 +240,12 @@ host_after_restart = ""
 # ============================================================================
 # Settings for `fmd deploy ship` - build the release locally (or in CI, inside
 # Docker), rsync it to a remote server over SSH, then finalize the switch there.
-# Only required when using ship mode. See NOTES for the pull vs ship tradeoff.
+# Only required when using ship mode.
+#
+# pull vs ship: in "pull" mode the remote server pulls/builds the release itself
+# (needs repo + registry access + a build toolchain on the remote). In "ship"
+# mode you build once locally/CI and rsync the finished release over SSH, so the
+# remote only needs SSH + rsync + uv. Prefer ship for locked-down prod hosts.
 
 [ship]
 host = ""
@@ -245,7 +258,10 @@ ssh_port = 22
 # SSH port. Default: 22
 
 remote_path = ""
-# Absolute path on the remote server where the bench/workspace lives.
+# Absolute path to the fmd site workspace root on the remote — the directory that
+# holds workspace/ (releases + the frappe-bench symlink; see NOTES #4) and
+# deployment-backup/. This is NOT the bench root itself; the bench lives at
+# "<remote_path>/workspace/frappe-bench".
 # Empty = auto-detect as "$HOME/frappe/sites/<site_name>" (resolves remote $HOME
 # over SSH, falling back to "/home/<ssh_user>/frappe/sites/<site_name>").
 
