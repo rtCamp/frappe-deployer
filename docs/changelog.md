@@ -8,15 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Comprehensive documentation site with MkDocs Material theme
-- Getting Started guides (requirements, installation, quick start)
-- Deployment mode guides (pull vs ship)
-- Configuration reference
-- Command reference
-- FAQ and troubleshooting
+- `fmd release shell` — interactive shell inside a release's build container.
+- `fmd release info` — inspect each app's git repo, branch, commit, and tag.
+- `[switch] restore_db_from_site` — restore the database from another local FM
+  site/bench at switch time, copying the source site's `encryption_key` into the target
+  so Fernet-encrypted secrets stay decryptable.
 
 ### Changed
-- Documentation restructured to match Frappe Manager layout
+- `fmd info` is now `fmd release info`.
+- The `[fm]` config section is merged into `[switch]` as `restore_db_from_site`.
+
+### Removed
+- `fmd maintenance` command — maintenance mode is now config-only via `[switch]`
+  (`maintenance_mode` + `maintenance_mode_phases`); bypass tokens are gone.
 
 ## [0.1.0] - 2026-04-XX
 
@@ -28,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ship mode: build locally, deploy to remote
 - Frappe Cloud integration (apps, deps, DB sync)
 - Worker draining before release switch
-- Maintenance mode with bypass tokens
+- Config-driven maintenance mode
 - Remote worker support
 - Monorepo app support with symlinks
 - Automatic rollback on failure
@@ -39,59 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TOML configuration with all options documented
 
 ### Dependencies
-- Python 3.10+
-- Docker + Docker Compose V2
+- Python >=3.13,<3.14
+- Docker + Docker Compose v2
 - Frappe Manager
-
----
-
-## Release Notes
-
-### Version 0.1.0
-
-First public release of fmd, bringing production-grade deployment capabilities to Frappe Manager benches.
-
-**Key Features:**
-
-- **Atomic Releases**: Every deployment creates a timestamped release, activated instantly via symlinks
-- **Zero Downtime**: Workers drain gracefully, maintenance mode only during migrations
-- **Two Deploy Modes**: Pull (on-server build) and ship (local build + rsync to remote)
-- **Frappe Cloud Sync**: Import apps, Python deps, and database backups from Frappe Cloud
-- **Smart Rollback**: Automatic rollback on migration failures, instant manual rollback to any previous release
-- **Flexible Hooks**: Customize every phase of build and deployment with shell scripts
-- **CI/CD Ready**: GitHub Actions integration with dedicated action
-
-**Breaking Changes:**
-
-None (initial release)
-
-**Migration Guide:**
-
-For new installations, follow the [Quick Start Guide](getting-started/quick-start.md).
-
----
-
-## Upcoming Features
-
-See [GitHub Issues](https://github.com/rtcamp/fmd/issues) and [Discussions](https://github.com/rtcamp/fmd/discussions) for planned features and community requests.
-
-**Potential roadmap:**
-
-- Blue-green deployment strategy
-- Canary deployments
-- Health checks before switch
-- Slack/Discord notifications
-- Pre-built Docker images for faster ship mode
-- Multi-site deployments
-- Integration with monitoring tools
-
----
-
-## Contributing
-
-Found a bug or have a feature request? Open an issue or discussion on [GitHub](https://github.com/rtcamp/fmd).
-
----
 
 [Unreleased]: https://github.com/rtcamp/fmd/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/rtcamp/fmd/releases/tag/v0.1.0

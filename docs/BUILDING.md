@@ -136,35 +136,34 @@ uv run mike delete v0.9 -F zensical.toml
 
 ```
 docs/
-├── index.md                    # Home page
-├── getting-started/            # Installation and quick start
+├── index.md              # Home page
+├── getting-started.md    # Requirements, install, quick start
+├── concepts.md           # Releases, symlink switch, layout, rollback
+├── configuration.md      # Config reference, hooks, restore, FC sync
+├── deploy-modes.md       # pull vs ship
+├── github-actions.md     # CI/CD
+├── commands/             # Command reference (index.md + auto-generated pages)
 │   ├── index.md
-│   ├── requirements.md
-│   ├── installation.md
-│   └── quick-start.md
-├── guides/                     # Feature guides
-│   ├── index.md
-│   ├── deploy-modes.md
-│   ├── configuration.md
-│   ├── github-actions.md
-│   └── ...
-├── commands/                   # Command reference
-│   ├── index.md
-│   ├── deploy.md
-│   ├── release.md
-│   └── ...
-├── reference/                  # Technical reference
-│   ├── index.md
-│   ├── concepts.md
-│   ├── architecture.md
-│   ├── directory-structure.md
-│   └── troubleshooting.md
+│   ├── deploy.md         # generated
+│   ├── release.md        # generated
+│   └── ...               # generated
+├── troubleshooting.md
 ├── faq.md
 ├── changelog.md
+├── design/               # Design notes (not in nav)
+├── BUILDING.md           # This file
 └── assets/
-    └── stylesheets/
-        └── extra.css
+    └── stylesheets/extra.css
 ```
+
+!!! note "Command pages are generated"
+    `commands/deploy.md`, `commands/release.md`, etc. are generated from the live CLI
+    by `scripts/update_cli_docs.py` (run automatically in the docs CI workflow). Only
+    `commands/index.md` is hand-written. Regenerate locally with:
+
+    ```bash
+    uv run python scripts/update_cli_docs.py
+    ```
 
 ## Writing Documentation
 
