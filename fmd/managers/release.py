@@ -1,4 +1,5 @@
 import json
+import posixpath
 import shutil
 import tempfile
 from pathlib import Path
@@ -178,7 +179,11 @@ class ReleaseManager:
         shutil.copy2(search_replace_script, bench_script_path)
 
         try:
-            python_path = "../env/bin/python"
+            sites_workdir = self.exec_runner.workdir_for_sites(self.current)
+            # Invoke the release venv via a normalized path (no "sites/.." segment) so
+            # Python's site.py doesn't emit a sys.prefix RuntimeWarning when computing
+            # the venv prefix from the interpreter path.
+            python_path = posixpath.normpath(f"{sites_workdir}/../env/bin/python")
             cmd = [python_path, "search_replace.py", self.site_name, search, replace]
             if dry_run:
                 cmd.append("--dry-run")
@@ -189,7 +194,7 @@ class ReleaseManager:
                 cmd,
                 self.current,
                 capture_output=True,
-                workdir=self.exec_runner.workdir_for_sites(self.current),
+                workdir=sites_workdir,
             )
             if getattr(result, "combined", None):
                 for line in result.combined:
