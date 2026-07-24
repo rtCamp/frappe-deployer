@@ -140,17 +140,19 @@ class BackupService:
         self.printer.print(f"Restored {site_name} with db from {db_file_path}")
 
     def _get_mariadb_client(self, site_name: str, workspace_root: Path) -> Any:
-        from frappe_manager.compose_manager.ComposeFile import ComposeFile
-        from frappe_manager.site_manager.site_compose import ComposeProject
-        from frappe_manager.migration_manager.migration_helpers import MigrationServicesManager
-        from frappe_manager.site_manager.workers_manager.SiteWorker import DatabaseServerServiceInfo
-        from frappe_manager.migration_manager.version_migrations.mariadb_manager import MariaDBManager
+        from frappe_manager.services_manager.database_service_manager import (
+            DatabaseServerServiceInfo,
+            MariaDBManager,
+        )
 
-        compose_file = ComposeFile(workspace_root / "docker-compose.yml")
-        compose_project = ComposeProject(compose_file)
-        services_manager = MigrationServicesManager(compose_project)
-        db_info = DatabaseServerServiceInfo.from_compose(services_manager)
-        return MariaDBManager(db_info)
+        bench = _create_migration_bench(name=site_name, path=workspace_root)
+        db_info = DatabaseServerServiceInfo.import_from_bench(bench.name, bench.path)
+        return MariaDBManager(
+            db_info,
+            bench.compose_file_manager,
+            bench.docker,
+            run_on_compose_service="frappe",
+        )
 
     def sync_db_encryption_key_from_site(
         self, current: BenchDirectory, from_bench_name: str, from_site_name: str, site_name: str, benches_dir: Path
