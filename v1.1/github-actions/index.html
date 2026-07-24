@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://rtcamp.github.io/fmd/v1.1/commands/">
+        <link rel="canonical" href="https://rtcamp.github.io/fmd/v1.1/github-actions/">
       
       
-        <link rel="prev" href="../github-actions/">
+        <link rel="prev" href="../deploy-modes/">
       
       
-        <link rel="next" href="./deploy/">
+        <link rel="next" href="../commands/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Commands - Frappe Manager Deployer</title>
+        <title>GitHub Actions - Frappe Manager Deployer</title>
       
     
     
@@ -85,7 +85,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#commands" class="md-skip">
+        <a href="#github-actions" class="md-skip">
           Skip to content
         </a>
       
@@ -124,7 +124,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Commands
+              GitHub Actions
             
           </span>
         </div>
@@ -280,9 +280,11 @@
   
   
   
+    
   
-    <li class="md-tabs__item">
-      <a href="../github-actions/" class="md-tabs__link">
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="././" class="md-tabs__link">
         
   
   GitHub Actions
@@ -295,8 +297,6 @@
         
   
   
-  
-    
   
   
     
@@ -320,8 +320,8 @@
     
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="././" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../commands/" class="md-tabs__link">
           
   
   Commands
@@ -564,10 +564,36 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../github-actions/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  GitHub Actions
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -582,6 +608,88 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#secrets-and-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Secrets and variables
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Secrets and variables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#generate-a-deploy-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Generate a deploy key
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pull-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pull workflow
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ship-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Ship workflow
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Inputs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -590,8 +698,6 @@
       
   
   
-    
-  
   
   
     
@@ -615,23 +721,20 @@
     
     
       
-        
-        
-      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="././" class="md-nav__link md-nav__link--active">
+            <a href="../commands/" class="md-nav__link ">
               
   
   
@@ -648,13 +751,13 @@
             </a>
             
               
-              <label class="md-nav__link md-nav__link--active" for="__nav_7" id="__nav_7_label" tabindex="">
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -673,7 +776,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./deploy/" class="md-nav__link">
+      <a href="../commands/deploy/" class="md-nav__link">
         
   
   
@@ -700,7 +803,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./release/" class="md-nav__link">
+      <a href="../commands/release/" class="md-nav__link">
         
   
   
@@ -727,7 +830,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./remote-worker/" class="md-nav__link">
+      <a href="../commands/remote-worker/" class="md-nav__link">
         
   
   
@@ -754,7 +857,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./search-replace/" class="md-nav__link">
+      <a href="../commands/search-replace/" class="md-nav__link">
         
   
   
@@ -781,7 +884,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./cleanup/" class="md-nav__link">
+      <a href="../commands/cleanup/" class="md-nav__link">
         
   
   
@@ -927,10 +1030,60 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#command-tree" class="md-nav__link">
+  <a href="#secrets-and-variables" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Command tree
+        Secrets and variables
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Secrets and variables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#generate-a-deploy-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Generate a deploy key
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pull-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pull workflow
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ship-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Ship workflow
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Inputs
       </span>
     </span>
   </a>
@@ -955,73 +1108,12 @@
   
 
 
-  <nav class="md-path" aria-label="Navigation" >
-    <ol class="md-path__list">
-      
-        
-  
-  
-    <li class="md-path__item">
-      <a href="./.." class="md-path__link">
-        
-  
-  <span class="md-ellipsis">
-    Home
-  </span>
-
-      </a>
-    </li>
-  
-
-      
-      
-        
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-    
-      <li class="md-path__item">
-        <a href="././" class="md-path__link">
-          
-  
-  <span class="md-ellipsis">
-    Commands
-  </span>
-
-        </a>
-      </li>
-    
-  
-
-      
-    </ol>
-  </nav>
-
               
               <article class="md-content__inner md-typeset">
                 
                   
   
-    <a href="https://github.com/rtcamp/fmd/edit/main/docs/commands/index.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/rtcamp/fmd/edit/main/docs/github-actions.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497zM15 5l4 4"/></svg>
     </a>
@@ -1029,84 +1121,123 @@
   
 
 
-<h1 id="commands">Commands<a class="headerlink" href="#commands" title="Permanent link">&para;</a></h1>
-<p>Overview of the <code>fmd</code> CLI. Per-command detail pages are auto-generated from the CLI by
-<code>scripts/update_cli_docs.py</code>; for authoritative, up-to-date options run
-<code>fmd &lt;command&gt; --help</code>.</p>
-<div class="admonition info">
-<p class="admonition-title">Global options</p>
+<h1 id="github-actions">GitHub Actions<a class="headerlink" href="#github-actions" title="Permanent link">&para;</a></h1>
+<p>Deploy from CI with the composite action <strong><code>rtcamp/frappe-deployer@main</code></strong>. Pick a
+strategy via <code>command</code>:</p>
 <ul>
-<li><code>fmd -v &lt;command&gt;</code> — verbose logging (the <code>-v/--verbose</code> flag must precede the subcommand)</li>
-<li><code>-V, --version</code> — print the version</li>
-<li><code>-c, --config &lt;path&gt;</code> — load a TOML config file (accepted by every command)</li>
+<li><code>command: pull</code> — SSH into the remote server and run <code>fmd deploy pull</code> there (server
+  builds and switches).</li>
+<li><code>command: ship</code> — build the release in the runner (Docker), rsync it to the remote,
+  then configure + switch remotely. Needs Docker Buildx and a <code>[ship]</code> config section.</li>
 </ul>
-<p>Commands take either a positional <code>&lt;site&gt;</code>/bench name or <code>--config site.toml</code>.</p>
-</div>
-<hr />
-<h2 id="command-tree">Command tree<a class="headerlink" href="#command-tree" title="Permanent link">&para;</a></h2>
-<div class="grid cards">
-<ul>
-<li>
-<p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-rocket" viewBox="0 0 24 24"><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09"/><path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05"/></svg></span> <strong>Deploy</strong></p>
-<hr />
-<p>End-to-end deployment workflows.</p>
-<ul>
-<li><code>deploy pull</code> — configure (if needed) → create → switch on the target server</li>
-<li><code>deploy ship</code> — build locally/CI → rsync → configure + switch on the remote</li>
-</ul>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>fmd<span class="w"> </span>deploy<span class="w"> </span>pull<span class="w"> </span>--config<span class="w"> </span>site.toml
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>fmd<span class="w"> </span>deploy<span class="w"> </span>ship<span class="w"> </span>--config<span class="w"> </span>site.toml
+<p>See <a href="../deploy-modes/">Deploy modes</a> for the trade-offs and <a href="../configuration/">Configuration</a>
+for the TOML.</p>
+<h2 id="secrets-and-variables">Secrets and variables<a class="headerlink" href="#secrets-and-variables" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Kind</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GH_TOKEN</code></td>
+<td>secret</td>
+<td>GitHub token for private app repos</td>
+</tr>
+<tr>
+<td><code>SSH_PRIVATE_KEY</code></td>
+<td>secret</td>
+<td>Private deploy key for the remote server</td>
+</tr>
+<tr>
+<td><code>SSH_SERVER</code></td>
+<td>secret</td>
+<td>Remote hostname or IP (or use <code>[ship].host</code>)</td>
+</tr>
+<tr>
+<td><code>SSH_USER</code></td>
+<td>secret</td>
+<td>SSH user, e.g. <code>frappe</code> (or use <code>[ship].ssh_user</code>)</td>
+</tr>
+<tr>
+<td><code>SITE_NAME</code></td>
+<td>variable</td>
+<td>Frappe site name (pull; ship reads <code>site_name</code> from TOML)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="generate-a-deploy-key">Generate a deploy key<a class="headerlink" href="#generate-a-deploy-key" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>ssh-keygen<span class="w"> </span>-t<span class="w"> </span>ed25519<span class="w"> </span>-C<span class="w"> </span><span class="s2">&quot;fmd-deploy&quot;</span><span class="w"> </span>-f<span class="w"> </span>fmd_deploy<span class="w"> </span>-N<span class="w"> </span><span class="s2">&quot;&quot;</span>
 </span></code></pre></div>
-</li>
-<li>
-<p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-git-branch" viewBox="0 0 24 24"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></svg></span> <strong>Release</strong></p>
-<hr />
-<p>Manual control over the release lifecycle.</p>
-<ul>
-<li><code>release configure</code> — convert an FM bench to the fmd release layout (one-time)</li>
-<li><code>release create</code> — build a release without changing the live site</li>
-<li><code>release switch</code> — atomically activate a release</li>
-<li><code>release list</code> — list releases</li>
-<li><code>release shell</code> — interactive shell inside a release's build container</li>
-<li><code>release info</code> — inspect each app's git repo/branch/commit/tag</li>
-</ul>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>fmd<span class="w"> </span>release<span class="w"> </span>create<span class="w"> </span>mysite.localhost
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>fmd<span class="w"> </span>release<span class="w"> </span>switch<span class="w"> </span>mysite.localhost<span class="w"> </span>release_YYYYMMDD_HHMMSS
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>fmd<span class="w"> </span>release<span class="w"> </span>info<span class="w"> </span>mysite.localhost
+<p>Add the public key (<code>fmd_deploy.pub</code>) to the server's <code>~/.ssh/authorized_keys</code> for
+<code>SSH_USER</code>, and store the private key (<code>fmd_deploy</code>) as the <code>SSH_PRIVATE_KEY</code> secret.</p>
+<h2 id="pull-workflow">Pull workflow<a class="headerlink" href="#pull-workflow" title="Permanent link">&para;</a></h2>
+<p><code>.github/workflows/deploy-pull.yml</code>:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deploy (pull)</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nt">on</span><span class="p">:</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">push</span><span class="p">:</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nt">branches</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">main</span><span class="p p-Indicator">]</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">workflow_dispatch</span><span class="p">:</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="nt">jobs</span><span class="p">:</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nt">deploy</span><span class="p">:</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtcamp/frappe-deployer@main</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">        </span><span class="nt">with</span><span class="p">:</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pull</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">          </span><span class="nt">sitename</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ vars.SITE_NAME }}</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">          </span><span class="nt">config_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.github/configs/site.toml</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">          </span><span class="nt">gh_token</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.GH_TOKEN }}</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">          </span><span class="nt">ssh_private_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.SSH_PRIVATE_KEY }}</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">          </span><span class="nt">ssh_server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.SSH_SERVER }}</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">          </span><span class="nt">ssh_user</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.SSH_USER }}</span>
 </span></code></pre></div>
-</li>
-<li>
-<p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3.128a4 4 0 0 1 0 7.744M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></span> <strong>Remote worker</strong></p>
-<hr />
-<p>Run workers on separate servers.</p>
-<ul>
-<li><code>remote-worker enable</code> — open Redis/MariaDB ports for remote workers</li>
-<li><code>remote-worker sync</code> — sync the active release to a remote worker</li>
-</ul>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>fmd<span class="w"> </span>remote-worker<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>mysite.localhost<span class="w"> </span>--rw-server<span class="w"> </span><span class="m">192</span>.168.1.100
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>fmd<span class="w"> </span>remote-worker<span class="w"> </span>sync<span class="w"> </span>mysite.localhost<span class="w"> </span>--rw-server<span class="w"> </span><span class="m">192</span>.168.1.100
+<h2 id="ship-workflow">Ship workflow<a class="headerlink" href="#ship-workflow" title="Permanent link">&para;</a></h2>
+<p>Ship builds in the runner, so add Docker Buildx. The site name comes from the TOML, which
+must include a <code>[ship]</code> section pointing at the remote:</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">site_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;mysite.example.com&quot;</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">[ship]</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">host</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;192.168.1.100&quot;</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">ssh_user</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;frappe&quot;</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">ssh_port</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">22</span>
 </span></code></pre></div>
-</li>
-<li>
-<p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-replace" viewBox="0 0 24 24"><path d="M14 4a1 1 0 0 1 1-1M15 10a1 1 0 0 1-1-1M21 4a1 1 0 0 0-1-1M21 9a1 1 0 0 1-1 1M3 7l3 3 3-3"/><path d="M6 10V5a2 2 0 0 1 2-2h2"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></span> <strong>Search / replace</strong></p>
-<hr />
-<p>DB-wide string replace, e.g. rewrite a site URL.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>fmd<span class="w"> </span>search-replace<span class="w"> </span>mysite.localhost<span class="w"> </span>old.com<span class="w"> </span>new.com<span class="w"> </span>--dry-run
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>fmd<span class="w"> </span>search-replace<span class="w"> </span>mysite.localhost<span class="w"> </span>old.com<span class="w"> </span>new.com
+<p><code>.github/workflows/deploy-ship.yml</code>:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deploy (ship)</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nt">on</span><span class="p">:</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">push</span><span class="p">:</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="nt">branches</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">main</span><span class="p p-Indicator">]</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">workflow_dispatch</span><span class="p">:</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="nt">jobs</span><span class="p">:</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">deploy</span><span class="p">:</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker/setup-buildx-action@v3</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtcamp/frappe-deployer@main</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">        </span><span class="nt">with</span><span class="p">:</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ship</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">          </span><span class="nt">config_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.github/configs/site.toml</span>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">          </span><span class="nt">gh_token</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.GH_TOKEN }}</span>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="w">          </span><span class="nt">ssh_private_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.SSH_PRIVATE_KEY }}</span>
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="w">          </span><span class="nt">ssh_server</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.SSH_SERVER }}</span>
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="w">          </span><span class="nt">ssh_user</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.SSH_USER }}</span>
 </span></code></pre></div>
-</li>
-<li>
-<p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-trash-2" viewBox="0 0 24 24"><path d="M10 11v6M14 11v6M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span> <strong>Cleanup</strong></p>
-<hr />
-<p>Remove old releases and backups to free disk space.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>fmd<span class="w"> </span>cleanup<span class="w"> </span>mysite.localhost<span class="w"> </span>-r<span class="w"> </span><span class="m">3</span><span class="w"> </span>-b<span class="w"> </span><span class="m">5</span><span class="w"> </span>-y<span class="w"> </span>--show-sizes
-</span></code></pre></div>
-</li>
-</ul>
-</div>
-<hr />
-<p>See <a href="../concepts/">Concepts</a> for the release model and <a href="../configuration/">Configuration</a>
-for the TOML options each command reads.</p>
+<h2 id="inputs">Inputs<a class="headerlink" href="#inputs" title="Permanent link">&para;</a></h2>
+<p>Common inputs: <code>command</code>, <code>config_path</code> (or inline <code>config_content</code>, plus
+<code>config_overrides</code> for per-environment merges), <code>sitename</code> (pull), <code>gh_token</code>,
+<code>ssh_private_key</code>, <code>ssh_server</code>, <code>ssh_user</code>, <code>ssh_port</code>. Switch overrides: <code>migrate</code>,
+<code>migrate_timeout</code>, <code>maintenance_mode</code>, <code>maintenance_mode_phases</code>, <code>backups</code>, <code>rollback</code>.
+Ship-only: <code>existing_release</code>, <code>skip_rsync</code>.</p>
+<p>For the full, authoritative input reference and defaults, see <strong><code>action.yml</code></strong> at the repo
+root.</p>
 
 
 
@@ -1146,7 +1277,7 @@ for the TOML options each command reads.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../github-actions/" class="md-footer__link md-footer__link--prev" aria-label="Previous: GitHub Actions">
+          <a href="../deploy-modes/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Deploy Modes">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
@@ -1156,20 +1287,20 @@ for the TOML options each command reads.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                GitHub Actions
+                Deploy Modes
               </div>
             </div>
           </a>
         
         
           
-          <a href="./deploy/" class="md-footer__link md-footer__link--next" aria-label="Next: fmd deploy">
+          <a href="../commands/" class="md-footer__link md-footer__link--next" aria-label="Next: Commands">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                fmd deploy
+                Commands
               </div>
             </div>
             <div class="md-footer__button md-icon">

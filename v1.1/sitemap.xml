@@ -7,43 +7,16 @@
         <loc>https://rtcamp.github.io/fmd/v1.1/getting-started/</loc>
       </url>
       <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/getting-started/requirements/</loc>
+        <loc>https://rtcamp.github.io/fmd/v1.1/concepts/</loc>
       </url>
       <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/getting-started/installation/</loc>
+        <loc>https://rtcamp.github.io/fmd/v1.1/configuration/</loc>
       </url>
       <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/getting-started/quick-start/</loc>
+        <loc>https://rtcamp.github.io/fmd/v1.1/deploy-modes/</loc>
       </url>
       <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/guides/</loc>
-      </url>
-      <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/guides/deploy-modes/</loc>
-      </url>
-      <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/guides/configuration/</loc>
-      </url>
-      <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/guides/github-actions/</loc>
-      </url>
-      <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/guides/hooks/</loc>
-      </url>
-      <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/guides/frappe-cloud/</loc>
-      </url>
-      <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/guides/maintenance-mode/</loc>
-      </url>
-      <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/guides/remote-workers/</loc>
-      </url>
-      <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/guides/monorepo-apps/</loc>
-      </url>
-      <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/guides/rollback/</loc>
+        <loc>https://rtcamp.github.io/fmd/v1.1/github-actions/</loc>
       </url>
       <url>
         <loc>https://rtcamp.github.io/fmd/v1.1/commands/</loc>
@@ -55,28 +28,16 @@
         <loc>https://rtcamp.github.io/fmd/v1.1/commands/release/</loc>
       </url>
       <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/commands/cleanup/</loc>
+        <loc>https://rtcamp.github.io/fmd/v1.1/commands/remote-worker/</loc>
       </url>
       <url>
         <loc>https://rtcamp.github.io/fmd/v1.1/commands/search-replace/</loc>
       </url>
       <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/commands/remote-worker/</loc>
+        <loc>https://rtcamp.github.io/fmd/v1.1/commands/cleanup/</loc>
       </url>
       <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/reference/</loc>
-      </url>
-      <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/reference/concepts/</loc>
-      </url>
-      <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/reference/architecture/</loc>
-      </url>
-      <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/reference/troubleshooting/</loc>
-      </url>
-      <url>
-        <loc>https://rtcamp.github.io/fmd/v1.1/reference/directory-structure/</loc>
+        <loc>https://rtcamp.github.io/fmd/v1.1/troubleshooting/</loc>
       </url>
       <url>
         <loc>https://rtcamp.github.io/fmd/v1.1/faq/</loc>
