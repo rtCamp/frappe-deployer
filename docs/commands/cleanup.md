@@ -26,4 +26,3 @@ Deletes all but the 3 most recent releases in the bench workspace.
 ```bash
 fmd cleanup mysite --release-retain-limit 3
 ```
-

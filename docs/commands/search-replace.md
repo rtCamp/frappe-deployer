@@ -26,4 +26,3 @@ Replaces all occurrences of the search text across all text fields in the Frappe
 ```bash
 fmd search-replace {bench_name} {search} {replace}
 ```
-

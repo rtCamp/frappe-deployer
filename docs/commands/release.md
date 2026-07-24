@@ -216,4 +216,3 @@ Inspects each app's git repository in the bench and prints commit, branch, and t
 ```bash
 fmd release info mysite
 ```
-

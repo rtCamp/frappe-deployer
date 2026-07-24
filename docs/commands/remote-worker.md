@@ -76,4 +76,3 @@ Syncs the workspace for the specified bench to the remote worker server.
 ```bash
 fmd remote-worker sync {bench_name} --rw-server {rw_server}
 ```
-

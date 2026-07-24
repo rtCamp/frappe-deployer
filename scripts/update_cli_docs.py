@@ -366,7 +366,7 @@ def generate_all_docs(output_dir: Path, update_readme: bool = False) -> dict:
         md_content = generate_command_markdown(cmd_info, examples_data, level=2)
 
         output_file = commands_dir / f"{cmd_name}.md"
-        output_file.write_text(md_content)
+        output_file.write_text(md_content.rstrip() + "\n")
         generated_files.append(output_file)
         console.print(f"[green]✓[/green] Generated {output_file.relative_to(output_dir)}")
 
@@ -375,7 +375,7 @@ def generate_all_docs(output_dir: Path, update_readme: bool = False) -> dict:
         md_content = generate_group_markdown(group_info, examples_data, level=2)
 
         output_file = commands_dir / f"{group_name}.md"
-        output_file.write_text(md_content)
+        output_file.write_text(md_content.rstrip() + "\n")
         generated_files.append(output_file)
         console.print(f"[green]✓[/green] Generated {output_file.relative_to(output_dir)}")
 

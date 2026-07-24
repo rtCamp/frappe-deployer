@@ -92,4 +92,3 @@ Creates a release locally, rsyncs it to the remote server, and switches the live
 ```bash
 fmd deploy ship --config {config_path}
 ```
-
