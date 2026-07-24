@@ -89,13 +89,16 @@ class BackupService:
         bench_db_name = backup_bench_db_info.get("name")
         mariadb_client = self._get_mariadb_client(site_name, workspace_root)
 
-        host_backup_db_path = host_backup_db_path.parent / host_backup_db_path.name.rstrip(".gz")
+        # db_export runs mysqldump inside `site_name`'s frappe container, where the
+        # bench workspace is mounted at /workspace. Write the dump under that mount so
+        # the --result-file path exists in the container and is readable on the host.
+        # (backup.path points at the target bench and is NOT mounted in this container,
+        # which is why restoring from another site failed with "No such file or directory".)
+        sql_file_name = file_name[: -len(".gz")] if file_name.endswith(".gz") else file_name
+        container_db_path = f"/workspace/{sql_file_name}"
+        host_backup_db_path = workspace_root / "workspace" / sql_file_name
 
-        backup.path.mkdir(exist_ok=True, parents=True)
-
-        backup_db_path = backup_db_path.rstrip(".gz")
-
-        mariadb_client.db_export(bench_db_name, export_file_path=backup_db_path)
+        mariadb_client.db_export(bench_db_name, export_file_path=container_db_path)
 
         self.printer.print(f"Exported {site_name} db")
 
