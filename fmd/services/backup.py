@@ -9,7 +9,7 @@ from fmd.helpers import get_json, update_json_keys_in_file_path
 
 _mm = None
 try:
-    _mm = importlib.import_module("frappe_manager.migration_manager")
+    _mm = importlib.import_module("frappe_manager.migration_manager.migration_helpers")
 except Exception:
     _mm = None
 

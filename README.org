@@ -1,400 +1,210 @@
 #+title: fmd — Frappe Manager Deployer
 
-Zero-downtime Frappe deployments with atomic releases and rollback capability.
+Zero-downtime Frappe deployments on top of [[https://github.com/rtcamp/frappe-manager][Frappe Manager]]: atomic releases, instant symlink switch, and rollback.
 
-* Features
+* How it works
 
-- *Atomic Releases*: Timestamped releases with instant symlink-based switching
-- *Zero Downtime*: Workers drain gracefully, maintenance mode during migrations only
-- *Rollback*: Keep N previous releases, instant rollback on failure
-- *2 Deploy Modes*: pull (on-server), ship (remote) — dev to production
-- *Frappe Cloud Sync*: Import apps, deps, and DB backups from FC
-- *Monorepo Support*: Symlink subdirectory apps for efficient workspace management
+Every deploy builds a new *immutable, timestamped release* directory. The live bench is a *symlink* that fmd repoints atomically, so a switch is instant and a rollback is just repointing back. Persistent state (database, site files, configs, logs) lives once in ~deployment-data/~ and is symlinked into every release — releases share data, only code/assets change.
+
+#+begin_src
+configure ──▶ create ──▶ switch
+(one-time)   (build a    (repoint symlink,
+             release,     migrate, restart —
+             no change)   atomic)
+#+end_src
+
+* Requirements
+
+- Python ~>=3.13,<3.14~
+- Docker + Docker Compose v2
+- Frappe Manager, with an existing bench for the site
 
 * Install
 
 #+begin_src bash
-pip install frappe-deployer  # When available on PyPI
-
-# Or from source
-git clone <repo-url>
-cd fmd
-pip install -e .
+uv tool install frappe-deployer      # recommended
+# or
+pipx install frappe-deployer
+# from source
+git clone https://github.com/rtcamp/fmd.git && cd fmd && pip install -e .
 #+end_src
 
-*Requirements*: Python >=3.13,<3.14, Docker + Frappe Manager
-
-* Development Setup
-
-** Pre-commit Hooks
-
-This project uses [[https://pre-commit.com/][pre-commit]] for automated code quality checks before commits.
-
-*Install hooks* (one-time setup):
+* Quick start
 
 #+begin_src bash
-# Install pre-commit (if using uv)
-uv pip install pre-commit
-uv run pre-commit install
-
-# Or with pip
-pip install pre-commit
-pre-commit install
-#+end_src
-
-*What gets checked automatically*:
-
-- *Secret scanning*: Gitleaks detects hardcoded credentials, tokens, API keys
-- *Code quality*: Ruff linting and formatting
-- *Safety checks*: Private key detection, large file blocking, merge conflict markers
-- *File validation*: YAML/TOML syntax checking, trailing whitespace, end-of-file fixes
-
-*Manual check* (runs on all files):
-
-#+begin_src bash
-uv run pre-commit run --all-files
-
-# Or with pip
-pre-commit run --all-files
-#+end_src
-
-*CI enforcement*: All checks also run in GitHub Actions on pull requests.
-
-*Bypass hooks* (emergencies only, CI will still block):
-
-#+begin_src bash
-git commit --no-verify  # ⚠️ Avoid this - CI will fail anyway
-#+end_src
-
-See [[file:.pre-commit-config.yaml][.pre-commit-config.yaml]] for hook configuration.
-
-* Quick Start
-
-#+begin_src bash
-# 1. Configure workspace (one-time setup)
+# 1. One-time: convert an FM bench to the fmd release layout
 fmd release configure site.localhost
 
-# 2. Deploy Frappe + ERPNext
+# 2. Deploy Frappe + ERPNext (configure → create → switch)
 fmd deploy pull site.localhost \
   --app frappe/frappe:version-15 \
   --app frappe/erpnext:version-15 \
   --maintenance-mode --backups
 
-# 3. Verify deployment
+# 3. Verify
 fmd release list site.localhost
-fmd info site.localhost
+fmd release info site.localhost
 #+end_src
 
-* Key Commands
+App format: ~org/repo:ref~ or ~org/repo:ref:subdir/path~ (monorepo).
+
+* Commands
 
 #+begin_src bash
-# Deploy: Full automated deployment (configure → create → switch)
-fmd deploy pull <site>            # Minimal, uses config file
-fmd deploy pull <site> --app frappe/frappe:version-15 --maintenance-mode
+# Deploy — full automated flow (configure if needed → create → switch)
+fmd deploy pull  <site>|--config site.toml [--app ...]   # build + switch on this server
+fmd deploy ship  --config site.toml                      # build local/CI → rsync → switch on remote
 
-# Release: Manual control for CI/CD
-fmd release configure <site>      # One-time workspace setup
-fmd release create <site>         # Build new release (safe, no live changes)
-fmd release switch <site> <rel>   # Atomically activate release
-fmd release list <site>           # Show all releases
+# Release — manual lifecycle control (CI/CD)
+fmd release configure <site>            # one-time workspace setup
+fmd release create    <site>            # build a release; no live change (--mode exec|image, --build-dir)
+fmd release switch    <site> <release>  # atomically activate a release
+fmd release list      <site>            # list releases
+fmd release shell     --config s.toml   # interactive shell in a release's build container
+fmd release info      <site>            # per-app git repo/branch/commit/tag
 
-# Maintenance
-fmd cleanup <site> -r 3 -b 5 -y   # Keep 3 releases, 5 backups
-fmd search-replace <site> "old.com" "new.com" --dry-run
-
-# Remote deploy (build locally, deploy to remote server)
-fmd deploy ship --config site.toml
+# Utilities
+fmd remote-worker enable <site> --rw-server 192.168.1.100   # open Redis/MariaDB ports
+fmd remote-worker sync   <site> --rw-server 192.168.1.100   # sync active release to worker
+fmd search-replace <site> "old.com" "new.com" --dry-run     # DB-wide string replace
+fmd cleanup <site> -r 3 -b 5 -y                             # keep 3 releases, 5 backups
 #+end_src
 
-*App format*: ~org/repo:ref~ or ~org/repo:ref:subdir/path~ (for monorepos)
+Global ~-v/--verbose~ must precede the subcommand. Every command accepts ~-c/--config~. Run ~fmd <command> --help~ for full options.
 
 * Configuration
 
-Create ~site.toml~:
+A ~site.toml~ drives everything; CLI flags override it, which override defaults.
 
 #+begin_src toml
 site_name = "site.localhost"
-bench_name = "site"  # Optional, defaults to site_name
-github_token = "ghp_xxx"  # For private repos
+bench_name = "site"          # optional, defaults to site_name
+github_token = "ghp_xxx"     # for private repos
 
 [[apps]]
 repo = "frappe/frappe"
-ref = "version-15"
+ref  = "version-15"
 
 [[apps]]
 repo = "frappe/erpnext"
-ref = "version-15"
+ref  = "version-15"
 
 [release]
 releases_retain_limit = 7
-symlink_subdir_apps = false  # Auto-symlink monorepo apps
-python_version = "3.11"      # Pin Python version
-use_fc_apps = false          # Import app list from Frappe Cloud
-use_fc_deps = false          # Import Python version from FC
+python_version = "3.13"
+use_fc_apps = false          # import app list from Frappe Cloud
+use_fc_deps = false          # import Python version from Frappe Cloud
 
 [switch]
 migrate = true
-migrate_timeout = 300
 maintenance_mode = true
-maintenance_mode_phases = ["migrate"]  # Valid: "drain", "migrate"
+maintenance_mode_phases = ["migrate"]   # valid: "drain", "migrate"
 backups = true
 rollback = false
 search_replace = true
+use_fc_db = false            # restore latest Frappe Cloud DB backup at switch
+restore_db_from_site = ""    # restore DB from another local FM bench/site
 
-# Worker draining
-drain_workers = false
-drain_workers_timeout = 300
-skip_stale_workers = true
-skip_stale_timeout = 15
-worker_kill_timeout = 15
-
-# Frappe Cloud integration
 [fc]
 api_key = "fc_xxx"
 api_secret = "fc_xxx"
 site_name = "mysite.frappe.cloud"
 team_name = "my-team"
 
-# Remote worker
 [remote_worker]
 server_ip = "192.168.1.100"
-ssh_user = "frappe"
-ssh_port = 22
+ssh_user  = "frappe"
+ssh_port  = 22
 #+end_src
 
-See [[file:example-config.toml][example-config.toml]] for complete schema with all hooks and options.
+See [[file:example-config.toml][example-config.toml]] for the complete annotated schema (all sections, hooks, and defaults).
 
-* Deploy Modes
+** Restoring a database from another site
 
-| Mode    | Use Case              | Build Location | Deploy Target                   |
-|---------+-----------------------+----------------+---------------------------------|
-| pull    | Standard deploy       | On-server      | Same server                     |
-| ship    | Remote deploy         | Local machine  | Remote server via SSH/rsync     |
+~[switch] use_fc_db~ (Frappe Cloud) and ~[switch] restore_db_from_site~ (another local FM bench) seed the site's DB at switch time. fmd copies the *source site's* ~encryption_key~ into the target ~site_config.json~ before ~bench migrate~, so Fernet-encrypted secrets (API keys, SMTP/OAuth passwords) stay decryptable — this is Frappe's documented approach; there is no key-rotation command. When ~search_replace~ is on, the old site name is rewritten to the new one.
 
-* GitHub Action
+* Deploy modes
 
-Deploy automatically on push using the ~rtcamp/frappe-deployer~ composite action. Two strategies:
+| Mode | Build location | Deploy target | When to use                                  |
+|------+----------------+---------------+----------------------------------------------|
+| pull | Target server  | Same server   | Server has build capacity; simplest setup    |
+| ship | Local / CI     | Remote (SSH)  | Offload builds, cross-arch, multi-server      |
 
-| Strategy | Build location     | When to use                                      |
-|----------+--------------------+--------------------------------------------------|
-| pull     | Remote server      | Server has enough CPU/RAM to build; simpler setup |
-| ship     | CI runner (Docker) | Offload build from server; cross-arch builds     |
-
-** pull
-
-#+begin_src yaml
-name: Deploy (pull)
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy via pull
-        uses: rtcamp/frappe-deployer@main
-        with:
-          command: pull
-          sitename: ${{ vars.SITE_NAME }}
-          config_path: .github/configs/site.toml
-          gh_token: ${{ secrets.GH_TOKEN }}
-          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          ssh_server: ${{ secrets.SSH_SERVER }}
-          ssh_user: ${{ secrets.SSH_USER }}
-#+end_src
-
-*Required secrets/vars*: ~GH_TOKEN~, ~SSH_PRIVATE_KEY~, ~SSH_SERVER~, ~SSH_USER~, ~SITE_NAME~ (var).
-
-** ship
-
-The CI runner builds the release locally in Docker, rsyncs it to the remote server, then SSHes in to switch. Requires a ~[ship]~ section in the config:
+*ship* builds in Docker locally or in CI, rsyncs the finished release to the remote, then runs ~release configure~ + ~release switch~ there via ~uvx~ — the remote only needs SSH, rsync, and uv. Requires a ~[ship]~ section:
 
 #+begin_src toml
 [ship]
-host = "192.168.1.100"
-ssh_user = "frappe"
-ssh_port = 22
+host      = "192.168.1.100"
+ssh_user  = "frappe"
+ssh_port  = 22
+# remote_path = ""   # empty = auto-detect $HOME/frappe/sites/<site>
 #+end_src
+
+* GitHub Actions
+
+Deploy on push with the composite action ~rtcamp/frappe-deployer@main~ (~command: pull~ or ~command: ship~):
 
 #+begin_src yaml
-name: Deploy (ship)
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Deploy via ship
-        uses: rtcamp/frappe-deployer@main
-        with:
-          command: ship
-          config_path: .github/configs/site.toml
-          gh_token: ${{ secrets.GH_TOKEN }}
-          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          ssh_server: ${{ secrets.SSH_SERVER }}
-          ssh_user: ${{ secrets.SSH_USER }}
+- name: Deploy
+  uses: rtcamp/frappe-deployer@main
+  with:
+    command: pull                       # or: ship (add docker/setup-buildx-action first)
+    sitename: ${{ vars.SITE_NAME }}
+    config_path: .github/configs/site.toml
+    gh_token: ${{ secrets.GH_TOKEN }}
+    ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+    ssh_server: ${{ secrets.SSH_SERVER }}
+    ssh_user: ${{ secrets.SSH_USER }}
 #+end_src
 
-** Hooks
-
-Each ~[[apps]]~ entry supports 8 build-phase hooks; ~[switch]~ supports 4 restart-phase hooks:
-
-#+begin_src toml
-[[apps]]
-repo = "my-org/custom-app"
-ref = "main"
-before_bench_build = """
-npm ci
-npm run build:prod
-"""
-host_after_bench_build = """
-curl -s -X POST "$WEBHOOK_URL" -d "app=$APP_NAME built"
-"""
-
-[switch]
-host_before_restart = "echo 'switching to new release'"
-after_restart = "bench --site $SITE_NAME clear-cache"
-#+end_src
-
-Hooks prefixed ~host_~ run on the host; others run inside the Docker container. Values are inline shell. See [[file:docs/github-action.md][docs/github-action.md]] for the full hooks reference and ~app_env~ for injecting secrets.
-
-** Setting up secrets
-
-Generate a dedicated deploy key:
+Full input reference: [[file:action.yml][action.yml]]. Generate a dedicated deploy key:
 
 #+begin_src bash
 ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/deploy_key -N ""
-cat ~/.ssh/deploy_key        # → paste as SSH_PRIVATE_KEY secret
-cat ~/.ssh/deploy_key.pub    # → append to ~/.ssh/authorized_keys on remote server
+cat ~/.ssh/deploy_key        # → SSH_PRIVATE_KEY secret
+cat ~/.ssh/deploy_key.pub    # → append to remote ~/.ssh/authorized_keys
 #+end_src
 
-* Directory Structure
+* Directory structure
 
 #+begin_src
 ~/frappe/sites/<site>/
 ├── workspace/
-│   ├── frappe-bench → release_YYYYMMDD_HHMMSS  (symlink to current)
-│   ├── deployment-data/        (persistent across releases)
-│   │   ├── sites/              (DB, files)
-│   │   ├── config/             (supervisor configs)
+│   ├── frappe-bench → release_YYYYMMDD_HHMMSS   (symlink to active release)
+│   ├── deployment-data/                          (persistent across releases)
+│   │   ├── sites/   (DB, files)
+│   │   ├── config/  (supervisor configs)
 │   │   └── logs/
-│   ├── release_YYYYMMDD_HHMMSS/  (each release is isolated)
-│   │   ├── apps/
-│   │   ├── env/                (release-scoped Python venv)
-│   │   ├── .uv/                (UV package cache, per-release)
-│   │   ├── .fnm/               (Node.js runtime, per-release)
-│   │   ├── sites → ../deployment-data/sites  (symlink)
-│   │   └── .fmd.toml           (config snapshot)
-│   └── .cache/                 (workspace-level caches)
+│   ├── release_YYYYMMDD_HHMMSS/                   (one immutable release)
+│   │   ├── apps/  env/ (venv)  .uv/  .fnm/
+│   │   ├── sites → ../deployment-data/sites
+│   │   └── <site>.toml                            (config snapshot)
+│   └── .cache/
 └── deployment-backup/
-    └── release_YYYYMMDD_HHMMSS/
+    └── release_YYYYMMDD_HHMMSS/                   (pre-switch DB + config backups)
 #+end_src
-
-* Maintenance Mode
-
-- *Bypass tokens*: ~fmd maintenance enable <site>~ generates a cookie for dev access during maintenance
-- *Phase control*: Enable maintenance only during ~"migrate"~ or ~"drain"~ phases, not full deploy
-- *Nginx integration*: Serves custom page, honors bypass cookie
-
-* Remote Workers
-
-#+begin_src bash
-# Enable remote worker (opens Redis/MariaDB ports in docker-compose)
-fmd remote-worker enable <site> --rw-server 192.168.1.100 --force
-
-# Sync release to remote worker
-fmd remote-worker sync <site> --rw-server 192.168.1.100
-#+end_src
-
-* Frappe Cloud Integration
-
-Sync apps, Python deps, or DB backups from Frappe Cloud:
-
-#+begin_src toml
-[release]
-use_fc_apps = true   # FC commit hashes override local refs (preserves hooks/symlinks)
-use_fc_deps = true   # Auto-set python_version from FC
-
-[switch]
-use_fc_db = true     # Download and restore latest FC backup at switch time
-
-[fc]
-api_key = "fc_xxx"
-api_secret = "fc_xxx"
-site_name = "mysite.frappe.cloud"
-team_name = "my-team"
-#+end_src
-
-*Merge behavior*: FC apps are merged with local ~[[apps]]~ by repo name; FC commit hash overrides local ref, but local hooks/symlink/subdir settings are preserved. Local-only apps are kept.
-
-* CI/CD Workflow
-
-#+begin_src bash
-# 1. On CI runner: build release artifact
-fmd release create --config prod.toml --mode image --build-dir /tmp/releases
-cd /tmp/releases && tar -czf release.tar.gz release_*
-
-# 2. Ship to production server
-scp release.tar.gz prod:/tmp/
-ssh prod "cd /path/to/workspace && tar -xzf /tmp/release.tar.gz"
-
-# 3. Activate release on prod
-ssh prod "fmd release switch --config prod.toml release_20250410_120000"
-#+end_src
-
-Alternative: use ~fmd deploy ship --config site.toml~ for automated build-local/deploy-remote.
-
-* Troubleshooting
-
-*Private repo access*:
-#+begin_src bash
-export GITHUB_TOKEN=ghp_xxx
-fmd deploy pull --config site.toml
-#+end_src
-
-*Symlink app not found*:
-#+begin_src toml
-[[apps]]
-repo = "my-org/monorepo"
-ref = "main"
-subdir_path = "apps/my-app"  # Path within repo
-symlink = true               # Symlink instead of copy
-#+end_src
-
-*FC integration fails*: Verify API credentials with ~curl -u fc_key:fc_secret https://frappecloud.com/api/method/press.api.bench.apps~
-
-*Worker drain timeout*: Increase timeouts if workers process long jobs:
-#+begin_src toml
-[switch]
-drain_workers_timeout = 600  # Wait 10 min for workers to finish
-worker_kill_timeout = 30     # Force-kill after 30s if still running
-#+end_src
-
-*Verbose logs*:
-#+begin_src bash
-fmd -v deploy pull <site>  # Global -v flag before subcommand
-#+end_src
-
-See [[file:docs/troubleshooting.md][docs/troubleshooting.md]] for more.
 
 * Documentation
 
-**Full documentation site**: https://rtcamp.github.io/fmd/
+Full docs: https://rtcamp.github.io/fmd/
 
-Quick links:
+- [[file:docs/getting-started.md][Getting Started]] — requirements, install, first deploy
+- [[file:docs/concepts.md][Concepts]] — releases, symlink switch, rollback, layout
+- [[file:docs/configuration.md][Configuration]] — config reference, hooks, FC sync, restore
+- [[file:docs/deploy-modes.md][Deploy Modes]] — pull vs ship
+- [[file:docs/github-actions.md][GitHub Actions]] — CI/CD
+- [[file:docs/commands/index.md][Commands]] — full command reference
+- [[file:docs/troubleshooting.md][Troubleshooting]]
+- [[file:example-config.toml][example-config.toml]] — complete config schema
 
-- [[file:docs/getting-started/quick-start.md][Quick Start]] — Deploy your first site in minutes
-- [[file:docs/guides/configuration.md][Configuration Guide]] — Complete config reference
-- [[file:docs/guides/deploy-modes.md][Deploy Modes]] — Pull vs ship strategies
-- [[file:docs/guides/github-actions.md][GitHub Actions]] — CI/CD integration
-- [[file:docs/commands/index.md][Command Reference]] — All commands with examples
-- [[file:docs/reference/troubleshooting.md][Troubleshooting]] — Common issues and solutions
-- [[file:example-config.toml][example-config.toml]] — Complete config schema with comments
+* Development
+
+This project uses [[https://pre-commit.com/][pre-commit]] for code quality (Ruff lint/format, Gitleaks secret scanning, file checks), enforced in CI.
+
+#+begin_src bash
+uv run pre-commit install          # one-time
+uv run pre-commit run --all-files  # manual run
+#+end_src
 
 * License
 
