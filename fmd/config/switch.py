@@ -20,6 +20,15 @@ class SwitchConfig(BaseModel):
     sync_workers: bool = Field(False, description="Sync to remote workers after deploy.")
     install_apps: bool = Field(True, description="Install apps during switch/deploy.")
     use_fc_db: bool = Field(False, description="Download and restore latest Frappe Cloud backup at switch time.")
+    restore_db_from_site: Optional[str] = Field(
+        None,
+        description=(
+            "Name of another local FM bench/site to restore the database from at switch time. "
+            "Its encryption_key is copied into the target site_config.json so encrypted fields "
+            "stay decryptable, and (when search_replace is true) the old site name is rewritten "
+            "to the new one."
+        ),
+    )
 
     drain_workers: bool = Field(False, description="Drain workers before restart.")
     drain_workers_timeout: int = Field(300, description="Seconds to wait for workers to drain.")

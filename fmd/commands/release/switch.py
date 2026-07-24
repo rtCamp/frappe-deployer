@@ -54,6 +54,12 @@ def switch(
     install_apps: Optional[bool] = typer.Option(
         None, "--install-apps/--no-install-apps", help="Install apps during switch."
     ),
+    restore_db_from_site: Optional[str] = typer.Option(
+        None,
+        "--restore-db-from-site",
+        help="Restore DB from another local FM bench/site during switch.",
+        show_default=False,
+    ),
 ):
     """Switch live bench symlink to a previously-created release."""
     overrides: dict = {}
@@ -62,27 +68,29 @@ def switch(
         if "site_name" not in overrides:
             overrides["site_name"] = bench_name
 
-    deploy: dict = {}
+    switch: dict = {}
     if migrate is not None:
-        deploy["migrate"] = migrate
+        switch["migrate"] = migrate
     if migrate_timeout is not None:
-        deploy["migrate_timeout"] = migrate_timeout
+        switch["migrate_timeout"] = migrate_timeout
     if maintenance_mode is not None:
-        deploy["maintenance_mode"] = maintenance_mode
+        switch["maintenance_mode"] = maintenance_mode
     if backups is not None:
-        deploy["backups"] = backups
+        switch["backups"] = backups
     if rollback is not None:
-        deploy["rollback"] = rollback
+        switch["rollback"] = rollback
     if search_replace is not None:
-        deploy["search_replace"] = search_replace
+        switch["search_replace"] = search_replace
     if drain_workers is not None:
-        deploy["drain_workers"] = drain_workers
+        switch["drain_workers"] = drain_workers
     if sync_workers is not None:
-        deploy["sync_workers"] = sync_workers
+        switch["sync_workers"] = sync_workers
     if install_apps is not None:
-        deploy["install_apps"] = install_apps
-    if deploy:
-        overrides["deploy"] = deploy
+        switch["install_apps"] = install_apps
+    if restore_db_from_site is not None:
+        switch["restore_db_from_site"] = restore_db_from_site
+    if switch:
+        overrides["switch"] = switch
 
     config = load_config(config_path, overrides=overrides or None, skip_repo_validation=True)
     printer = get_printer()

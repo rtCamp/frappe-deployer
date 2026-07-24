@@ -424,6 +424,8 @@ class ReleaseManager:
         previous_release = self.bench_path.resolve()
 
         restore_db_file_path: Optional[Path] = None
+        benches_dir = self.workspace_root.parent
+        fm_restore_from_site: Optional[str] = self.config.switch.restore_db_from_site
 
         if self.config.switch.backups:
             self.backup_service.bench_db_and_configs_backup(
@@ -436,6 +438,20 @@ class ReleaseManager:
             fc_source = FCDataSource(self.config.fc)
             restore_db_file_path = fc_source.download_db_backup(self.workspace_root / "deployment-backup" / "fc-db")
 
+        if fm_restore_from_site:
+            self.printer.change_head(f"Exporting db from FM site {fm_restore_from_site}")
+            source_workspace_root = benches_dir / fm_restore_from_site
+            restore_db_file_path = self.backup_service.bench_backup(
+                self.current,
+                self.backup,
+                fm_restore_from_site,
+                self.bench_cli,
+                source_workspace_root,
+                using_bench_backup=False,
+                compress=True,
+                sql_delete_after_compress=False,
+            )
+
         self.backup_service.sync_configs_with_files(self.current, self.site_name)
         self.symlink_service.configure_symlinks(self.data, new)
         self.bench_service.bench_symlink(self.bench_path, new)
@@ -444,6 +460,18 @@ class ReleaseManager:
         try:
             if restore_db_file_path:
                 self.backup_service.bench_restore(self.site_name, self.workspace_root, restore_db_file_path)
+
+                if fm_restore_from_site:
+                    self.backup_service.sync_db_encryption_key_from_site(
+                        self.current,
+                        fm_restore_from_site,
+                        fm_restore_from_site,
+                        self.site_name,
+                        benches_dir,
+                    )
+                    if self.config.switch.search_replace:
+                        self._search_and_replace_in_database(fm_restore_from_site, self.site_name)
+
                 if restore_db_file_path.exists():
                     restore_db_file_path.unlink()
 
