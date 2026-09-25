@@ -24,12 +24,13 @@ def search_and_replace_in_database(
     frappe.connect(site=site_name)
     database_name = frappe.conf.db_name
 
-    # Get all tables and columns with 'varchar' or 'text' data types
+    # Get all string/text columns (every MySQL/MariaDB char & text family type) so a
+    # value is rewritten wherever it lives, not just in varchar/text.
     query = """
         SELECT table_name, column_name
         FROM information_schema.columns
         WHERE table_schema = %s
-        AND data_type IN ('varchar', 'text');
+        AND data_type IN ('varchar', 'char', 'tinytext', 'text', 'mediumtext', 'longtext');
     """
     columns = frappe.db.sql(query, (database_name,), as_dict=True)
 
