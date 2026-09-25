@@ -174,32 +174,25 @@ class ReleaseManager:
             self.printer.warning(f"Search/replace script not found at {search_replace_script}")
             return
 
-        bench_script_path = self.current.sites / "search_replace.py"
-        shutil.copy2(search_replace_script, bench_script_path)
+        # Ship the search/replace logic (imports + function, excluding the CLI main())
+        # into the bench's Frappe context and call it. Executed via frappe-manager's
+        # docker exec API — no file is copied into the bench.
+        module_src = search_replace_script.read_text().split("\ndef main(")[0]
+        code = module_src + (
+            "\nsearch_and_replace_in_database("
+            f"{self.site_name!r}, {search!r}, {replace!r}, "
+            f"dry_run={bool(dry_run)}, verbose={bool(self.config.verbose)})\n"
+        )
 
         try:
-            python_path = "../env/bin/python"
-            cmd = [python_path, "search_replace.py", self.site_name, search, replace]
-            if dry_run:
-                cmd.append("--dry-run")
-            if self.config.verbose:
-                cmd.append("--verbose")
-
-            result = self.exec_runner.run(
-                cmd,
-                self.current,
-                capture_output=True,
-                workdir=self.exec_runner.workdir_for_sites(self.current),
-            )
-            if getattr(result, "combined", None):
-                for line in result.combined:
-                    if line.strip():
-                        self.printer.print(line.strip())
+            result = self.backup_service.run_frappe_python(self.site_name, self.workspace_root, code)
+            for stream_name in ("stdout", "stderr"):
+                for line in getattr(result, stream_name, None) or []:
+                    text = line.decode() if isinstance(line, bytes) else str(line)
+                    if text.strip():
+                        self.printer.print(text.strip())
         except Exception as e:
             self.printer.warning(f"Failed to perform search and replace: {str(e)}")
-        finally:
-            if bench_script_path.exists():
-                bench_script_path.unlink()
 
     def configure(self) -> None:
         backups = self.config.configure.backups
