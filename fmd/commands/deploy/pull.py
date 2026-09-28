@@ -9,6 +9,7 @@ import typer
 from typer_examples import example
 
 from fmd.commands._utils import build_runners, get_printer, is_exec_mode_available, load_config, parse_app_option
+from fmd.dependency_overrides import REMOTE_OVERRIDES_PATH, write_remote_overrides_command
 from fmd.managers.pull import PullManager
 from fmd.config.config import Config
 
@@ -83,8 +84,10 @@ def _deploy_remote(config: Config, printer) -> None:
             "StrictHostKeyChecking=no",
             f"{ssh_user}@{ssh_server}",
             f"cd /home/{ssh_user} && mkdir -p /home/{ssh_user}/.fmd/logs && rm -rf /home/{ssh_user}/.fmd/venv && "
+            f"{write_remote_overrides_command()} && "
             f"/home/{ssh_user}/.local/bin/uv venv /home/{ssh_user}/.fmd/venv --python 3.13 && "
-            f"/home/{ssh_user}/.local/bin/uv pip install --python /home/{ssh_user}/.fmd/venv/bin/python {shlex.quote(install_source)}",
+            f"/home/{ssh_user}/.local/bin/uv pip install --overrides {REMOTE_OVERRIDES_PATH} "
+            f"--python /home/{ssh_user}/.fmd/venv/bin/python {shlex.quote(install_source)}",
         ],
         check=True,
     )

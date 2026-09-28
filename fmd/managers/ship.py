@@ -2,6 +2,7 @@ import subprocess
 from pathlib import Path
 
 from fmd.config.config import Config
+from fmd.dependency_overrides import REMOTE_OVERRIDES_PATH, uv_overrides_args, write_remote_overrides_command
 from fmd.managers.release import ReleaseManager
 from fmd.runner.docker import DockerRunner
 from fmd.runner.host import HostRunner
@@ -216,7 +217,11 @@ class ShipManager:
         fmd_source = self._resolve_fmd_source()
         fmd_source = self._rsync_fmd_source_if_local(fmd_source)
 
-        cmd = [uvx_path, "--from", fmd_source, "fmd"] + args
+        # uvx resolves fmd fresh on the remote host, so the overrides that
+        # govern our own lock have to be handed to it explicitly.
+        self.ssh.run(write_remote_overrides_command(REMOTE_OVERRIDES_PATH))
+
+        cmd = [uvx_path, *uv_overrides_args(REMOTE_OVERRIDES_PATH), "--from", fmd_source, "fmd"] + args
         return self.ssh.run_list(cmd, capture=capture)
 
     def _remote_configure_if_needed(self, remote_config_path: str) -> None:
