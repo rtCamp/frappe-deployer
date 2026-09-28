@@ -239,14 +239,17 @@ class ShipManager:
         # unique per call: writing and running are separate ssh round trips, and
         # a shared name could be swapped by a concurrent deploy in between.
         overrides_path = remote_overrides_path(self._resolve_remote_home())
-        self.ssh.run(write_remote_overrides_command(overrides_path))
 
         try:
+            # Inside the try so a write that fails midway is still cleaned up.
+            self.ssh.run(write_remote_overrides_command(overrides_path))
+
             cmd = [uvx_path, *uv_overrides_args(overrides_path), "--from", fmd_source, "fmd"] + args
             return self.ssh.run_list(cmd, capture=capture)
         finally:
             # Best-effort: a failed cleanup must not replace the deployment's
-            # own result, success or failure.
+            # own result, success or failure. rm -f is fine if the write never
+            # created the file.
             try:
                 self.ssh.run(remove_remote_overrides_command(overrides_path))
             except Exception as e:
