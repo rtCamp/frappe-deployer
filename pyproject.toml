@@ -8,10 +8,10 @@ license = { text = "MIT" }
 authors = [{ name = "Alok Singh", email = "alokmilenium@gmail.com" }]
 dependencies = [
     "frappe-manager",
-    "gitpython>=3.1.51,<4.0.0",
+    "gitpython>=3.1.62,<4.0.0",
     "typer>=0.21.0,<0.22.0",
     "toml>=0.10.2,<0.11.0",
-    "pydantic>=2.13.4,<3.0.0",
+    "pydantic>=2.13.5,<3.0.0",
     "typer-examples",
 ]
 
@@ -20,6 +20,11 @@ fmd = "fmd.app:cli_entrypoint"
 
 [tool.uv]
 package = true
+# frappe-manager caps cryptography at <50.0.0, which holds us on 49.0.0 and the
+# PKCS#7 EnvelopedData decryption oracle (GHSA-g6cj-pr64-35w5). We only use the
+# x509 surface, which is unchanged in 50.x. Drop this once frappe-manager
+# relaxes its own bound.
+override-dependencies = ["cryptography>=50.0.1,<51.0.0"]
 
 [tool.uv.sources]
 frappe-manager = { git = "https://github.com/rtcamp/frappe-manager.git", rev = "develop" }

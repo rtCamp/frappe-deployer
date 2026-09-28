@@ -2,6 +2,12 @@ import subprocess
 from pathlib import Path
 
 from fmd.config.config import Config
+from fmd.dependency_overrides import (
+    remote_overrides_path,
+    remove_remote_overrides_command,
+    uv_overrides_args,
+    write_remote_overrides_command,
+)
 from fmd.managers.release import ReleaseManager
 from fmd.runner.docker import DockerRunner
 from fmd.runner.host import HostRunner
@@ -18,6 +24,7 @@ class ShipManager:
         self.config = config
         self.printer = printer
         self.ssh = SSHClient(config.ship.host, config.ship.ssh_user, config.ship.ssh_port)
+        self._remote_home: str | None = None
 
         self._resolve_remote_path()
 
@@ -48,17 +55,28 @@ class ShipManager:
             printer,
         )
 
+    def _resolve_remote_home(self) -> str:
+        """Login home on the remote host, resolved once.
+
+        Hosts do not have to put the user under /home/<user>, and writing into
+        the wrong directory would abort the deployment.
+        """
+        assert self.config.ship is not None
+        if self._remote_home is None:
+            try:
+                self._remote_home = self.ssh.run("echo $HOME", capture=True).strip()
+                self.printer.print(f"[dim]remote home: resolved $HOME → {self._remote_home!r}[/dim]")
+            except Exception as e:
+                self.printer.warning(f"Failed to resolve remote $HOME: {e}. Falling back to static default.")
+                self._remote_home = f"/home/{self.config.ship.ssh_user}"
+        return self._remote_home
+
     def _resolve_remote_path(self) -> None:
         assert self.config.ship is not None
         if self.config.ship.remote_path is not None:
             return
 
-        try:
-            home = self.ssh.run("echo $HOME", capture=True).strip()
-            self.printer.print(f"[dim]remote_path: resolved $HOME → {home!r}[/dim]")
-        except Exception as e:
-            self.printer.warning(f"Failed to resolve remote $HOME: {e}. Falling back to static default.")
-            home = f"/home/{self.config.ship.ssh_user}"
+        home = self._resolve_remote_home()
 
         self.config.ship.remote_path = f"{home}/frappe/sites/{self.config.site_name}"
         self.printer.print(f"[dim]remote_path: {self.config.ship.remote_path}[/dim]")
@@ -216,8 +234,26 @@ class ShipManager:
         fmd_source = self._resolve_fmd_source()
         fmd_source = self._rsync_fmd_source_if_local(fmd_source)
 
-        cmd = [uvx_path, "--from", fmd_source, "fmd"] + args
-        return self.ssh.run_list(cmd, capture=capture)
+        # uvx resolves fmd fresh on the remote host, so the overrides that
+        # govern our own lock have to be handed to it explicitly. The path is
+        # unique per call: writing and running are separate ssh round trips, and
+        # a shared name could be swapped by a concurrent deploy in between.
+        overrides_path = remote_overrides_path(self._resolve_remote_home())
+
+        try:
+            # Inside the try so a write that fails midway is still cleaned up.
+            self.ssh.run(write_remote_overrides_command(overrides_path))
+
+            cmd = [uvx_path, *uv_overrides_args(overrides_path), "--from", fmd_source, "fmd"] + args
+            return self.ssh.run_list(cmd, capture=capture)
+        finally:
+            # Best-effort: a failed cleanup must not replace the deployment's
+            # own result, success or failure. rm -f is fine if the write never
+            # created the file.
+            try:
+                self.ssh.run(remove_remote_overrides_command(overrides_path))
+            except Exception as e:
+                self.printer.warning(f"Failed to remove {overrides_path}: {e}")
 
     def _remote_configure_if_needed(self, remote_config_path: str) -> None:
         remote_bench = f"{self.config.ship.remote_path}/workspace/frappe-bench"

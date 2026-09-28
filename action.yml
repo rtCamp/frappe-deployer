@@ -94,7 +94,7 @@ runs:
   using: "composite"
   steps:
     - name: Checkout
-      uses: actions/checkout@v5
+      uses: actions/checkout@v7
 
     - name: Create temporary directory
       id: temp_dir
@@ -112,9 +112,19 @@ runs:
     - name: Install frappe-deployer
       shell: bash
       working-directory: ${{ steps.temp_dir.outputs.path }}
+      env:
+        UV_PROJECT_ENVIRONMENT: ${{ steps.temp_dir.outputs.path }}/.venv
       run: |
-        uv venv --python 3.13
-        uv pip install ${{ github.action_path }}
+        # Sync from uv.lock rather than resolving fresh. A bare
+        # "uv pip install <path>" runs outside the project context, so it sees
+        # neither the lockfile nor [tool.uv] overrides and can install versions
+        # we have not audited, such as cryptography held at 49.x by
+        # frappe-manager's own bound.
+        #
+        # --locked, not --frozen: --frozen installs from the lock without
+        # checking it still matches pyproject.toml, so a dependency change with
+        # a stale lock would install silently. --locked fails instead.
+        uv sync --locked --no-dev --python 3.13 --project ${{ github.action_path }}
 
     - name: Run frappe-deployer
       id: deploy
@@ -152,7 +162,7 @@ runs:
 
     - name: Upload logs on failure
       if: failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: fmd-logs-${{ github.sha }}
         path: ${{ env.FMD_LOG_DIR }}
