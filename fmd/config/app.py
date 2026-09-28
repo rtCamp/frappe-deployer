@@ -6,14 +6,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from fmd.config.utils import get_repo_url, is_ref_commit
 
 os.environ["GIT_TERMINAL_PROMPT"] = "0"
-# BatchMode/ConnectTimeout/ConnectionAttempts keep the SSH probe in
-# get_repo_url bounded and non-interactive: GIT_TERMINAL_PROMPT only silences
-# git's own credential prompts, not ssh's passphrase prompt, and without a
-# timeout a blocked port 22 stalls instead of falling through to HTTPS.
+# Only the default. The bounded, non-interactive options needed by the repo
+# URL probe are applied per-probe in fmd/config/utils.py so that a custom
+# GIT_SSH_COMMAND is still honoured for the actual clone.
 os.environ.setdefault(
     "GIT_SSH_COMMAND",
-    "ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null"
-    " -o BatchMode=yes -o ConnectTimeout=5 -o ConnectionAttempts=1",
+    "ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null",
 )
 
 

@@ -94,11 +94,52 @@ check("token, token rejected: probe order", order, ["https", "token", "ssh"])
 # -- the ssh probe must be bounded and non-interactive ------------------------
 print("\n-- ssh probe hardening --")
 
-ssh_command = os.environ.get("GIT_SSH_COMMAND", "")
 check("GIT_TERMINAL_PROMPT disabled", os.environ.get("GIT_TERMINAL_PROMPT"), "0")
-check("ssh probe is non-interactive", "BatchMode=yes" in ssh_command, True)
-check("ssh probe has a connect timeout", "ConnectTimeout=" in ssh_command, True)
-check("ssh probe does not retry", "ConnectionAttempts=1" in ssh_command, True)
+
+
+def probe_command(git_ssh_command):
+    previous = os.environ.get("GIT_SSH_COMMAND")
+    if git_ssh_command is None:
+        os.environ.pop("GIT_SSH_COMMAND", None)
+    else:
+        os.environ["GIT_SSH_COMMAND"] = git_ssh_command
+    try:
+        return utils.__probe_ssh_command__()
+    finally:
+        if previous is None:
+            os.environ.pop("GIT_SSH_COMMAND", None)
+        else:
+            os.environ["GIT_SSH_COMMAND"] = previous
+
+
+for label, configured in [
+    ("default", None),
+    ("project default", "ssh -o StrictHostKeyChecking=accept-new"),
+    ("custom env", "ssh -i /home/deploy/.ssh/id_deploy"),
+    ("empty env", ""),
+]:
+    command = probe_command(configured)
+    check(f"{label}: probe is non-interactive", "BatchMode=yes" in command, True)
+    check(f"{label}: probe has a connect timeout", "ConnectTimeout=5" in command, True)
+    check(f"{label}: probe does not retry", "ConnectionAttempts=1" in command, True)
+
+# a custom ssh command must survive, only the probe guarantees are added
+command = probe_command("ssh -i /home/deploy/.ssh/id_deploy")
+check("custom env: custom options preserved", "-i /home/deploy/.ssh/id_deploy" in command, True)
+
+# an explicit operator choice must not be silently overridden
+command = probe_command("ssh -o ConnectTimeout=30")
+check("explicit timeout respected", "ConnectTimeout=5" in command, False)
+check("explicit timeout still bounded", "ConnectTimeout=30" in command, True)
+
+# the probe applies its command without mutating the ambient environment
+os.environ["GIT_SSH_COMMAND"] = "ssh -o StrictHostKeyChecking=accept-new"
+utils.__probe_ssh_command__()
+check(
+    "probe does not mutate GIT_SSH_COMMAND",
+    os.environ["GIT_SSH_COMMAND"],
+    "ssh -o StrictHostKeyChecking=accept-new",
+)
 
 
 # -- summary ------------------------------------------------------------------

@@ -42,9 +42,38 @@ def is_ref_commit(ref: Optional[str]) -> bool:
     return len(ref) == 40 and all(c in "0123456789abcdef" for c in ref.lower())
 
 
+# Applied to the probe only. GIT_TERMINAL_PROMPT=0 silences git's own
+# credential prompts but not ssh's passphrase prompt, and without a timeout a
+# blocked port 22 stalls instead of falling through to the next candidate.
+# These are forced on top of whatever GIT_SSH_COMMAND the environment already
+# defines, so a custom ssh command is preserved for the actual clone while the
+# probe stays bounded and non-interactive.
+__PROBE_SSH_OPTIONS__ = (
+    ("BatchMode", "yes"),
+    ("ConnectTimeout", "5"),
+    ("ConnectionAttempts", "1"),
+)
+
+
+def __probe_ssh_command__() -> str:
+    command = _os.environ.get("GIT_SSH_COMMAND", "").strip() or "ssh"
+
+    for option, value in __PROBE_SSH_OPTIONS__:
+        if f"{option}=" not in command:
+            command += f" -o {option}={value}"
+
+    return command
+
+
 def __check_ref_exists_for_url__(repo_url: str, ref: Optional[str] = None) -> bool:
     try:
-        remote_refs = git.cmd.Git().ls_remote(repo_url)
+        probe = git.cmd.Git()
+
+        update_environment = getattr(probe, "update_environment", None)
+        if update_environment is not None:
+            update_environment(GIT_SSH_COMMAND=__probe_ssh_command__(), GIT_TERMINAL_PROMPT="0")
+
+        remote_refs = probe.ls_remote(repo_url)
         refs = [line.split()[1] for line in remote_refs.splitlines()]
 
         if ref is None:
