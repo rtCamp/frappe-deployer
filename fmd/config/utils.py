@@ -62,21 +62,23 @@ def __check_ref_exists_for_url__(repo_url: str, ref: Optional[str] = None) -> bo
 def get_repo_url(repo: str, ref: Optional[str] = None, token: Optional[str] = None) -> str:
     url = f"https://github.com/{repo}"
 
-    # With a token, the token URL reaches public and private repos alike, so
-    # try it first. Without one, SSH is the only method that can reach a
-    # private repo — trying it before anonymous HTTPS avoids a guaranteed
-    # failed attempt per private repo on developer machines.
+    # Without a token, SSH is the only method that can reach a private repo,
+    # so trying it before anonymous HTTPS avoids a guaranteed failed attempt
+    # per private repo on developer machines. The SSH probe is bounded and
+    # non-interactive (see GIT_SSH_COMMAND in fmd/config/app.py), so hosts
+    # without a usable key fall through to HTTPS quickly.
+    #
+    # With a token, anonymous HTTPS stays first on purpose: the chosen URL is
+    # what we clone from and is retained as the remote (AppConfig.remove_remote
+    # defaults to False), so public repos must not end up with the token
+    # embedded in .git/config.
+    ssh_url = (f"git@github.com:{repo}.git", "ssh")
+    https_url = (url, "https")
+
     if token:
-        repo_urls = [
-            (f"https://{token}@github.com/{repo}", "token"),
-            (url, "https"),
-            (f"git@github.com:{repo}.git", "ssh"),
-        ]
+        repo_urls = [https_url, (f"https://{token}@github.com/{repo}", "token"), ssh_url]
     else:
-        repo_urls = [
-            (f"git@github.com:{repo}.git", "ssh"),
-            (url, "https"),
-        ]
+        repo_urls = [ssh_url, https_url]
 
     not_accessible_urls = []
 
