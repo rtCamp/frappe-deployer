@@ -120,7 +120,11 @@ runs:
         # neither the lockfile nor [tool.uv] overrides and can install versions
         # we have not audited, such as cryptography held at 49.x by
         # frappe-manager's own bound.
-        uv sync --frozen --no-dev --python 3.13 --project ${{ github.action_path }}
+        #
+        # --locked, not --frozen: --frozen installs from the lock without
+        # checking it still matches pyproject.toml, so a dependency change with
+        # a stale lock would install silently. --locked fails instead.
+        uv sync --locked --no-dev --python 3.13 --project ${{ github.action_path }}
 
     - name: Run frappe-deployer
       id: deploy
