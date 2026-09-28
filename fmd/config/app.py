@@ -6,6 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from fmd.config.utils import get_repo_url, is_ref_commit
 
 os.environ["GIT_TERMINAL_PROMPT"] = "0"
+# Only the default. The bounded, non-interactive options needed by the repo
+# URL probe are applied per-probe in fmd/config/utils.py so that a custom
+# GIT_SSH_COMMAND is still honoured for the actual clone.
 os.environ.setdefault(
     "GIT_SSH_COMMAND",
     "ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null",

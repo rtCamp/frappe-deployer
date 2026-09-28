@@ -1,4 +1,5 @@
 import os as _os
+import shlex as _shlex
 
 try:
     from frappe_manager.output_manager import RichOutputHandler as _RichOutputHandler
@@ -42,9 +43,57 @@ def is_ref_commit(ref: Optional[str]) -> bool:
     return len(ref) == 40 and all(c in "0123456789abcdef" for c in ref.lower())
 
 
+# Applied to the probe only. GIT_TERMINAL_PROMPT=0 silences git's own
+# credential prompts but not ssh's passphrase prompt, and without a timeout a
+# blocked port 22 stalls instead of falling through to the next candidate.
+#
+# A probe that prompts or retries defeats the point, so these two are not
+# negotiable: an environment that sets BatchMode=no or a high
+# ConnectionAttempts must not make the probe interactive or slow. OpenSSH keeps
+# the first value seen for a repeated -o, so they are placed ahead of any
+# user-supplied options rather than appended.
+__PROBE_FORCED_SSH_OPTIONS__ = (
+    ("BatchMode", "yes"),
+    ("ConnectionAttempts", "1"),
+)
+
+# A deliberately configured timeout is honoured; this is only a ceiling for
+# environments that set none.
+__PROBE_DEFAULT_CONNECT_TIMEOUT__ = "5"
+
+
+def __probe_ssh_command__() -> str:
+    command = _os.environ.get("GIT_SSH_COMMAND", "").strip() or "ssh"
+
+    try:
+        parts = _shlex.split(command)
+    except ValueError:
+        parts = [command]
+
+    if not parts:
+        parts = ["ssh"]
+
+    forced = []
+    for option, value in __PROBE_FORCED_SSH_OPTIONS__:
+        forced += ["-o", f"{option}={value}"]
+
+    parts = parts[:1] + forced + parts[1:]
+
+    if not any("ConnectTimeout=" in part for part in parts):
+        parts += ["-o", f"ConnectTimeout={__PROBE_DEFAULT_CONNECT_TIMEOUT__}"]
+
+    return _shlex.join(parts)
+
+
 def __check_ref_exists_for_url__(repo_url: str, ref: Optional[str] = None) -> bool:
     try:
-        remote_refs = git.cmd.Git().ls_remote(repo_url)
+        probe = git.cmd.Git()
+
+        update_environment = getattr(probe, "update_environment", None)
+        if update_environment is not None:
+            update_environment(GIT_SSH_COMMAND=__probe_ssh_command__(), GIT_TERMINAL_PROMPT="0")
+
+        remote_refs = probe.ls_remote(repo_url)
         refs = [line.split()[1] for line in remote_refs.splitlines()]
 
         if ref is None:
@@ -62,12 +111,23 @@ def __check_ref_exists_for_url__(repo_url: str, ref: Optional[str] = None) -> bo
 def get_repo_url(repo: str, ref: Optional[str] = None, token: Optional[str] = None) -> str:
     url = f"https://github.com/{repo}"
 
-    repo_urls = [(url, "https")]
+    # Without a token, SSH is the only method that can reach a private repo,
+    # so trying it before anonymous HTTPS avoids a guaranteed failed attempt
+    # per private repo on developer machines. The SSH probe is bounded and
+    # non-interactive (see GIT_SSH_COMMAND in fmd/config/app.py), so hosts
+    # without a usable key fall through to HTTPS quickly.
+    #
+    # With a token, anonymous HTTPS stays first on purpose: the chosen URL is
+    # what we clone from and is retained as the remote (AppConfig.remove_remote
+    # defaults to False), so public repos must not end up with the token
+    # embedded in .git/config.
+    ssh_url = (f"git@github.com:{repo}.git", "ssh")
+    https_url = (url, "https")
 
     if token:
-        repo_urls += [(f"https://{token}@github.com/{repo}", "token")]
-
-    repo_urls += [(f"git@github.com:{repo}.git", "ssh")]
+        repo_urls = [https_url, (f"https://{token}@github.com/{repo}", "token"), ssh_url]
+    else:
+        repo_urls = [ssh_url, https_url]
 
     not_accessible_urls = []
 
