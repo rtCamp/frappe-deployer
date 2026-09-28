@@ -80,7 +80,10 @@ def _deploy_remote(config: Config, printer) -> None:
     )
 
     printer.print("Installing fmd in remote venv")
-    overrides_path = remote_overrides_path(ssh_user)
+    # The rest of this command already addresses the account as /home/<user>;
+    # the overrides file follows the same base so it cannot land elsewhere.
+    remote_home = f"/home/{ssh_user}"
+    overrides_path = remote_overrides_path(remote_home)
     ssh_target = [
         "ssh",
         "-p",

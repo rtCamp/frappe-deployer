@@ -80,19 +80,19 @@ print("\n-- uv arguments --")
 check("uv args point at the given file", uv_overrides_args("/tmp/other.txt"), ["--overrides", "/tmp/other.txt"])
 
 
-# -- each run must get its own file --------------------------------------------
+# -- each run must get its own file, under the resolved home -------------------
 # ship writes the file and runs uvx as two separate ssh round trips, so a shared
-# name lets a concurrent deploy swap the overrides in between. A fixed /tmp name
-# is also owned by whoever deployed first on a shared host.
+# name lets a concurrent deploy swap the overrides in between. The helper takes
+# a resolved home because ship supports hosts where it is not /home/<user>.
 print("\n-- remote path --")
 
-first = remote_overrides_path("deploy")
-second = remote_overrides_path("deploy")
+first = remote_overrides_path("/home/deploy")
+second = remote_overrides_path("/home/deploy")
 
-check("same user gets a fresh path per call", first == second, False)
-check("path is under the deploying user's home", first.startswith("/home/deploy/.fmd/"), True)
-check("different users never collide", remote_overrides_path("a").startswith("/home/a/"), True)
-check("path is not in /tmp", first.startswith("/tmp"), False)
+check("same home gets a fresh path per call", first == second, False)
+check("path sits under the given home", first.startswith("/home/deploy/.fmd/"), True)
+check("a nonstandard home is honoured", remote_overrides_path("/srv/ops").startswith("/srv/ops/.fmd/"), True)
+check("no username is reconstructed", remote_overrides_path("/opt/u").startswith("/home/"), False)
 check("write command creates the parent directory", "mkdir -p" in write_remote_overrides_command(first), True)
 
 # the file is a per-run input, so it must not accumulate on the host

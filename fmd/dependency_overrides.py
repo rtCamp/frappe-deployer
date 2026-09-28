@@ -21,16 +21,21 @@ from pathlib import PurePosixPath
 DEPENDENCY_OVERRIDES: tuple[str, ...] = ("cryptography>=50.0.1,<51.0.0",)
 
 
-def remote_overrides_path(ssh_user: str) -> str:
-    """Allocate a fresh path for the overrides file on a remote host.
+def remote_overrides_path(home_dir: str) -> str:
+    """Allocate a fresh path for the overrides file under a remote home.
 
-    Unique per call, for two reasons. A fixed name in /tmp belongs to whoever
-    deployed first on a shared host. A fixed name anywhere is worse for ship,
-    where writing the file and running uvx are separate ssh round trips: a
-    concurrent deployment from a revision with a different override set could
-    replace the file in between and have this run resolve against it.
+    Takes the resolved home rather than a username: ship supports hosts where
+    the login home is not /home/<user>, and a wrong directory would fail the
+    write and abort the deployment.
+
+    Unique per call, for two reasons. A shared name in a world-writable
+    directory belongs to whoever deployed first. A shared name anywhere is
+    worse for ship, where writing the file and running uvx are separate ssh
+    round trips: a concurrent deployment from a revision with a different
+    override set could replace the file in between and have this run resolve
+    against it.
     """
-    return f"/home/{ssh_user}/.fmd/dependency-overrides-{uuid.uuid4().hex}.txt"
+    return str(PurePosixPath(home_dir) / ".fmd" / f"dependency-overrides-{uuid.uuid4().hex}.txt")
 
 
 def overrides_file_contents() -> str:
