@@ -1,4 +1,5 @@
 import os as _os
+import shlex as _shlex
 
 try:
     from frappe_manager.output_manager import RichOutputHandler as _RichOutputHandler
@@ -45,24 +46,43 @@ def is_ref_commit(ref: Optional[str]) -> bool:
 # Applied to the probe only. GIT_TERMINAL_PROMPT=0 silences git's own
 # credential prompts but not ssh's passphrase prompt, and without a timeout a
 # blocked port 22 stalls instead of falling through to the next candidate.
-# These are forced on top of whatever GIT_SSH_COMMAND the environment already
-# defines, so a custom ssh command is preserved for the actual clone while the
-# probe stays bounded and non-interactive.
-__PROBE_SSH_OPTIONS__ = (
+#
+# A probe that prompts or retries defeats the point, so these two are not
+# negotiable: an environment that sets BatchMode=no or a high
+# ConnectionAttempts must not make the probe interactive or slow. OpenSSH keeps
+# the first value seen for a repeated -o, so they are placed ahead of any
+# user-supplied options rather than appended.
+__PROBE_FORCED_SSH_OPTIONS__ = (
     ("BatchMode", "yes"),
-    ("ConnectTimeout", "5"),
     ("ConnectionAttempts", "1"),
 )
+
+# A deliberately configured timeout is honoured; this is only a ceiling for
+# environments that set none.
+__PROBE_DEFAULT_CONNECT_TIMEOUT__ = "5"
 
 
 def __probe_ssh_command__() -> str:
     command = _os.environ.get("GIT_SSH_COMMAND", "").strip() or "ssh"
 
-    for option, value in __PROBE_SSH_OPTIONS__:
-        if f"{option}=" not in command:
-            command += f" -o {option}={value}"
+    try:
+        parts = _shlex.split(command)
+    except ValueError:
+        parts = [command]
 
-    return command
+    if not parts:
+        parts = ["ssh"]
+
+    forced = []
+    for option, value in __PROBE_FORCED_SSH_OPTIONS__:
+        forced += ["-o", f"{option}={value}"]
+
+    parts = parts[:1] + forced + parts[1:]
+
+    if not any("ConnectTimeout=" in part for part in parts):
+        parts += ["-o", f"ConnectTimeout={__PROBE_DEFAULT_CONNECT_TIMEOUT__}"]
+
+    return _shlex.join(parts)
 
 
 def __check_ref_exists_for_url__(repo_url: str, ref: Optional[str] = None) -> bool:

@@ -127,10 +127,26 @@ for label, configured in [
 command = probe_command("ssh -i /home/deploy/.ssh/id_deploy")
 check("custom env: custom options preserved", "-i /home/deploy/.ssh/id_deploy" in command, True)
 
-# an explicit operator choice must not be silently overridden
+# an explicit operator timeout must not be silently overridden
 command = probe_command("ssh -o ConnectTimeout=30")
 check("explicit timeout respected", "ConnectTimeout=5" in command, False)
 check("explicit timeout still bounded", "ConnectTimeout=30" in command, True)
+
+# an environment that disables the guarantees must not win: ssh keeps the first
+# value for a repeated -o, so the forced options have to come first
+command = probe_command("ssh -o BatchMode=no -o ConnectionAttempts=9")
+options = [part for part in command.split() if "=" in part]
+check("hostile env: BatchMode forced on", options.index("BatchMode=yes") < options.index("BatchMode=no"), True)
+check(
+    "hostile env: ConnectionAttempts forced down",
+    options.index("ConnectionAttempts=1") < options.index("ConnectionAttempts=9"),
+    True,
+)
+check("hostile env: still bounded", "ConnectTimeout=5" in command, True)
+
+# the forced options must precede user options in every case
+command = probe_command("ssh -o BatchMode=no")
+check("forced options come first", command.split().index("BatchMode=yes") < command.split().index("BatchMode=no"), True)
 
 # the probe applies its command without mutating the ambient environment
 os.environ["GIT_SSH_COMMAND"] = "ssh -o StrictHostKeyChecking=accept-new"
