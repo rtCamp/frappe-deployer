@@ -2,7 +2,12 @@ import subprocess
 from pathlib import Path
 
 from fmd.config.config import Config
-from fmd.dependency_overrides import REMOTE_OVERRIDES_PATH, uv_overrides_args, write_remote_overrides_command
+from fmd.dependency_overrides import (
+    remote_overrides_path,
+    remove_remote_overrides_command,
+    uv_overrides_args,
+    write_remote_overrides_command,
+)
 from fmd.managers.release import ReleaseManager
 from fmd.runner.docker import DockerRunner
 from fmd.runner.host import HostRunner
@@ -218,11 +223,17 @@ class ShipManager:
         fmd_source = self._rsync_fmd_source_if_local(fmd_source)
 
         # uvx resolves fmd fresh on the remote host, so the overrides that
-        # govern our own lock have to be handed to it explicitly.
-        self.ssh.run(write_remote_overrides_command(REMOTE_OVERRIDES_PATH))
+        # govern our own lock have to be handed to it explicitly. The path is
+        # unique per call: writing and running are separate ssh round trips, and
+        # a shared name could be swapped by a concurrent deploy in between.
+        overrides_path = remote_overrides_path(self.config.ship.ssh_user)
+        self.ssh.run(write_remote_overrides_command(overrides_path))
 
-        cmd = [uvx_path, *uv_overrides_args(REMOTE_OVERRIDES_PATH), "--from", fmd_source, "fmd"] + args
-        return self.ssh.run_list(cmd, capture=capture)
+        try:
+            cmd = [uvx_path, *uv_overrides_args(overrides_path), "--from", fmd_source, "fmd"] + args
+            return self.ssh.run_list(cmd, capture=capture)
+        finally:
+            self.ssh.run(remove_remote_overrides_command(overrides_path))
 
     def _remote_configure_if_needed(self, remote_config_path: str) -> None:
         remote_bench = f"{self.config.ship.remote_path}/workspace/frappe-bench"

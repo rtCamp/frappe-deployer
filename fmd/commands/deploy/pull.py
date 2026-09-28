@@ -9,7 +9,12 @@ import typer
 from typer_examples import example
 
 from fmd.commands._utils import build_runners, get_printer, is_exec_mode_available, load_config, parse_app_option
-from fmd.dependency_overrides import REMOTE_OVERRIDES_PATH, write_remote_overrides_command
+from fmd.dependency_overrides import (
+    remote_overrides_path,
+    remove_remote_overrides_command,
+    uv_overrides_args,
+    write_remote_overrides_command,
+)
 from fmd.managers.pull import PullManager
 from fmd.config.config import Config
 
@@ -75,22 +80,31 @@ def _deploy_remote(config: Config, printer) -> None:
     )
 
     printer.print("Installing fmd in remote venv")
-    subprocess.run(
-        [
-            "ssh",
-            "-p",
-            str(ssh_port),
-            "-o",
-            "StrictHostKeyChecking=no",
-            f"{ssh_user}@{ssh_server}",
-            f"cd /home/{ssh_user} && mkdir -p /home/{ssh_user}/.fmd/logs && rm -rf /home/{ssh_user}/.fmd/venv && "
-            f"{write_remote_overrides_command()} && "
-            f"/home/{ssh_user}/.local/bin/uv venv /home/{ssh_user}/.fmd/venv --python 3.13 && "
-            f"/home/{ssh_user}/.local/bin/uv pip install --overrides {REMOTE_OVERRIDES_PATH} "
-            f"--python /home/{ssh_user}/.fmd/venv/bin/python {shlex.quote(install_source)}",
-        ],
-        check=True,
-    )
+    overrides_path = remote_overrides_path(ssh_user)
+    ssh_target = [
+        "ssh",
+        "-p",
+        str(ssh_port),
+        "-o",
+        "StrictHostKeyChecking=no",
+        f"{ssh_user}@{ssh_server}",
+    ]
+    try:
+        subprocess.run(
+            ssh_target
+            + [
+                f"cd /home/{ssh_user} && mkdir -p /home/{ssh_user}/.fmd/logs && rm -rf /home/{ssh_user}/.fmd/venv && "
+                f"{write_remote_overrides_command(overrides_path)} && "
+                f"/home/{ssh_user}/.local/bin/uv venv /home/{ssh_user}/.fmd/venv --python 3.13 && "
+                f"/home/{ssh_user}/.local/bin/uv pip install {shlex.join(uv_overrides_args(overrides_path))} "
+                f"--python /home/{ssh_user}/.fmd/venv/bin/python {shlex.quote(install_source)}"
+            ],
+            check=True,
+        )
+    finally:
+        # The file is only an input to the install above; leaving one behind per
+        # deploy would accumulate in the user's .fmd directory.
+        subprocess.run(ssh_target + [remove_remote_overrides_command(overrides_path)], check=False)
 
     # Write config to temp file and rsync to remote
     with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:

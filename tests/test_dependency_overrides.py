@@ -7,8 +7,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fmd.dependency_overrides import (
     DEPENDENCY_OVERRIDES,
-    REMOTE_OVERRIDES_PATH,
     overrides_file_contents,
+    remote_overrides_path,
+    remove_remote_overrides_command,
     uv_overrides_args,
     write_remote_overrides_command,
 )
@@ -76,8 +77,30 @@ finally:
 # -- uv invocations must actually receive the file -----------------------------
 print("\n-- uv arguments --")
 
-check("uv args point at the overrides file", uv_overrides_args(), ["--overrides", REMOTE_OVERRIDES_PATH])
-check("uv args honour a custom path", uv_overrides_args("/tmp/other.txt"), ["--overrides", "/tmp/other.txt"])
+check("uv args point at the given file", uv_overrides_args("/tmp/other.txt"), ["--overrides", "/tmp/other.txt"])
+
+
+# -- each run must get its own file --------------------------------------------
+# ship writes the file and runs uvx as two separate ssh round trips, so a shared
+# name lets a concurrent deploy swap the overrides in between. A fixed /tmp name
+# is also owned by whoever deployed first on a shared host.
+print("\n-- remote path --")
+
+first = remote_overrides_path("deploy")
+second = remote_overrides_path("deploy")
+
+check("same user gets a fresh path per call", first == second, False)
+check("path is under the deploying user's home", first.startswith("/home/deploy/.fmd/"), True)
+check("different users never collide", remote_overrides_path("a").startswith("/home/a/"), True)
+check("path is not in /tmp", first.startswith("/tmp"), False)
+check("write command creates the parent directory", "mkdir -p" in write_remote_overrides_command(first), True)
+
+# the file is a per-run input, so it must not accumulate on the host
+target.write_text("stale")
+subprocess.run(["sh", "-c", remove_remote_overrides_command(str(target))], check=True)
+check("remove command deletes the file", target.exists(), False)
+subprocess.run(["sh", "-c", remove_remote_overrides_command(str(target))], check=True)
+check("remove command tolerates a missing file", target.exists(), False)
 
 
 # -- summary ------------------------------------------------------------------
