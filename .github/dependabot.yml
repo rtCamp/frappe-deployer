@@ -1,34 +1,12 @@
 version: 2
 updates:
-  - package-ecosystem: "composer"
-    directory: "/"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "monthly"
+  # Python: pyproject.toml + uv.lock (Dependabot splits these into pip/uv updates)
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "daily"
-  - package-ecosystem: "bundler"
-    directory: "/"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "gomod"
-    directory: "/"
-    schedule:
-      interval: "daily"
+  # GitHub Actions: .github/workflows/*.yml + action.yml
   - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "terraform"
     directory: "/"
     schedule:
       interval: "daily"
