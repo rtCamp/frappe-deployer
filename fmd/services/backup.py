@@ -3,6 +3,7 @@ from typing import Any, Optional
 import gzip
 import shutil
 import importlib
+import base64
 
 from fmd.release_directory import BenchDirectory
 from fmd.helpers import get_json, update_json_keys_in_file_path
@@ -155,6 +156,38 @@ class BackupService:
             bench.compose_file_manager,
             bench.docker,
             run_on_compose_service="frappe",
+        )
+
+    def run_frappe_python(self, site_name: str, workspace_root: Path, python_code: str) -> Any:
+        """Run Python inside the bench's Frappe context via frappe-manager's docker API.
+
+        Mirrors `fm shell --bench-console`: wrap the code with frappe.init/connect,
+        base64-encode it, and pipe it into the bench venv interpreter inside the running
+        `frappe` service. Nothing is written into the bench, and the interpreter is
+        invoked by its own absolute path (so no sys.prefix RuntimeWarning).
+        """
+        bench = _create_migration_bench(name=site_name, path=workspace_root)
+
+        wrapper = (
+            "import sys, os\n"
+            "os.chdir('/workspace/frappe-bench/sites')\n"
+            "sys.path.insert(0, '/workspace/frappe-bench/apps')\n"
+            "import frappe\n"
+            f"frappe.init(site={site_name!r})\n"
+            "frappe.connect()\n"
+            f"{python_code}\n"
+        )
+        encoded = base64.b64encode(wrapper.encode()).decode()
+        command = f"FM_EXEC_CODE='{encoded}' && echo $FM_EXEC_CODE | base64 -d | /workspace/frappe-bench/env/bin/python"
+
+        return bench.docker.compose.exec(
+            service="frappe",
+            command=f'/bin/bash -c "{command}"',
+            user="frappe",
+            workdir="/workspace/frappe-bench",
+            stream=False,
+            capture_output=True,
+            use_shlex_split=True,
         )
 
     def sync_db_encryption_key_from_site(
