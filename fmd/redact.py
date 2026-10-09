@@ -6,22 +6,28 @@ embedded inside a larger argument (``--env APPS=[{"repo_url": "https://<token>@.
 anywhere in the text.
 """
 
+import json
 import re
 from typing import Any, Iterable
 
 REDACTED = "*****"
 
+# Shorter values are not masked verbatim, so that e.g. SOME_TOKEN=1 does not mask every "1"
+_MIN_SECRET_LENGTH = 8
+
 # Config keys / env var names whose values are credentials.
 _SECRET_NAME = re.compile(r"token|secret|passw(?:or)?d|(?:^|_|api)key$", re.IGNORECASE)
 
 # scheme://user[:password]@ e.g. https://<token>@github.com/org/repo
-_URL_USERINFO = re.compile(r"\b(?P<scheme>[A-Za-z][A-Za-z0-9+.-]*)://(?P<user>[^\s/:@'\"]*)(?::[^\s/@'\"]*)?@")
+_URL_USERINFO = re.compile(
+    r"\b(?P<scheme>[A-Za-z][A-Za-z0-9+.-]*)://(?P<user>[^\s/:@'\"]*)(?::(?P<password>[^\s/@'\"]*))?@"
+)
 
 # "name": "value" (JSON-serialised config)
 _JSON_PAIR = re.compile(r"\"(?P<name>[^\"]+)\"(?P<sep>\s*:\s*)\"[^\"]*\"")
 
 # NAME=value (--env GITHUB_TOKEN=..., ?access_token=...)
-_ASSIGNMENT = re.compile(r"\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)=(?:\"[^\"]*\"|'[^']*'|[^\s'\";&|]*)")
+_ASSIGNMENT = re.compile(r"\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)=(?P<value>\"[^\"]*\"|'[^']*'|[^\s'\";&|]*)")
 
 # GitHub token formats, wherever they show up (e.g. echoed by a failing hook)
 _GITHUB_TOKEN = re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})")
@@ -37,14 +43,41 @@ def _mask_inline_secrets(text: str) -> str:
     return _GITHUB_TOKEN.sub(REDACTED, text)
 
 
-def redact(text: str) -> str:
+def find_secret_values(data: Any) -> set[str]:
+    """Values of secret-named keys, secret NAME=value pairs and URL credentials found in data,
+    so they can be masked verbatim wherever they show up, whatever their format."""
+    found: set[str] = set()
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if isinstance(value, str) and is_secret_name(str(key)):
+                found.add(value)
+            else:
+                found |= find_secret_values(value)
+    elif isinstance(data, (list, tuple)):
+        for item in data:
+            found |= find_secret_values(item)
+    elif isinstance(data, str):
+        found.update(m["value"].strip("\"'") for m in _ASSIGNMENT.finditer(data) if is_secret_name(m["name"]))
+        found.update(m["password"] or m["user"] for m in _URL_USERINFO.finditer(data))
+        if data.startswith(("{", "[")):
+            try:
+                found |= find_secret_values(json.loads(data))
+            except ValueError:
+                pass
+    return {value for value in found if len(value) >= _MIN_SECRET_LENGTH}
+
+
+def redact(text: str, secrets: Iterable[str] = ()) -> str:
     """Mask credentials in text that is about to be printed, logged or raised."""
+    for value in sorted(secrets, key=len, reverse=True):
+        text = text.replace(value, REDACTED)
     text = _URL_USERINFO.sub(lambda m: f"{m['scheme']}://{REDACTED}@", text)
     return _mask_inline_secrets(text)
 
 
-def redact_command(command: Iterable[Any]) -> list[str]:
-    return [redact(str(part)) for part in command]
+def redact_command(command: Iterable[Any], secrets: Iterable[str] = ()) -> list[str]:
+    secrets = list(secrets)
+    return [redact(str(part), secrets) for part in command]
 
 
 def _strip_userinfo(match: re.Match) -> str:

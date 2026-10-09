@@ -1,6 +1,7 @@
 import dataclasses
 import functools
 import importlib
+import inspect
 import os
 import sys
 import time
@@ -8,7 +9,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple, Union
 
-from fmd.redact import redact, redact_command
+from fmd.redact import find_secret_values, redact, redact_command
 
 _dock = None
 try:
@@ -29,21 +30,27 @@ _DIM = "\033[2m"
 _RESET = "\033[0m"
 
 
-def redact_docker_exception(exc):
-    """Rebuild a DockerException with its command line and captured output redacted."""
+def redact_docker_exception(exc, secrets: Iterable[str] = ()):
+    """Rebuild a DockerException with its command line and captured output redacted.
+
+    Secret values found on the command line, plus any passed in, are masked verbatim, since a
+    failing command can print them back in a format the pattern-based redaction does not know.
+    """
+    secrets = find_secret_values(exc.docker_command) | set(secrets)
     output = exc.output
     if dataclasses.is_dataclass(output):
         output = dataclasses.replace(
             output,
-            stdout=[redact(line) for line in output.stdout],
-            stderr=[redact(line) for line in output.stderr],
-            combined=[redact(line) for line in output.combined],
+            stdout=[redact(line, secrets) for line in output.stdout],
+            stderr=[redact(line, secrets) for line in output.stderr],
+            combined=[redact(line, secrets) for line in output.combined],
         )
-    return type(exc)(redact_command(exc.docker_command), output)
+    return type(exc)(redact_command(exc.docker_command, secrets), output)
 
 
 def redact_errors(method):
     """DockerException's message echoes the full command, including `--env KEY=VALUE` args."""
+    signature = inspect.signature(method)
 
     @functools.wraps(method)
     def wrapper(*args, **kwargs):
@@ -52,7 +59,9 @@ def redact_errors(method):
         except Exception as e:
             if DockerException is None or not isinstance(e, DockerException):
                 raise
-            redacted = redact_docker_exception(e)
+            # Host commands get their env through the subprocess environment, not the command line
+            env = signature.bind_partial(*args, **kwargs).arguments.get("env") or {}
+            redacted = redact_docker_exception(e, find_secret_values([env, dict(os.environ)]))
         # Raised outside the except block so the unredacted original is not chained as __context__
         raise redacted from None
 

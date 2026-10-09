@@ -13,13 +13,15 @@ from frappe_manager.docker.docker_exceptions import DockerException
 from frappe_manager.docker.subprocess_output import SubprocessOutput
 
 from fmd.config.config import Config
-from fmd.redact import redact, redact_command, scrub_secrets
+from fmd.redact import find_secret_values, redact, redact_command, scrub_secrets
 from fmd.release_directory import BenchDirectory
 from fmd.runner.docker import DockerRunner
+from fmd.runner.host import HostRunner
 from fmd.services.bench import BenchService
 
 # Built at runtime so these fixtures do not trip gitleaks
 TOKEN = "gho_" + "Ab1" * 12
+PLAIN_TOKEN = "plain-" + "x9" * 10
 FC_KEY = "fc-key-" + "1" * 8
 FC_SECRET = "fc-secret-" + "2" * 8
 SITE = "site.localhost"
@@ -63,13 +65,13 @@ def service_for(config, mode="exec"):
     return BenchService(runner, None, config, Printer())
 
 
-def failing_docker(calls):
+def failing_docker(calls, leaked=TOKEN):
     """Stands in for frappe_manager's run_command_with_exit_code when the command exits non-zero."""
 
     def run_command_with_exit_code(full_cmd, *args, **kwargs):
         calls.append(full_cmd)
-        stdout = [f"Cloning into 'x'... https://{TOKEN}@github.com/{REPO}"]
-        stderr = [f"fatal: token {TOKEN} rejected"]
+        stdout = [f"Cloning into 'x'... https://{leaked}@github.com/{REPO}"]
+        stderr = [f"fatal: token {leaked} rejected"]
         raise DockerException(full_cmd, SubprocessOutput(stdout, stderr, stdout + stderr, 1))
 
     return run_command_with_exit_code
@@ -205,3 +207,45 @@ def test_docker_exception_from_forwarded_env_token_is_redacted(config, bench, mo
     assert f"GITHUB_TOKEN={TOKEN}" in calls[0]
     assert TOKEN not in str(excinfo.value)
     assert "GITHUB_TOKEN=*****" in excinfo.value.docker_command
+
+
+def test_docker_exception_masks_non_github_token_echoed_by_command(config, bench, monkeypatch):
+    # nothing pattern-based recognises this value once the command prints it bare
+    calls = []
+    monkeypatch.setattr(
+        "frappe_manager.docker.docker_client.run_command_with_exit_code", failing_docker(calls, PLAIN_TOKEN)
+    )
+    monkeypatch.setenv("GIT_TOKEN", PLAIN_TOKEN)
+    runner = service_for(config, "image").runner
+
+    with pytest.raises(DockerException) as excinfo:
+        runner.run(["bench", "build"], bench)
+
+    assert PLAIN_TOKEN in " ".join(calls[0])
+    assert PLAIN_TOKEN not in str(excinfo.value)
+    assert PLAIN_TOKEN not in " ".join(excinfo.value.output.combined)
+
+
+def test_failed_host_hook_masks_secret_from_its_env(bench, monkeypatch):
+    # host hooks get GITHUB_TOKEN through the subprocess env, so it never appears on the command line
+    def failing_host(full_cmd, *args, **kwargs):
+        output = [f"curl: (22) 401 for token {PLAIN_TOKEN}"]
+        raise DockerException(full_cmd, SubprocessOutput([], output, output, 22))
+
+    monkeypatch.setattr("fmd.runner.host._run_cmd", failing_host)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    with pytest.raises(DockerException) as excinfo:
+        HostRunner(verbose=False, printer=Printer()).run(["bash", "hook.sh"], bench, env={"GITHUB_TOKEN": PLAIN_TOKEN})
+
+    assert PLAIN_TOKEN not in str(excinfo.value)
+    assert excinfo.value.output.stderr == ["curl: (22) 401 for token *****"]
+
+
+def test_find_secret_values():
+    fc = json.dumps({"api_key": FC_KEY, "site_name": "fc.site"})
+    found = find_secret_values(
+        ["--env", f"GIT_TOKEN={PLAIN_TOKEN}", f"FC={fc}", f"https://x-access-token:{TOKEN}@github.com/{REPO}"]
+    )
+    assert found == {PLAIN_TOKEN, TOKEN}
+    assert find_secret_values({"FC": fc, "SITE_NAME": SITE, "SKIP_TOKEN": "1"}) == {FC_KEY}
