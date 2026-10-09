@@ -1,3 +1,5 @@
+import dataclasses
+import functools
 import importlib
 import os
 import sys
@@ -5,6 +7,8 @@ import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple, Union
+
+from fmd.redact import redact, redact_command
 
 _dock = None
 try:
@@ -19,8 +23,40 @@ if SubprocessOutput is None:
         pass
 
 
+DockerException = getattr(_dock, "DockerException", None)
+
 _DIM = "\033[2m"
 _RESET = "\033[0m"
+
+
+def redact_docker_exception(exc):
+    """Rebuild a DockerException with its command line and captured output redacted."""
+    output = exc.output
+    if dataclasses.is_dataclass(output):
+        output = dataclasses.replace(
+            output,
+            stdout=[redact(line) for line in output.stdout],
+            stderr=[redact(line) for line in output.stderr],
+            combined=[redact(line) for line in output.combined],
+        )
+    return type(exc)(redact_command(exc.docker_command), output)
+
+
+def redact_errors(method):
+    """DockerException's message echoes the full command, including `--env KEY=VALUE` args."""
+
+    @functools.wraps(method)
+    def wrapper(*args, **kwargs):
+        try:
+            return method(*args, **kwargs)
+        except Exception as e:
+            if DockerException is None or not isinstance(e, DockerException):
+                raise
+            redacted = redact_docker_exception(e)
+        # Raised outside the except block so the unredacted original is not chained as __context__
+        raise redacted from None
+
+    return wrapper
 
 
 def is_ci() -> bool:
@@ -41,7 +77,7 @@ class CommandRunner(ABC):
             from fmd.logger import get_logger
 
             logger = get_logger()
-            logger.debug(f"COMMAND [{mode}]: {' '.join(command)}")
+            logger.debug(f"COMMAND [{mode}]: {' '.join(redact_command(command))}")
         except Exception:
             pass
 
@@ -64,12 +100,13 @@ class CommandRunner(ABC):
         if start_time is None:
             return
         elapsed = time.time() - start_time
-        print(f"{_DIM}$ [{mode}] {' '.join(command)}  ({elapsed:.2f}s){_RESET}")
+        command_str = " ".join(redact_command(command))
+        print(f"{_DIM}$ [{mode}] {command_str}  ({elapsed:.2f}s){_RESET}")
         try:
             from fmd.logger import get_logger
 
             logger = get_logger()
-            logger.debug(f"TIMING: {elapsed:.2f}s for command: {' '.join(command)}")
+            logger.debug(f"TIMING: {elapsed:.2f}s for command: {command_str}")
         except Exception:
             pass
 

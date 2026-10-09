@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import Iterable, List, Literal, Optional, Tuple, Union
 
-from fmd.runner.base import CommandRunner, SubprocessOutput
+from fmd.runner.base import CommandRunner, SubprocessOutput, redact_errors
 
 _dock = None
 try:
@@ -108,6 +108,7 @@ class DockerRunner(CommandRunner):
             tag_streams=True,
         )
 
+    @redact_errors
     def run(
         self,
         command: list[str],

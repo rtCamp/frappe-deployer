@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from fmd.release_directory import BenchDirectory
 from fmd.helpers import extract_timestamp as _extract_timestamp, get_relative_path, human_readable_time
+from fmd.redact import is_secret_name, scrub_secrets
 
 
 class BenchService:
@@ -26,8 +27,12 @@ class BenchService:
         current: BenchDirectory,
         site_name: str,
         app_name: Optional[str] = None,
+        include_secrets: bool = False,
     ) -> dict[str, str]:
+        """Hook env. Without include_secrets, credentials are left out because container hooks
+        receive this env as `--env KEY=VALUE` arguments on the docker command line."""
         env: dict[str, str] = {}
+        scrub = (lambda data: data) if include_secrets else scrub_secrets
 
         computed: dict[str, str] = {
             "BENCH_PATH": str(bench_path),
@@ -45,22 +50,24 @@ class BenchService:
         env.update(computed)
 
         for field_name in self.config.__class__.model_fields:
+            if not include_secrets and is_secret_name(field_name):
+                continue
             value = getattr(self.config, field_name, None)
             if value is None:
                 continue
             env_key = field_name.upper()
             if isinstance(value, list) and value and isinstance(value[0], BaseModel):
-                env[env_key] = json.dumps([item.model_dump() for item in value])
+                env[env_key] = json.dumps(scrub([item.model_dump() for item in value]))
             elif isinstance(value, dict):
-                env[env_key] = json.dumps(value)
+                env[env_key] = json.dumps(scrub(value))
             elif isinstance(value, Path):
                 env[env_key] = str(value)
             elif isinstance(value, bool):
                 env[env_key] = str(value).lower()
             elif isinstance(value, BaseModel):
-                env[env_key] = json.dumps(value.model_dump())
+                env[env_key] = json.dumps(scrub(value.model_dump()))
             else:
-                env[env_key] = str(value)
+                env[env_key] = scrub(str(value))
 
         return env
 
@@ -109,7 +116,10 @@ class BenchService:
 
             script_path.chmod(0o755)
 
-            script_env = self.get_script_env(bench_path, bench_directory, site_name, app_name)
+            # Host hooks get env through the subprocess environment, never argv, so they keep secrets
+            script_env = self.get_script_env(
+                bench_path, bench_directory, site_name, app_name, include_secrets=not container
+            )
 
             if container:
                 output = self.runner.run(

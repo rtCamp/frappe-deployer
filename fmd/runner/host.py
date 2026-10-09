@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple, Union
 
-from fmd.runner.base import CommandRunner, SubprocessOutput, is_ci, is_tty
+from fmd.runner.base import CommandRunner, SubprocessOutput, is_ci, is_tty, redact_errors
 
 _dock = None
 try:
@@ -53,6 +53,7 @@ class HostRunner(CommandRunner):
     def restart_services(self, args: List[str], bench_directory) -> None:
         raise NotImplementedError("HostRunner does not support restart_services - use FM or direct bench commands")
 
+    @redact_errors
     def run_cmd(
         self,
         command: list[str],
@@ -78,6 +79,7 @@ class HostRunner(CommandRunner):
         self._log_timing(start_time, command, mode="host")
         return output
 
+    @redact_errors
     def run(
         self,
         command: list[str],
