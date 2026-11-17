@@ -491,12 +491,16 @@ class ReleaseManager:
                 )
             else:
                 self.printer.print("Skipping app installation (install_apps=false)")
-            self.cleanup_service.cleanup_releases(self.workspace_root, self.bench_path)
-            self._sync_remote_workers()
 
         except Exception as e:
             if self.config.switch.rollback:
                 self.printer.warning(f"Failed to switch to release {release_name}: {e}. Rolling back")
+                if not previous_release.exists():
+                    self.printer.warning(
+                        f"Cannot roll back: previous release {previous_release} no longer exists. "
+                        f"Site stays on {release_name}"
+                    )
+                    raise
                 if self.bench_path.exists() or self.bench_path.is_symlink():
                     self.bench_path.unlink()
                 self.bench_service.bench_symlink(self.bench_path, BenchDirectory(previous_release))
@@ -510,6 +514,12 @@ class ReleaseManager:
                 )
                 self.printer.print("Rolled back to previous release")
             raise
+
+        # Past this point the site serves the new release and the database is already
+        # migrated, so no failure may roll the site back. Old releases are removed last
+        # so a failed worker sync leaves a release to roll back to by hand.
+        self._sync_remote_workers()
+        self.cleanup_service.cleanup_releases(self.workspace_root, self.bench_path)
 
     def _extract_python_version(self, release_path: Path) -> str:
         uv_default = release_path / ".uv" / "python-default"

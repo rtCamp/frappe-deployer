@@ -23,6 +23,21 @@ def _get_current_ip() -> str:
     return requests.get("https://api.ipify.org").text
 
 
+def _only_vanished_sources(stderr: str) -> bool:
+    """True when rsync's only complaints are source files that disappeared mid-copy.
+
+    Config backups and rotated logs are written and pruned by the live site while the
+    sync runs, so a file can exist in the file list and be gone by the time rsync opens
+    it. Everything else (permissions, disk, transport) must still fail the sync.
+    """
+    failures = [
+        line for line in stderr.splitlines() if line.startswith("rsync:") and not line.startswith("rsync error:")
+    ]
+    if not failures:
+        return False
+    return all("No such file or directory (2)" in line or "file has vanished" in line for line in failures)
+
+
 def _find_available_port(start_port: int = 11000) -> Optional[int]:
     used_ports: set[int] = set()
     benches_dir = frappe_manager.CLI_BENCHES_DIRECTORY
@@ -229,6 +244,7 @@ class RemoteWorkerManager:
             "--exclude=*.swp",
             "--exclude=*.swo",
             "--exclude=*.sql",
+            "--exclude=*.bak-*",
         ]
 
         for pattern in self.rw.exclude_patterns or []:
@@ -285,7 +301,14 @@ class RemoteWorkerManager:
                 + [src_str, f"{target_path}/{dest_name}"]
             )
             self.printer.change_head(f"Syncing: {dest_name}")
-            subprocess.run(cmd, check=True)
+            result = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
+            if result.stderr:
+                self.printer.print(result.stderr.rstrip())
+            if result.returncode in (23, 24) and _only_vanished_sources(result.stderr or ""):
+                self.printer.print(f"Synced {dest_name} (source files vanished mid-copy, ignored)")
+                continue
+            if result.returncode != 0:
+                raise subprocess.CalledProcessError(result.returncode, cmd, stderr=result.stderr)
             self.printer.print(f"Synced {dest_name}")
 
         self.printer.print("Remote sync completed successfully")
