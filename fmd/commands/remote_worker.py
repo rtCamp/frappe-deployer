@@ -4,7 +4,7 @@ from typing import Optional
 import typer
 from typer_examples import example, install
 
-from fmd.commands._utils import get_printer, load_config
+from fmd.commands._utils import build_runners, get_printer, load_config
 from fmd.managers.remote_worker import RemoteWorkerManager
 
 app = typer.Typer(rich_markup_mode="rich", invoke_without_command=True, no_args_is_help=True)
@@ -66,7 +66,7 @@ def enable(
     config = load_config(config_path, overrides=overrides if overrides else None, skip_repo_validation=True)
     printer = get_printer()
     printer.start("Working")
-    manager = RemoteWorkerManager(config, printer)
+    manager = RemoteWorkerManager(config, printer, build_runners(config)[1])
     manager.enable(force=force)
     printer.stop()
 
@@ -118,6 +118,6 @@ def sync(
     config = load_config(config_path, overrides=overrides if overrides else None, skip_repo_validation=True)
     printer = get_printer()
     printer.start("Working")
-    manager = RemoteWorkerManager(config, printer)
+    manager = RemoteWorkerManager(config, printer, build_runners(config)[1])
     manager.sync()
     printer.stop()

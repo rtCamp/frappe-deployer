@@ -253,8 +253,23 @@ fmd remote-worker sync   mysite.localhost --rw-server 192.168.1.100
 ```
 
 `enable` opens the Redis/MariaDB ports the worker needs; `sync` copies the active
-release to it. Set `[switch] sync_workers = true` to sync automatically after each
-successful switch.
+release to it. Set `[switch] sync_workers = true` to move the workers with each switch.
+
+With `sync_workers`, a switch copies the release into its own `release_*` folder on
+the worker while the workers keep running. Before any database restore or migrate it
+pauses job pickup on every worker (the shared RQ suspend flag), waits for running jobs
+to finish (`drain_workers_timeout`; this drain always runs for remote workers, whatever
+`drain_workers` says) and stops the remote workers. After the migrate it points their
+`frappe-bench` at the new folder, starts them and resumes jobs, so remote workers never
+run old code against the migrated database and are never killed mid-job.
+
+If the switch fails before the database is touched, they start again on their old
+release. If it fails after a restore or migrate began, they stay stopped, because the
+old release may not match the database; run `fmd remote-worker sync` once the site runs
+a working release. Unchanged files are hard-linked from the worker's current release,
+and the worker keeps that one release besides the new one. `fmd remote-worker sync`
+does the same steps without a migrate; re-syncing the release the workers already run
+copies into a `.next` folder and swaps it in while they are stopped.
 
 ## Ship & remote
 

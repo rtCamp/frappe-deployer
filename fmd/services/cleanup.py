@@ -83,9 +83,7 @@ class CleanupService:
         current_release = bench_path.resolve()
         workspace = workspace_root / "workspace"
         release_dirs = [d for d in workspace.iterdir() if d.is_dir() and d.name.startswith(RELEASE_DIR_NAME)]
-        release_dirs.sort(
-            key=lambda x: int(x.name.split("_")[-1]) if x.name.split("_")[-1].isdigit() else 0, reverse=True
-        )
+        release_dirs.sort(key=lambda d: d.name, reverse=True)
 
         available = [d for d in release_dirs if d.resolve() != current_release]
         to_delete = available[retain_limit:]
@@ -235,9 +233,7 @@ class CleanupService:
         if not release_dirs:
             console.print("\n[blue]No release directories found - already clean[/blue]")
         else:
-            release_dirs.sort(
-                key=lambda x: int(x.name.split("_")[-1]) if x.name.split("_")[-1].isdigit() else 0, reverse=True
-            )
+            release_dirs.sort(key=lambda d: d.name, reverse=True)
 
             available_releases = [d for d in release_dirs if d.resolve() != current_release]
             if not available_releases:

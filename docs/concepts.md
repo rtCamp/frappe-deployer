@@ -86,14 +86,19 @@ fmd release switch <site> <older_release>
 **Automatic rollback** — with `[switch] rollback = true`, if the migration step fails
 during a switch, fmd reverts `frappe-bench` to the previous working release. With
 `rollback = false` (default) a failed switch leaves the site on the previous release while
-preserving the new release for debugging.
+preserving the new release for debugging. Rollback covers the migrate/restart window only:
+once the site is live on the new release the database has already migrated, so a later
+failure (remote worker sync) fails the run and leaves the site on the new release instead
+of putting old code on a new schema. Old releases are pruned after the worker sync, so a
+failed sync still leaves a release to switch back to by hand.
 
 **Pre-switch backups** — with `[switch] backups = true`, fmd backs up the DB and site
 configs into `deployment-backup/release_YYYYMMDD_HHMMSS/` before migrating, giving a
 restore point independent of the release directories.
 
 **Retention** — `[release] releases_retain_limit` (default `7`) caps how many releases are
-kept. `fmd cleanup` prunes old releases and their backups:
+kept, newest by the date and time in the release name. `fmd cleanup` prunes old releases
+and their backups:
 
 ```bash
 fmd cleanup <site> -r 3 -b 5 -y         # keep 3 releases, 5 backups

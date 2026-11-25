@@ -1,4 +1,5 @@
 import json
+import shlex
 import shutil
 import socket
 from pathlib import Path
@@ -21,6 +22,46 @@ from fmd.ssh import SSHClient
 
 def _get_current_ip() -> str:
     return requests.get("https://api.ipify.org").text
+
+
+def _only_vanished_sources(returncode: int, stderr: str) -> bool:
+    """True when rsync's only problems are source files that disappeared mid-copy.
+
+    Config backups and rotated logs are written and pruned by the live site while the
+    sync runs, so a file can be in rsync's file list and gone by the time it is sent.
+    Exit 24 means exactly that and nothing else. Exit 23 also covers permission, disk
+    and write errors, so it only passes when every complaint is the sending side failing
+    to find a file; a missing file on the worker side is a failed write and must fail.
+    """
+    if returncode == 24:
+        return True
+    if returncode != 23:
+        return False
+    complaints = [
+        line for line in stderr.splitlines() if line.startswith("rsync:") or line.startswith("file has vanished:")
+    ]
+    if not complaints:
+        return False
+    return all(
+        line.startswith("file has vanished:")
+        or (line.startswith("rsync: [sender]") and "No such file or directory (2)" in line)
+        for line in complaints
+    )
+
+
+# Runs with fmx's Python in the primary's frappe container, the same suspend flag and
+# drain wait `fmx restart --drain-workers` uses. argv: timeout, poll, skip_stale, stale_timeout.
+_DRAIN_SCRIPT = """
+import sys
+from fmx.rq_controller import ActionEnum, control_rq_workers, wait_for_rq_workers_suspended
+timeout, poll, skip_stale, stale_timeout = sys.argv[1:5]
+if not control_rq_workers(action=ActionEnum.suspend):
+    sys.exit("could not set the RQ suspend flag")
+if not wait_for_rq_workers_suspended(
+    timeout=int(timeout), poll_interval=int(poll), skip_stale=skip_stale == "1", stale_timeout=int(stale_timeout)
+):
+    sys.exit("workers still running jobs after the drain timeout")
+"""
 
 
 def _find_available_port(start_port: int = 11000) -> Optional[int]:
@@ -69,18 +110,22 @@ def _find_available_port(start_port: int = 11000) -> Optional[int]:
 
 
 class RemoteWorkerManager:
-    def __init__(self, config: Config, printer: Any) -> None:
+    def __init__(self, config: Config, printer: Any, exec_runner: Any) -> None:
         if not config.remote_worker:
             raise RuntimeError("remote_worker config section is required")
         rw = config.remote_worker
         self.config = config
         self.printer = printer
+        self.exec_runner = exec_runner
         self.rw = rw
         self.ssh = SSHClient(rw.server_ip, rw.ssh_user, rw.ssh_port)
         self.current = BenchDirectory(config.bench_path)
         self.data = BenchDirectory(config.workspace_root / "workspace" / DATA_DIR_NAME)
         self._site_base = Path(rw.fm_benches_path) / config.site_name
         self._remote_base = self._site_base / "workspace"
+        self._release: Optional[str] = None
+        self._previous: Optional[str] = None
+        self._staging: Optional[str] = None
 
     def _fm_bench(self):
         from frappe_manager.docker import ComposeFile
@@ -181,35 +226,152 @@ class RemoteWorkerManager:
         self.printer.print(f"Created worker configs with Redis queue URL: {common_config['redis_queue']}")
 
     def sync(self) -> None:
+        """Copy the active release to the worker server and swap it in, with jobs paused.
+
+        Standalone form of what a switch does around its migrate: copy while workers
+        run, pause jobs and wait for running ones, swap and start, then resume.
+        """
+        self.copy()
+        try:
+            self.stop_drained()
+            self.activate()
+        finally:
+            self.resume_jobs()
+
+    def copy(self) -> None:
+        """Copy the active release to the worker while its workers keep running.
+
+        A new release is copied straight into its own folder. Re-syncing the release the
+        workers already run goes into a `.next` folder instead, so running workers never
+        see half-updated files; it is moved into place while they are stopped.
+        """
+        self._release = self.current.path.readlink().name
+        self._restore_interrupted_swap(self._release)
+        self._previous = self._remote_release()
+        self._staging = self._release if self._release != self._previous else f"{self._release}.next"
+        self._rsync_workspace(self._staging, self._previous)
+
+    def _restore_interrupted_swap(self, release: str) -> None:
+        """Put `<release>.old` back if an earlier same-release swap stopped between its two moves."""
+        base = str(self._remote_base)
+        old = f"{release}.old"
+        if self.ssh.path_exists(f"{base}/{old}") and not self.ssh.path_exists(f"{base}/{release}"):
+            self.ssh.run_list(["mv", old, release], workdir=base)
+            self.printer.warning(f"Restored {release} on the worker from an interrupted swap")
+
+    def sync_data(self) -> None:
+        """Copy deployment-data again, e.g. after a database restore rewrote site configs."""
+        self._rsync_workspace(None, None)
+
+    def stop_drained(self) -> None:
+        """Pause job pickup on every worker, wait for running jobs, then stop the remote workers.
+
+        The pause is the shared Redis flag, so it covers the worker server too. Stopping
+        only idle workers means no job is killed mid-run and left marked as started, so
+        this always drains, whatever `drain_workers` says for the primary's restart.
+        """
+        switch = self.config.switch
+        self.printer.change_head("Pausing jobs and waiting for running ones to finish")
+        self.exec_runner.run(
+            [
+                "/opt/uv-tools/fmx/bin/python",
+                "-c",
+                _DRAIN_SCRIPT,
+                str(switch.drain_workers_timeout),
+                str(switch.drain_workers_poll),
+                "1" if switch.skip_stale_workers else "0",
+                str(switch.skip_stale_timeout),
+            ],
+            self.current,
+            workdir="/workspace",
+        )
+        self.printer.print("Jobs paused; no worker is running a job")
         self._stop_all_compose_services()
-        self._rsync_workspace()
+
+    def activate(self) -> None:
+        """Point the worker at the copied release and start it."""
+        base = str(self._remote_base)
+        if self._staging != self._release:
+            old = f"{self._release}.old"
+            self.ssh.run_list(["rm", "-rf", old], workdir=base)
+            self.ssh.run_list(["mv", self._release, old], workdir=base)
+            try:
+                self.ssh.run_list(["mv", self._staging, self._release], workdir=base)
+            except Exception:
+                self.ssh.run_list(["mv", old, self._release], workdir=base)
+                raise
+        self._point_remote_bench_at(self._release)
+        self._link_worker_configs()
+        self._only_start_workers_compose_services()
+        if self._staging != self._release:
+            self.ssh.run_list(["rm", "-rf", f"{self._release}.old"], workdir=base)
+        else:
+            # Only a release change moves the fallback forward; re-syncing the same
+            # release keeps the one before it.
+            self._prune_remote_releases(keep={self._release, self._previous})
+
+    def start(self) -> None:
+        """Start the remote workers on whatever release they point at."""
         self._link_worker_configs()
         self._only_start_workers_compose_services()
 
+    def resume_jobs(self) -> None:
+        self.exec_runner.run(["fmx", "rq", "resume"], self.current, workdir="/workspace")
+        self.printer.print("Jobs resumed")
+
+    def _remote_release(self) -> Optional[str]:
+        """Name of the release the worker's frappe-bench points at, if it is a release link."""
+        remote_bench = str(self._remote_base / "frappe-bench")
+        if not self.ssh.is_symlink(remote_bench):
+            return None
+        return Path(self.ssh.run_list(["readlink", remote_bench]).strip()).name
+
+    def _point_remote_bench_at(self, release: str) -> None:
+        remote_bench = str(self._remote_base / "frappe-bench")
+        if self.ssh.path_exists(remote_bench) and not self.ssh.is_symlink(remote_bench):
+            legacy = f"frappe-bench.before-{release}"
+            self.ssh.run_list(["mv", "frappe-bench", legacy], workdir=str(self._remote_base))
+            self.printer.print(f"Moved the old frappe-bench folder to {legacy}; delete it once workers are healthy")
+        self.ssh.run_list(["ln", "-sfn", release, "frappe-bench"], workdir=str(self._remote_base))
+        self.printer.print(f"Linked frappe-bench to {release}")
+
+    def _prune_remote_releases(self, keep: set[Optional[str]]) -> None:
+        listing = self.ssh.run_list(
+            ["find", ".", "-mindepth", "1", "-maxdepth", "1", "-type", "d", "-name", "release_*", "-printf", "%f\\n"],
+            workdir=str(self._remote_base),
+        )
+        for name in sorted(listing.split()):
+            if name in keep:
+                continue
+            self.ssh.run_list(["rm", "-rf", name], workdir=str(self._remote_base))
+            self.printer.print(f"Removed old worker release: {name}")
+
     def _stop_all_compose_services(self) -> None:
         self.printer.change_head("Stop all remote-worker services")
-        try:
-            self.ssh.run_list(
-                [
-                    "docker",
-                    "compose",
-                    "-f",
-                    "docker-compose.yml",
-                    "-f",
-                    "docker-compose.workers.yml",
-                    "down",
-                    "--timeout",
-                    "10",
-                ],
-                workdir=str(self._site_base),
-            )
-            self.printer.print("Stopped all remote-worker services")
-        except RuntimeError:
-            self.printer.print("No remote-worker services to stop (first sync?)")
-        except RuntimeError:
-            self.printer.print("No remote-worker services to stop (first sync?)")
+        # `test` alone cannot tell a missing file from a failed SSH connection; this command
+        # always exits 0 on the worker, so any error here is the connection and fails the switch.
+        compose = shlex.quote(str(self._site_base / "docker-compose.workers.yml"))
+        if self.ssh.run(f"if [ -e {compose} ]; then echo yes; else echo no; fi").strip() != "yes":
+            self.printer.print("No remote-worker services to stop (first sync)")
+            return
+        self.ssh.run_list(
+            [
+                "docker",
+                "compose",
+                "-f",
+                "docker-compose.yml",
+                "-f",
+                "docker-compose.workers.yml",
+                "down",
+                "--timeout",
+                "10",
+            ],
+            workdir=str(self._site_base),
+        )
+        self.printer.print("Stopped all remote-worker services")
 
-    def _rsync_workspace(self) -> None:
+    def _rsync_workspace(self, dest: Optional[str], previous: Optional[str]) -> None:
+        """Copy the bench into `dest` (skipped when None), deployment-data and extras."""
         site_name = self.config.site_name
         target_path = f"{self.rw.ssh_user}@{self.rw.server_ip}:{self.rw.fm_benches_path}/{site_name}/workspace"
 
@@ -229,6 +391,7 @@ class RemoteWorkerManager:
             "--exclude=*.swp",
             "--exclude=*.swo",
             "--exclude=*.sql",
+            "--exclude=*.bak-*",
         ]
 
         for pattern in self.rw.exclude_patterns or []:
@@ -236,8 +399,13 @@ class RemoteWorkerManager:
 
         ssh_opt = f"ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p {self.rw.ssh_port}"
 
-        rsync_dirs = [
-            {"src": self.current.path, "dest": None, "excludes": [], "trailing_slash": True},
+        rsync_dirs = []
+        if dest:
+            # Unchanged files are hard-linked from the release the workers run now, so the
+            # copy costs only the changed bytes, in disk and on the wire.
+            reuse = [f"--link-dest=../{previous}"] if previous and previous != dest else []
+            rsync_dirs.append({"src": self.current.path, "dest": dest, "excludes": reuse, "trailing_slash": True})
+        rsync_dirs.append(
             {
                 "src": self.data.path,
                 "dest": None,
@@ -246,8 +414,8 @@ class RemoteWorkerManager:
                     f"--exclude=sites/{site_name}/private/***",
                 ],
                 "trailing_slash": True,
-            },
-        ]
+            }
+        )
 
         for dir_cfg in self.rw.include_dirs or []:
             rsync_dirs.append(
@@ -285,26 +453,20 @@ class RemoteWorkerManager:
                 + [src_str, f"{target_path}/{dest_name}"]
             )
             self.printer.change_head(f"Syncing: {dest_name}")
-            subprocess.run(cmd, check=True)
+            result = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
+            if result.stderr:
+                self.printer.print(result.stderr.rstrip())
+            if _only_vanished_sources(result.returncode, result.stderr or ""):
+                self.printer.print(f"Synced {dest_name} (source files vanished mid-copy, ignored)")
+                continue
+            if result.returncode != 0:
+                raise subprocess.CalledProcessError(result.returncode, cmd, stderr=result.stderr)
             self.printer.print(f"Synced {dest_name}")
 
         self.printer.print("Remote sync completed successfully")
 
     def _link_worker_configs(self) -> None:
         remote_bench_path = self._remote_base / "frappe-bench"
-
-        new_target = self.current.path.readlink().name
-        is_symlink = self.ssh.is_symlink(str(remote_bench_path))
-        if is_symlink:
-            current_target = self.ssh.run(f"readlink {remote_bench_path}").strip()
-            self.ssh.run_list(["unlink", str(remote_bench_path)])
-            if current_target != new_target:
-                self.ssh.run_list(["mv", current_target, new_target], workdir=str(self._remote_base))
-        else:
-            self.ssh.run_list(["mv", "frappe-bench", new_target], workdir=str(self._remote_base))
-
-        self.ssh.run_list(["ln", "-sfn", new_target, "frappe-bench"], workdir=str(self._remote_base))
-        self.printer.print(f"Linked frappe-bench to {new_target}")
 
         for rel_dir in [
             f"deployment-data/sites/{self.config.site_name}/private/files",
