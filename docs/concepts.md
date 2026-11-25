@@ -97,7 +97,8 @@ configs into `deployment-backup/release_YYYYMMDD_HHMMSS/` before migrating, givi
 restore point independent of the release directories.
 
 **Retention** — `[release] releases_retain_limit` (default `7`) caps how many releases are
-kept. `fmd cleanup` prunes old releases and their backups:
+kept, newest by the date and time in the release name. `fmd cleanup` prunes old releases
+and their backups:
 
 ```bash
 fmd cleanup <site> -r 3 -b 5 -y         # keep 3 releases, 5 backups

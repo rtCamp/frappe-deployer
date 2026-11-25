@@ -256,6 +256,12 @@ fmd remote-worker sync   mysite.localhost --rw-server 192.168.1.100
 release to it. Set `[switch] sync_workers = true` to sync automatically after each
 successful switch.
 
+`sync` copies the release into its own `release_*` folder on the worker while the
+workers keep running, then stops them, points `frappe-bench` at the new folder and
+starts them again, so they are down only for the restart. A failed copy leaves them
+running the code they had. Unchanged files are hard-linked from the worker's current
+release, and the worker keeps that one release besides the new one.
+
 ## Ship & remote
 
 Ship mode builds the release locally or in CI and rsyncs it to a remote host, which

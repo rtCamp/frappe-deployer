@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `fmd info` is now `fmd release info`.
 - The `[fm]` config section is merged into `[switch]` as `restore_db_from_site`.
+- Remote worker sync copies the new release beside the running one and swaps it in;
+  workers stay up during the copy and keep running the old code if it fails.
+
+### Fixed
+- Release retention keeps the newest releases; it compared only the time of day, so
+  an older release deployed later in the day could outlive the previous live one.
+- Remote worker sync no longer fails on files that vanish mid-copy (rsync exit 24), and
+  no longer passes a missing file on the worker side as a vanished source.
 
 ### Removed
 - `fmd maintenance` command — maintenance mode is now config-only via `[switch]`
