@@ -1,4 +1,5 @@
 import json
+import shlex
 import shutil
 import socket
 from pathlib import Path
@@ -347,7 +348,10 @@ class RemoteWorkerManager:
 
     def _stop_all_compose_services(self) -> None:
         self.printer.change_head("Stop all remote-worker services")
-        if not self.ssh.path_exists(str(self._site_base / "docker-compose.workers.yml")):
+        # `test` alone cannot tell a missing file from a failed SSH connection; this command
+        # always exits 0 on the worker, so any error here is the connection and fails the switch.
+        compose = shlex.quote(str(self._site_base / "docker-compose.workers.yml"))
+        if self.ssh.run(f"if [ -e {compose} ]; then echo yes; else echo no; fi").strip() != "yes":
             self.printer.print("No remote-worker services to stop (first sync)")
             return
         self.ssh.run_list(
