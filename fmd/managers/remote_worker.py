@@ -124,6 +124,7 @@ class RemoteWorkerManager:
         self._remote_base = self._site_base / "workspace"
         self._release: Optional[str] = None
         self._previous: Optional[str] = None
+        self._staging: Optional[str] = None
 
     def _fm_bench(self):
         from frappe_manager.docker import ComposeFile
@@ -237,42 +238,63 @@ class RemoteWorkerManager:
             self.resume_jobs()
 
     def copy(self) -> None:
-        """Copy the active release into its own folder on the worker; workers keep running."""
+        """Copy the active release to the worker while its workers keep running.
+
+        A new release is copied straight into its own folder. Re-syncing the release the
+        workers already run goes into a `.next` folder instead, so running workers never
+        see half-updated files; it is moved into place while they are stopped.
+        """
         self._release = self.current.path.readlink().name
         self._previous = self._remote_release()
-        self._rsync_workspace(self._release, self._previous)
+        self._staging = self._release if self._release != self._previous else f"{self._release}.next"
+        self._rsync_workspace(self._staging, self._previous)
+
+    def sync_data(self) -> None:
+        """Copy deployment-data again, e.g. after a database restore rewrote site configs."""
+        self._rsync_workspace(None, None)
 
     def stop_drained(self) -> None:
         """Pause job pickup on every worker, wait for running jobs, then stop the remote workers.
 
         The pause is the shared Redis flag, so it covers the worker server too. Stopping
-        only idle workers means no job is killed mid-run and left marked as started.
+        only idle workers means no job is killed mid-run and left marked as started, so
+        this always drains, whatever `drain_workers` says for the primary's restart.
         """
         switch = self.config.switch
-        if switch.drain_workers:
-            self.printer.change_head("Pausing jobs and waiting for running ones to finish")
-            self.exec_runner.run(
-                [
-                    "/opt/uv-tools/fmx/bin/python",
-                    "-c",
-                    _DRAIN_SCRIPT,
-                    str(switch.drain_workers_timeout),
-                    str(switch.drain_workers_poll),
-                    "1" if switch.skip_stale_workers else "0",
-                    str(switch.skip_stale_timeout),
-                ],
-                self.current,
-                workdir="/workspace",
-            )
-            self.printer.print("Jobs paused; no worker is running a job")
+        self.printer.change_head("Pausing jobs and waiting for running ones to finish")
+        self.exec_runner.run(
+            [
+                "/opt/uv-tools/fmx/bin/python",
+                "-c",
+                _DRAIN_SCRIPT,
+                str(switch.drain_workers_timeout),
+                str(switch.drain_workers_poll),
+                "1" if switch.skip_stale_workers else "0",
+                str(switch.skip_stale_timeout),
+            ],
+            self.current,
+            workdir="/workspace",
+        )
+        self.printer.print("Jobs paused; no worker is running a job")
         self._stop_all_compose_services()
 
     def activate(self) -> None:
         """Point the worker at the copied release and start it."""
+        base = str(self._remote_base)
+        if self._staging != self._release:
+            old = f"{self._release}.old"
+            self.ssh.run_list(["rm", "-rf", old], workdir=base)
+            self.ssh.run_list(["mv", self._release, old], workdir=base)
+            self.ssh.run_list(["mv", self._staging, self._release], workdir=base)
         self._point_remote_bench_at(self._release)
         self._link_worker_configs()
         self._only_start_workers_compose_services()
-        self._prune_remote_releases(keep={self._release, self._previous})
+        if self._staging != self._release:
+            self.ssh.run_list(["rm", "-rf", f"{self._release}.old"], workdir=base)
+        else:
+            # Only a release change moves the fallback forward; re-syncing the same
+            # release keeps the one before it.
+            self._prune_remote_releases(keep={self._release, self._previous})
 
     def start(self) -> None:
         """Start the remote workers on whatever release they point at."""
@@ -312,28 +334,27 @@ class RemoteWorkerManager:
 
     def _stop_all_compose_services(self) -> None:
         self.printer.change_head("Stop all remote-worker services")
-        try:
-            self.ssh.run_list(
-                [
-                    "docker",
-                    "compose",
-                    "-f",
-                    "docker-compose.yml",
-                    "-f",
-                    "docker-compose.workers.yml",
-                    "down",
-                    "--timeout",
-                    "10",
-                ],
-                workdir=str(self._site_base),
-            )
-            self.printer.print("Stopped all remote-worker services")
-        except RuntimeError:
-            self.printer.print("No remote-worker services to stop (first sync?)")
-        except RuntimeError:
-            self.printer.print("No remote-worker services to stop (first sync?)")
+        if not self.ssh.path_exists(str(self._site_base / "docker-compose.workers.yml")):
+            self.printer.print("No remote-worker services to stop (first sync)")
+            return
+        self.ssh.run_list(
+            [
+                "docker",
+                "compose",
+                "-f",
+                "docker-compose.yml",
+                "-f",
+                "docker-compose.workers.yml",
+                "down",
+                "--timeout",
+                "10",
+            ],
+            workdir=str(self._site_base),
+        )
+        self.printer.print("Stopped all remote-worker services")
 
-    def _rsync_workspace(self, release: str, previous: Optional[str]) -> None:
+    def _rsync_workspace(self, dest: Optional[str], previous: Optional[str]) -> None:
+        """Copy the bench into `dest` (skipped when None), deployment-data and extras."""
         site_name = self.config.site_name
         target_path = f"{self.rw.ssh_user}@{self.rw.server_ip}:{self.rw.fm_benches_path}/{site_name}/workspace"
 
@@ -361,11 +382,13 @@ class RemoteWorkerManager:
 
         ssh_opt = f"ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p {self.rw.ssh_port}"
 
-        # Unchanged files are hard-linked from the release the workers run now, so the
-        # copy costs only the changed bytes, in disk and on the wire.
-        reuse = [f"--link-dest=../{previous}"] if previous and previous != release else []
-        rsync_dirs = [
-            {"src": self.current.path, "dest": release, "excludes": reuse, "trailing_slash": True},
+        rsync_dirs = []
+        if dest:
+            # Unchanged files are hard-linked from the release the workers run now, so the
+            # copy costs only the changed bytes, in disk and on the wire.
+            reuse = [f"--link-dest=../{previous}"] if previous and previous != dest else []
+            rsync_dirs.append({"src": self.current.path, "dest": dest, "excludes": reuse, "trailing_slash": True})
+        rsync_dirs.append(
             {
                 "src": self.data.path,
                 "dest": None,
@@ -374,8 +397,8 @@ class RemoteWorkerManager:
                     f"--exclude=sites/{site_name}/private/***",
                 ],
                 "trailing_slash": True,
-            },
-        ]
+            }
+        )
 
         for dir_cfg in self.rw.include_dirs or []:
             rsync_dirs.append(

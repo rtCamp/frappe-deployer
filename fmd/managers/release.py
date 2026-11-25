@@ -458,13 +458,21 @@ class ReleaseManager:
         self._seed_release_runtimes(new.path)
 
         # Remote workers get the new code while jobs are paused: copied now, stopped once
-        # idle, and started on the new release only after the migrate, so they never run
-        # old code against the new schema and are never killed mid-job.
+        # idle before anything touches the database, and started on the new release only
+        # after the migrate, so they never run old code against the new schema and are
+        # never killed mid-job.
         workers = self._remote_workers()
         workers_stopped = False
+        db_touched = False
 
         try:
+            if workers:
+                workers.copy()
+                workers.stop_drained()
+                workers_stopped = True
+
             if restore_db_file_path:
+                db_touched = True
                 self.backup_service.bench_restore(self.site_name, self.workspace_root, restore_db_file_path)
 
                 if fm_restore_from_site:
@@ -480,11 +488,10 @@ class ReleaseManager:
 
                 if restore_db_file_path.exists():
                     restore_db_file_path.unlink()
+                if workers:
+                    workers.sync_data()
 
-            if workers:
-                workers.copy()
-                workers.stop_drained()
-                workers_stopped = True
+            db_touched = True
             self.bench_service.bench_restart(
                 new,
                 self.bench_path,
@@ -504,7 +511,7 @@ class ReleaseManager:
 
         except Exception as e:
             if workers:
-                self._recover_remote_workers(workers, workers_stopped)
+                self._recover_remote_workers(workers, workers_stopped, db_touched)
             if self.config.switch.rollback:
                 self.printer.warning(f"Failed to switch to release {release_name}: {e}. Rolling back")
                 if not previous_release.exists():
@@ -693,8 +700,20 @@ class ReleaseManager:
 
         return RemoteWorkerManager(self.config, self.printer, self.exec_runner)
 
-    def _recover_remote_workers(self, workers, stopped: bool) -> None:
-        """After a failed switch: restart remote workers on their old release and resume jobs."""
+    def _recover_remote_workers(self, workers, stopped: bool, db_touched: bool) -> None:
+        """After a failed switch, put the remote workers back only when that is safe.
+
+        Before the database is touched their old release still matches it, so they start
+        again and jobs resume. After a restore or migrate began, old code may not match the
+        database, so they stay stopped until someone syncs a release that works.
+        """
+        if stopped and db_touched:
+            self.printer.warning(
+                "Remote workers are stopped and stay stopped: the database changed during this "
+                "switch, so their old release may not match it. Once the site runs a working "
+                "release, run `fmd remote-worker sync`; it starts them and resumes jobs."
+            )
+            return
         try:
             if stopped:
                 workers.start()
