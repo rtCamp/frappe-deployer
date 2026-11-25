@@ -544,10 +544,16 @@ class ReleaseManager:
             except Exception:
                 self.printer.warning(
                     "Remote workers are stopped: starting them on the new release failed. "
-                    "Jobs are running on this server's workers only; run `fmd remote-worker sync`."
+                    "Jobs keep running on this server's workers; run `fmd remote-worker sync`."
                 )
+                try:
+                    workers.resume_jobs()
+                except Exception as resume_error:
+                    self.printer.warning(f"Could not resume jobs: {resume_error}. Run `fmx rq resume`")
                 raise
             self.printer.print("Remote workers started on the new release")
+            # The pause before the migrate is ours; fmx only clears it when it drained too.
+            workers.resume_jobs()
         self.cleanup_service.cleanup_releases(self.workspace_root, self.bench_path)
 
     def _extract_python_version(self, release_path: Path) -> str:

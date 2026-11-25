@@ -245,9 +245,18 @@ class RemoteWorkerManager:
         see half-updated files; it is moved into place while they are stopped.
         """
         self._release = self.current.path.readlink().name
+        self._restore_interrupted_swap(self._release)
         self._previous = self._remote_release()
         self._staging = self._release if self._release != self._previous else f"{self._release}.next"
         self._rsync_workspace(self._staging, self._previous)
+
+    def _restore_interrupted_swap(self, release: str) -> None:
+        """Put `<release>.old` back if an earlier same-release swap stopped between its two moves."""
+        base = str(self._remote_base)
+        old = f"{release}.old"
+        if self.ssh.path_exists(f"{base}/{old}") and not self.ssh.path_exists(f"{base}/{release}"):
+            self.ssh.run_list(["mv", old, release], workdir=base)
+            self.printer.warning(f"Restored {release} on the worker from an interrupted swap")
 
     def sync_data(self) -> None:
         """Copy deployment-data again, e.g. after a database restore rewrote site configs."""
@@ -285,7 +294,11 @@ class RemoteWorkerManager:
             old = f"{self._release}.old"
             self.ssh.run_list(["rm", "-rf", old], workdir=base)
             self.ssh.run_list(["mv", self._release, old], workdir=base)
-            self.ssh.run_list(["mv", self._staging, self._release], workdir=base)
+            try:
+                self.ssh.run_list(["mv", self._staging, self._release], workdir=base)
+            except Exception:
+                self.ssh.run_list(["mv", old, self._release], workdir=base)
+                raise
         self._point_remote_bench_at(self._release)
         self._link_worker_configs()
         self._only_start_workers_compose_services()
