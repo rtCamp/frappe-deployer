@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `[fm]` config section is merged into `[switch]` as `restore_db_from_site`.
 - Remote worker sync copies the new release beside the running one and swaps it in;
   workers stay up during the copy and keep running the old code if it fails.
+- With `sync_workers`, remote workers are drained and stopped before the migrate and
+  started on the new release after it; no worker runs old code on the migrated database.
 
 ### Fixed
 - Release retention keeps the newest releases; it compared only the time of day, so

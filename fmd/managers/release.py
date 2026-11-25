@@ -457,6 +457,12 @@ class ReleaseManager:
         self.bench_service.bench_symlink(self.bench_path, new)
         self._seed_release_runtimes(new.path)
 
+        # Remote workers get the new code while jobs are paused: copied now, stopped once
+        # idle, and started on the new release only after the migrate, so they never run
+        # old code against the new schema and are never killed mid-job.
+        workers = self._remote_workers()
+        workers_stopped = False
+
         try:
             if restore_db_file_path:
                 self.backup_service.bench_restore(self.site_name, self.workspace_root, restore_db_file_path)
@@ -475,6 +481,10 @@ class ReleaseManager:
                 if restore_db_file_path.exists():
                     restore_db_file_path.unlink()
 
+            if workers:
+                workers.copy()
+                workers.stop_drained()
+                workers_stopped = True
             self.bench_service.bench_restart(
                 new,
                 self.bench_path,
@@ -493,6 +503,8 @@ class ReleaseManager:
                 self.printer.print("Skipping app installation (install_apps=false)")
 
         except Exception as e:
+            if workers:
+                self._recover_remote_workers(workers, workers_stopped)
             if self.config.switch.rollback:
                 self.printer.warning(f"Failed to switch to release {release_name}: {e}. Rolling back")
                 if not previous_release.exists():
@@ -517,8 +529,18 @@ class ReleaseManager:
 
         # Past this point the site serves the new release and the database is already
         # migrated, so no failure may roll the site back. Old releases are removed last
-        # so a failed worker sync leaves a release to roll back to by hand.
-        self._sync_remote_workers()
+        # so a failed worker start leaves a release to roll back to by hand.
+        if workers:
+            self.printer.change_head("Starting remote workers on the new release")
+            try:
+                workers.activate()
+            except Exception:
+                self.printer.warning(
+                    "Remote workers are stopped: starting them on the new release failed. "
+                    "Jobs are running on this server's workers only; run `fmd remote-worker sync`."
+                )
+                raise
+            self.printer.print("Remote workers started on the new release")
         self.cleanup_service.cleanup_releases(self.workspace_root, self.bench_path)
 
     def _extract_python_version(self, release_path: Path) -> str:
@@ -657,19 +679,25 @@ class ReleaseManager:
             "maintenance_phases": d.maintenance_mode_phases if d.maintenance_mode else None,
         }
 
-    def _sync_remote_workers(self) -> None:
+    def _remote_workers(self):
         sync_workers = getattr(self.config.switch, "sync_workers", False) or getattr(
             self.config.deploy, "sync_workers", False
         )
         if not sync_workers:
-            return
+            return None
         if not self.config.remote_worker:
             self.printer.print("Remote worker sync requested but no [remote_worker] config — skipping")
-            return
+            return None
 
         from fmd.managers.remote_worker import RemoteWorkerManager
 
-        self.printer.change_head("Syncing to remote workers")
-        rw_manager = RemoteWorkerManager(self.config, self.printer)
-        rw_manager.sync()
-        self.printer.print("Remote worker sync complete")
+        return RemoteWorkerManager(self.config, self.printer, self.exec_runner)
+
+    def _recover_remote_workers(self, workers, stopped: bool) -> None:
+        """After a failed switch: restart remote workers on their old release and resume jobs."""
+        try:
+            if stopped:
+                workers.start()
+            workers.resume_jobs()
+        except Exception as e:
+            self.printer.warning(f"Could not restart remote workers or resume jobs: {e}. Run `fmx rq resume`")

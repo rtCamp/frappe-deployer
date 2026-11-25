@@ -48,6 +48,21 @@ def _only_vanished_sources(returncode: int, stderr: str) -> bool:
     )
 
 
+# Runs with fmx's Python in the primary's frappe container, the same suspend flag and
+# drain wait `fmx restart --drain-workers` uses. argv: timeout, poll, skip_stale, stale_timeout.
+_DRAIN_SCRIPT = """
+import sys
+from fmx.rq_controller import ActionEnum, control_rq_workers, wait_for_rq_workers_suspended
+timeout, poll, skip_stale, stale_timeout = sys.argv[1:5]
+if not control_rq_workers(action=ActionEnum.suspend):
+    sys.exit("could not set the RQ suspend flag")
+if not wait_for_rq_workers_suspended(
+    timeout=int(timeout), poll_interval=int(poll), skip_stale=skip_stale == "1", stale_timeout=int(stale_timeout)
+):
+    sys.exit("workers still running jobs after the drain timeout")
+"""
+
+
 def _find_available_port(start_port: int = 11000) -> Optional[int]:
     used_ports: set[int] = set()
     benches_dir = frappe_manager.CLI_BENCHES_DIRECTORY
@@ -94,18 +109,21 @@ def _find_available_port(start_port: int = 11000) -> Optional[int]:
 
 
 class RemoteWorkerManager:
-    def __init__(self, config: Config, printer: Any) -> None:
+    def __init__(self, config: Config, printer: Any, exec_runner: Any) -> None:
         if not config.remote_worker:
             raise RuntimeError("remote_worker config section is required")
         rw = config.remote_worker
         self.config = config
         self.printer = printer
+        self.exec_runner = exec_runner
         self.rw = rw
         self.ssh = SSHClient(rw.server_ip, rw.ssh_user, rw.ssh_port)
         self.current = BenchDirectory(config.bench_path)
         self.data = BenchDirectory(config.workspace_root / "workspace" / DATA_DIR_NAME)
         self._site_base = Path(rw.fm_benches_path) / config.site_name
         self._remote_base = self._site_base / "workspace"
+        self._release: Optional[str] = None
+        self._previous: Optional[str] = None
 
     def _fm_bench(self):
         from frappe_manager.docker import ComposeFile
@@ -206,20 +224,64 @@ class RemoteWorkerManager:
         self.printer.print(f"Created worker configs with Redis queue URL: {common_config['redis_queue']}")
 
     def sync(self) -> None:
-        """Copy the active release to the worker server, then swap it in.
+        """Copy the active release to the worker server and swap it in, with jobs paused.
 
-        The copy lands in its own release folder while the workers keep running on the
-        current one, so a failed copy leaves them up on the old code. The workers are
-        only stopped for the relink and restart.
+        Standalone form of what a switch does around its migrate: copy while workers
+        run, pause jobs and wait for running ones, swap and start, then resume.
         """
-        release = self.current.path.readlink().name
-        previous = self._remote_release()
-        self._rsync_workspace(release, previous)
+        self.copy()
+        try:
+            self.stop_drained()
+            self.activate()
+        finally:
+            self.resume_jobs()
+
+    def copy(self) -> None:
+        """Copy the active release into its own folder on the worker; workers keep running."""
+        self._release = self.current.path.readlink().name
+        self._previous = self._remote_release()
+        self._rsync_workspace(self._release, self._previous)
+
+    def stop_drained(self) -> None:
+        """Pause job pickup on every worker, wait for running jobs, then stop the remote workers.
+
+        The pause is the shared Redis flag, so it covers the worker server too. Stopping
+        only idle workers means no job is killed mid-run and left marked as started.
+        """
+        switch = self.config.switch
+        if switch.drain_workers:
+            self.printer.change_head("Pausing jobs and waiting for running ones to finish")
+            self.exec_runner.run(
+                [
+                    "/opt/uv-tools/fmx/bin/python",
+                    "-c",
+                    _DRAIN_SCRIPT,
+                    str(switch.drain_workers_timeout),
+                    str(switch.drain_workers_poll),
+                    "1" if switch.skip_stale_workers else "0",
+                    str(switch.skip_stale_timeout),
+                ],
+                self.current,
+                workdir="/workspace",
+            )
+            self.printer.print("Jobs paused; no worker is running a job")
         self._stop_all_compose_services()
-        self._point_remote_bench_at(release)
+
+    def activate(self) -> None:
+        """Point the worker at the copied release and start it."""
+        self._point_remote_bench_at(self._release)
         self._link_worker_configs()
         self._only_start_workers_compose_services()
-        self._prune_remote_releases(keep={release, previous})
+        self._prune_remote_releases(keep={self._release, self._previous})
+
+    def start(self) -> None:
+        """Start the remote workers on whatever release they point at."""
+        self._link_worker_configs()
+        self._only_start_workers_compose_services()
+
+    def resume_jobs(self) -> None:
+        self.exec_runner.run(["fmx", "rq", "resume"], self.current, workdir="/workspace")
+        self.printer.print("Jobs resumed")
 
     def _remote_release(self) -> Optional[str]:
         """Name of the release the worker's frappe-bench points at, if it is a release link."""
